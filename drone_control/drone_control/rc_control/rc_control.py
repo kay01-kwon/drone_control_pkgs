@@ -29,15 +29,14 @@ class RcControl():
     def set_ref(self, ref, state, tau):
         '''
 
-        :param ref: ax_des, ay_des, vz_des, dpsi_dt_des
+        :param ref: vx_des, vy_des, vz_des, dpsi_dt_des
         :param state: p, v, q, w
         :param tau: orientational disturbance
         :return: None
         '''
-        ax_des, ay_des = ref[0], ref[1]
-        vz_des, dpsi_dt_des = ref[2], ref[3]
-        a_des = np.array([ax_des, ay_des, 0])
-        v_des = np.array([0, 0, vz_des])
+        vx_des, vy_des, vz_des = ref[0], ref[1], ref[2]
+        dpsi_dt_des = ref[3]
+        v_des = np.array([vx_des, vy_des, vz_des])
         w_des = np.array([0, 0, dpsi_dt_des])
 
         v = state[3:6]
@@ -45,11 +44,13 @@ class RcControl():
         w = state[10:13]
 
         R = math_tool.quaternion_to_rotm(q)
-        v_err = R@v - v_des
+        v_err_body = v - v_des
+        v_err = R@v_err_body
 
-        f_des = ( self.m * a_des
-                  - self.KpTransDiag @ v_err
-                  - self.m * self.g_vec)
+        accelCommand = -(self.KpTransDiag @ v_err / self.m
+                        + self.g_vec)
+
+        f_des = self.m * accelCommand
 
         self.u[0] = np.sqrt(f_des.transpose()@f_des)
 
@@ -62,7 +63,7 @@ class RcControl():
         sin_half_phi = np.sqrt((1+rz)/2.0)
         sin_phi = np.sqrt(1-rz**2)
 
-        if np.abs(sin_phi) > 1e-30:
+        if np.abs(sin_phi) > 1e-3:
             self.axis_des[0] = -1/sin_phi * ry
             self.axis_des[1] = 1/sin_phi *rx
         else:
