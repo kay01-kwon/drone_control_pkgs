@@ -44,3 +44,6 @@ def skew_symm(v):
         [vz, 0, -vx],
         [-vy, vx, 0]
     ])
+
+def stamp_to_time(time_sec, time_nanosec):
+    return time_sec + time_nanosec * 1e-9
