@@ -21,7 +21,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'rc_control_node = drone_control.rc_control_node:main'
+            'rc_control_node = drone_control.rc_control_node:main',
+            'msg_parser_node = drone_control.msg_parser_node:main'
         ],
     },
 )
