@@ -9,13 +9,16 @@ def generate_launch_description():
 
     pkg_prj_drone_control = get_package_share_directory('drone_control')
 
+    config_file = os.path.join(pkg_prj_drone_control, 'config', 'rc_control.yaml')
+
     rc_control_node = Node(
         package='drone_control',
         executable='rc_control_node',
         name = 'rc_control',
         output='screen',
         parameters=[
-            {'config_file': os.path.join(pkg_prj_drone_control, 'config', 'rc_control.yaml')},
+            config_file,
+            {'use_sim_time': True},
         ]
     )
 
