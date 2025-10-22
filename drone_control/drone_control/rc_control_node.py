@@ -12,7 +12,8 @@ from mavros_msgs.msg import RCIn
 from geometry_msgs.msg import WrenchStamped
 from ros2_libcanard_msgs.msg import HexaCmdRaw
 
-from drone_control.rc_control import RcControl, RcConverter, FlightMode
+from drone_control.rc_control import RcControl, RcConverter
+from drone_control.rc_control import FlightMode, RcModeStr
 
 from drone_control.utils.circular_buffer import CircularBuffer
 from drone_control.utils.inverse_dynamics import InverseDynamics
@@ -83,15 +84,8 @@ class RcControlNode(Node):
         self.rc_converter.set_rc(rc_state)
         self.mode, v_des, dpsi_des = self.rc_converter.get_rc_state()
 
-        mode_name = ""
-        if self.mode is FlightMode.MANUAL_STAB:
-            mode_name = "MANUAL_STAB"
-        elif self.mode is FlightMode.AUTO:
-            mode_name = "AUTO"
-        elif self.mode is FlightMode.ARMED:
-            mode_name = "ARMED"
-        elif self.mode is FlightMode.KILL:
-            mode_name = "KILL"
+        mode_name = RcModeStr.mode_str(self.mode)
+
 
         if self.mode is not self.prev_mode:
             self.get_logger().info(f'mode: {mode_name}')
