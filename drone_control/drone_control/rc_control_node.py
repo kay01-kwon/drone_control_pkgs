@@ -242,9 +242,9 @@ class RcControlNode(Node):
         timeout_odom = self.get_parameter('watermark_param.timeout.odom').value
         timeout_do = self.get_parameter('watermark_param.timeout.do').value
 
-        lateness_rc = self.get_parameter('watermark_param.latency.rc').value
-        lateness_odom = self.get_parameter('watermark_param.latency.odom').value
-        lateness_do = self.get_parameter('watermark_param.latency.do').value
+        latency_rc = self.get_parameter('watermark_param.latency.rc').value
+        latency_odom = self.get_parameter('watermark_param.latency.odom').value
+        latency_do = self.get_parameter('watermark_param.latency.do').value
 
         loopback = self.get_parameter('watermark_param.loopback').value
         max_catchup_step = self.get_parameter('watermark_param.max_catchup_step').value
@@ -253,9 +253,9 @@ class RcControlNode(Node):
                           'timeout_rc': timeout_rc,
                           'timeout_odom': timeout_odom,
                           'timeout_do': timeout_do,
-                          'lateness_rc': lateness_rc,
-                          'lateness_odom': lateness_odom,
-                          'lateness_do': lateness_do,
+                          'latency_rc': latency_rc,
+                          'latency_odom': latency_odom,
+                          'latency_do': latency_do,
                           'loopback': loopback,
                           'max_catchup_step': max_catchup_step}
 
