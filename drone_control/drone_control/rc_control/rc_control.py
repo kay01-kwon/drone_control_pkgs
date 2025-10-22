@@ -16,7 +16,7 @@ class RcControl():
         self.KdOriDiag = np.diag(KdOriArray)
 
         self.m = DynParam['m']
-        MoiArray = GainParam['MoiArray']
+        MoiArray = DynParam['MoiArray']
         self.J = np.diag(MoiArray)
 
         self.g_vec = np.array([0, 0, -9.81])

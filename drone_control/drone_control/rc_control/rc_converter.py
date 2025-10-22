@@ -8,17 +8,17 @@ class FlightMode(Enum):
     KILL = 4
 
 class RcConverter:
-    def __init__(self, manualParam):
+    def __init__(self, ConverterParam):
         # Set flight mode
         self.mode = FlightMode.AUTO
 
         # Set maximum acceleration and altitude
-        self.vxy_max = manualParam['vxy_max']
-        self.vz_max = manualParam['vz_max']
+        self.vxy_max = ConverterParam['vxy_max']
+        self.vz_max = ConverterParam['vz_max']
 
         self.R_max = np.sqrt(2*self.vxy_max**2)
 
-        self.dpsi_dt_max = manualParam['dpsi_dt_max']
+        self.dpsi_dt_max = ConverterParam['dpsi_dt_max']
 
         self.rc_in_mid = 1500
         self.rc_in_delta = 512

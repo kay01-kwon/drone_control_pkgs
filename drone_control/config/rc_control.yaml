@@ -1,0 +1,13 @@
+constraint:
+  vxy_max: 0.3
+  vz_max: 0.5
+  dpsi_dt_max: 0.2
+
+gain_param:
+  KpTransArray: [2, 2, 2]
+  KpOriArray: [3, 3, 3]
+  KdOriArray: [0.5, 0.5, 0.5]
+
+dynamic_param:
+  m: 3
+  Moi: [0.06, 0.06, 0.08]
