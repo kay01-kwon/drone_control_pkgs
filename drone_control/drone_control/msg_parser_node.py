@@ -28,6 +28,9 @@ class MsgParserNode(Node):
         # time = math_tool.stamp_to_time(odom[0], odom[1])
         # self.get_logger().info('Odometry time stamp: ' + str(time))
         self.get_logger().info('Pose: {}'.format(odom))
+        (now_sec, now_nanosec) = self.get_clock().now().seconds_nanoseconds()
+        time_now = now_sec + now_nanosec*1e-9
+        print(time_now)
 
 
 def main():
