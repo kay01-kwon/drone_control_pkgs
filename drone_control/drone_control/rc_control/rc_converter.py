@@ -25,8 +25,8 @@ class RcConverter:
         self.rc_in_min = self.rc_in_mid - self.rc_in_delta
         self.rc_in_max = self.rc_in_mid + self.rc_in_delta
 
-        self.v_des_ = np.zeros((3,))
-        self.dpsi_dt_des_ = np.zeros((1,))
+        self.v_des = np.zeros((3,))
+        self.dpsi_dt_des = np.zeros((1,))
 
     def set_rc(self, rc_in):
         vx_temp =  self.vxy_max * self._constrain(rc_in[1])
@@ -61,11 +61,11 @@ class RcConverter:
                 self.mode_ = FlightMode.ARMED
 
     def get_rc_state(self):
-        return self.a_des_, self.z_des_, self.dpsi_dt_des_, self.mode_
+        return self.mode_, self.v_des, self.dpsi_dt_des
 
     def _constrain(self, input):
-        temp = (float(input-self.rc_in_mid_)/
-        float(self.rc_in_delta_))
+        temp = (float(input-self.rc_in_mid)/
+        float(self.rc_in_delta))
         return temp
 
     def _vz_constrain(self, input):
