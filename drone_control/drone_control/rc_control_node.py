@@ -30,43 +30,63 @@ class RcControlNode(Node):
         q = np.array([1,0,0,0])
         w = np.zeros((3,))
 
+        # Get parameter for converter and controller
         converterParam, gainParam, dynParam = self._config()
-
 
         self.rc_converter = RcConverter(converterParam)
         self.rc_control = RcControl(gainParam, dynParam)
 
-        self.mode = FlightMode.MANUAL_STAB
+        # Get parameter for water mark
+        watermarkParam = self._watermark_config()
 
-        self.rc_state_buf = CircularBuffer(capacity=20)
-        self.odom_buf = CircularBuffer(capacity=20)
-        self.wrench_buf = CircularBuffer(capacity=20)
+        self.period = watermarkParam['period']
+
+        self.timeout = {'timeout_rc', watermarkParam['timeout_rc'],
+                        'timeout_odom', watermarkParam['timeout_odom'],
+                        'timeout_do', watermarkParam['timeout_do']}
+
+        self.lateness = {'lateness_rc', watermarkParam['lateness_rc'],
+                         'lateness_odom', watermarkParam['lateness_odom'],
+                         'lateness_do', watermarkParam['lateness_do']}
+
+        self.loopback = watermarkParam['loopback']
+        self.max_catchup_step =watermarkParam['max_catchup_step']
+
+        self.mode = FlightMode.MANUAL_STAB
+        self.prev_mode = self.mode
+
+        self.rc_state_buf = CircularBuffer(capacity=30)
+        self.odom_buf = CircularBuffer(capacity=30)
+        self.wrench_buf = CircularBuffer(capacity=30)
+
+        # Parameter for watermark
+
 
         self.rc_in_sub = self.create_subscription(RCIn,
                                                  '/mavros/rc/in',
-                                                 self.rc_in_cb,
+                                                 self._rc_in_cb,
                                                  qos_profile_sensor_data)
 
         self.odom_sub = self.create_subscription(Odometry,
                                                  '/mavros/local_position/odom',
-                                                 self.odom_cb,
+                                                 self._odom_cb,
                                                  qos_profile_sensor_data)
 
         self.do_sub = self.create_subscription(WrenchStamped,
                                                 '/hgdo/wrench',
-                                                self.wrench_cb,
+                                                self._do_cb,
                                                 qos_profile_sensor_data)
 
 
         self.cmd_pub = self.create_publisher(HexaCmdRaw, '/uav/cmd_raw', 5)
 
         timer_period = 0.010
-        self.timer = self.create_timer(timer_period, self.timer_cb)
+        self.timer = self.create_timer(timer_period, self._timer_cb)
 
         self.cmd_msg = HexaCmdRaw()
 
 
-    def odom_cb(self, msg:Odometry):
+    def _odom_cb(self, msg:Odometry):
         odom_time, odom_data = MsgParser.parse_odom_msg(msg)
         if self.odom_buf.is_full():
             self.odom_buf.pop()
@@ -74,7 +94,7 @@ class RcControlNode(Node):
         else:
             self.odom_buf.push((odom_time, odom_data))
 
-    def do_cb(self, msg:WrenchStamped):
+    def _do_cb(self, msg:WrenchStamped):
 
         do_time, do_state = MsgParser.parse_wrench_msg(msg)
         if self.wrench_buf.is_full():
@@ -84,12 +104,12 @@ class RcControlNode(Node):
             self.wrench_buf.push((do_time, do_state))
 
 
-    def rc_in_cb(self, msg:RCIn):
+    def _rc_in_cb(self, msg:RCIn):
         rc_tuple = MsgParser.parse_rc_msg(msg)
         rc_time, rc_state = rc_tuple
         self.rc_converter.set_rc(rc_state)
         self.mode, v_des, dpsi_des = self.rc_converter.get_rc_state()
-        des = np.concatenate([v_des, dpsi_des])
+        des = np.concatenate([v_des, np.array([dpsi_des])])
 
         if self.rc_state_buf.is_full():
             self.rc_state_buf.pop()
@@ -105,7 +125,7 @@ class RcControlNode(Node):
 
         self.prev_mode = self.mode
 
-    def timer_cb(self):
+    def _timer_cb(self):
         self.cmd_pub.publish(self.cmd_msg)
 
     def _control_update(self):
@@ -115,6 +135,7 @@ class RcControlNode(Node):
     def _config(self):
 
         self.get_logger().info(f'{self.get_name()}: Initializing...')
+        self.get_logger().info(f'RC Converter and RC control parameters')
 
         # Get constraint parameters
         vxy_max = self.get_parameter('constraint.vxy_max').value
@@ -152,6 +173,37 @@ class RcControlNode(Node):
         self.get_logger().info(f'MoiArray: {MoiArray}')
 
         return ConverterParam, gainParam, dynParam
+
+    def _watermark_config(self):
+        self.get_logger().info(f'{self.get_name()}: Initializing...')
+        self.get_logger().info(f'water mark parameters')
+
+        # Get watermark parameters
+        period = self.get_parameter('watermark_param.period').value
+
+        timeout_rc = self.get_parameter('watermark_param.timeout.rc').value
+        timeout_odom = self.get_parameter('watermark_param.timeout.odom').value
+        timeout_do = self.get_parameter('watermark_param.timeout.do').value
+
+        lateness_rc = self.get_parameter('watermark_param.lateness.rc').value
+        lateness_odom = self.get_parameter('watermark_param.lateness.odom').value
+        lateness_do = self.get_parameter('watermark_param.lateness.do').value
+
+        loopback = self.get_parameter('watermark_param.loopback').value
+        max_catchup_step = self.get_parameter('watermark_param.max_catchup_step').value
+
+        watermarkParam = {'period': period,
+                          'timeout_rc': timeout_rc,
+                          'timeout_odom': timeout_odom,
+                          'timeout_do': timeout_do,
+                          'lateness_rc': lateness_rc,
+                          'lateness_odom': lateness_odom,
+                          'lateness_do': lateness_do,
+                          'loopback': loopback,
+                          'max_catchup_step': max_catchup_step}
+
+        return watermarkParam
+
 
 
 

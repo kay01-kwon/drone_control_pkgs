@@ -13,3 +13,16 @@
     dynamic_param:
       m: 3.0
       MoiArray: [0.06, 0.06, 0.08]
+
+    watermark_param:
+      period: 0.010
+      timeout:
+        rc: 0.015
+        odom: 0.015
+        do: 0.015
+      lateness:
+        rc: 0.0
+        odom: 0.0
+        do: 0.010
+      loopback: 0.200
+      max_catchup_step: 3
