@@ -65,7 +65,7 @@ class RcControl():
 
         if np.abs(sin_phi) > 1e-3:
             self.axis_des[0] = -1/sin_phi * ry
-            self.axis_des[1] = 1/sin_phi *rx
+            self.axis_des[1] = 1/sin_phi * rx
         else:
             self.axis_des[0] = 0
             self.axis_des[1] = 0
@@ -84,12 +84,13 @@ class RcControl():
         q_des_conj = math_tool.conjugate(q_des)
         q_err = math_tool.otimes(q_des_conj, q)
         q_err_vec = self._signum(q_err[0])*q_err[1:4]
+        error_R = math_tool.quaternion_to_angle_axis_vec(q_err_vec)
 
         R_des = math_tool.quaternion_to_rotm(q_des)
 
         w_err = w - R.transpose() @ R_des @ w_des
 
-        M_pd = (-self.KpOriDiag @ q_err_vec
+        M_pd = (-self.KpOriDiag @ error_R
                 -self.KdOriDiag @ w_err
                 +np.cross(w, self.J @ w))
 
