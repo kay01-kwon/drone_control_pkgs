@@ -19,7 +19,6 @@ class MsgParserNode(Node):
             self.odom_cb,
             5
         )
-        self.subscription
 
         self.parser = MsgParser()
 

@@ -34,6 +34,26 @@ def quaternion_to_rotm(q):
 
     return rotm
 
+def quaternion_to_angle_axis_vec(q):
+    qw = q[0]
+    qx = q[1]
+    qy = q[2]
+    qz = q[3]
+    q_vec = np.array([qx, qy, qz])
+    q_vec_norm = np.sqrt(q_vec.dot(q_vec))
+    theta = 2*np.arctan2(qw, q_vec_norm)
+    angle_axis_vec = np.zeros((3,))
+    if theta > 1e-3:
+        angle_axis_vec[0] = 0
+        angle_axis_vec[1] = 0
+        angle_axis_vec[2] = 0
+    else:
+        angle_axis_vec[0] = theta*q_vec[0]/q_vec_norm
+        angle_axis_vec[1] = theta*q_vec[1]/q_vec_norm
+        angle_axis_vec[2] = theta*q_vec[2]/q_vec_norm
+    return angle_axis_vec
+
+
 def skew_symm(v):
     vx = v[0]
     vy = v[1]
@@ -44,6 +64,3 @@ def skew_symm(v):
         [vz, 0, -vx],
         [-vy, vx, 0]
     ])
-
-def stamp_to_time(time_sec, time_nanosec):
-    return time_sec + time_nanosec * 1e-9
