@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.clock import ClockType
 from rclpy.qos import QoSProfile, qos_profile_sensor_data
 
 import threading
@@ -37,6 +38,7 @@ class RcControlNode(Node):
 
         self.rc_state = (0, np.zeros((12,)))
         self.mode = FlightMode.MANUAL_STAB
+        self.prev_mode = self.mode
         self.state = np.concatenate([p_world,v_body,q,w])
         self.tau = np.zeros((3,))
 
@@ -80,7 +82,21 @@ class RcControlNode(Node):
         rc_time, rc_state = rc_tuple
         self.rc_converter.set_rc(rc_state)
         self.mode, v_des, dpsi_des = self.rc_converter.get_rc_state()
-        self.get_logger().info(f"v_des: {v_des.tolist()}  dpsi_des: {float(dpsi_des)}")
+
+        mode_name = ""
+        if self.mode is FlightMode.MANUAL_STAB:
+            mode_name = "MANUAL_STAB"
+        elif self.mode is FlightMode.AUTO:
+            mode_name = "AUTO"
+        elif self.mode is FlightMode.ARMED:
+            mode_name = "ARMED"
+        elif self.mode is FlightMode.KILL:
+            mode_name = "KILL"
+
+        if self.mode is not self.prev_mode:
+            self.get_logger().info(f'mode: {mode_name}')
+
+        self.prev_mode = self.mode
 
     def timer_cb(self):
         msg = HexaCmdRaw()
