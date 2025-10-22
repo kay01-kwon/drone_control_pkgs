@@ -29,10 +29,14 @@ class RcControlNode(Node):
         q = np.array([1,0,0,0])
         w = np.zeros((3,))
 
-        self.rc_converter = [None]
-        self.rc_control = [None]
+        converterParam, gainParam, dynParam = self._config()
+
+
+        self.rc_converter = RcConverter(converterParam)
+        self.rc_control = RcControl(gainParam, dynParam)
 
         self.rc_state = (0, np.zeros((12,)))
+        self.mode = FlightMode.MANUAL_STAB
         self.state = np.concatenate([p_world,v_body,q,w])
         self.tau = np.zeros((3,))
 
@@ -40,9 +44,7 @@ class RcControlNode(Node):
         self.state_buf = CircularBuffer(capacity=20)
         self.wrench_buf = CircularBuffer(capacity=20)
 
-        self._config()
-
-        self.rcin_sub = self.create_subscription(RCIn,
+        self.rc_in_sub = self.create_subscription(RCIn,
                                                  '/mavros/rc/in',
                                                  self.rc_in_cb,
                                                  qos_profile_sensor_data)
@@ -63,16 +65,22 @@ class RcControlNode(Node):
         timer_period = 0.010
         self.timer = self.create_timer(timer_period, self.timer_cb)
 
+        self.cmd_msg = HexaCmdRaw()
+
 
     def odom_cb(self, msg):
-        print('odom callback')
+        odom_data = MsgParser.parse_odom_msg(msg)
+        # print('odom callback')
 
     def wrench_cb(self, msg):
         print('wrench callback')
 
     def rc_in_cb(self, msg):
-        self.rc_state = MsgParser.parse_rc_msg(msg)
-        print('rc state: ', self.rc_state)
+        rc_tuple = MsgParser.parse_rc_msg(msg)
+        rc_time, rc_state = rc_tuple
+        self.rc_converter.set_rc(rc_state)
+        self.mode, v_des, dpsi_des = self.rc_converter.get_rc_state()
+        self.get_logger().info(f"v_des: {v_des.tolist()}  dpsi_des: {float(dpsi_des)}")
 
     def timer_cb(self):
         msg = HexaCmdRaw()
@@ -83,7 +91,6 @@ class RcControlNode(Node):
     def _config(self):
 
         self.get_logger().info(f'{self.get_name()}: Initializing...')
-
 
         # Get constraint parameters
         vxy_max = self.get_parameter('constraint.vxy_max').value
@@ -109,9 +116,6 @@ class RcControlNode(Node):
         dynParam = {'m': m,
                     'MoiArray': MoiArray}
 
-        self.rc_converter = RcConverter(ConverterParam)
-        self.rc_control = RcControl(gainParam, dynParam)
-
         self.get_logger().info(f'vxy_max: {vxy_max}')
         self.get_logger().info(f'vz_max: {vz_max}')
         self.get_logger().info(f'dpsi_dt_max: {dpsi_dt_max}')
@@ -123,7 +127,7 @@ class RcControlNode(Node):
         self.get_logger().info(f'm: {m}')
         self.get_logger().info(f'MoiArray: {MoiArray}')
 
-
+        return ConverterParam, gainParam, dynParam
 
 
 
