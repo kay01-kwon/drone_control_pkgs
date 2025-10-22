@@ -57,6 +57,11 @@ class RcControlNode(Node):
                                      -np.inf])
         self.latest_rx_wall = np.zeros((3,))
 
+        clock_now = self.get_clock().now()
+        time_now = self._get_time_from_clock(clock_now)
+        self.t_curr = time_now
+        self.t_prev = self.t_curr
+
         self.mode = FlightMode.MANUAL_STAB
         self.prev_mode = self.mode
 
@@ -87,27 +92,17 @@ class RcControlNode(Node):
 
         self.cmd_msg = HexaCmdRaw()
 
-
-    def _odom_cb(self, msg:Odometry):
-        odom_time, odom_data = MsgParser.parse_odom_msg(msg)
-        if self.odom_buf.is_full():
-            self.odom_buf.pop()
-            self.odom_buf.push((odom_time, odom_data))
-        else:
-            self.odom_buf.push((odom_time, odom_data))
-
-    def _do_cb(self, msg:WrenchStamped):
-        do_time, do_state = MsgParser.parse_wrench_msg(msg)
-        if self.wrench_buf.is_full():
-            self.wrench_buf.pop()
-            self.wrench_buf.push((do_time, do_state))
-        else:
-            self.wrench_buf.push((do_time, do_state))
-
-
     def _rc_in_cb(self, msg:RCIn):
         rc_tuple = MsgParser.parse_rc_msg(msg)
         rc_time, rc_state = rc_tuple
+
+        # Time setup for watermark
+        self.time_latest[0] = rc_time - self.latency[0]
+        clock_now = self.get_clock().now()
+        time_now = self._get_time_from_clock(clock_now)
+        self.latest_rx_wall[0] = time_now
+
+        # RC buffer
         self.rc_converter.set_rc(rc_state)
         self.mode, v_des, dpsi_des = self.rc_converter.get_rc_state()
         des = np.concatenate([v_des, np.array([dpsi_des])])
@@ -126,6 +121,36 @@ class RcControlNode(Node):
 
         self.prev_mode = self.mode
 
+    def _odom_cb(self, msg:Odometry):
+        odom_time, odom_data = MsgParser.parse_odom_msg(msg)
+
+        # Time setup for watermark
+        self.time_latest[1] = odom_time - self.latency[1]
+        clock_now = self.get_clock().now()
+        time_now = self._get_time_from_clock(clock_now)
+        self.latest_rx_wall[1] = time_now
+
+        if self.odom_buf.is_full():
+            self.odom_buf.pop()
+            self.odom_buf.push((odom_time, odom_data))
+        else:
+            self.odom_buf.push((odom_time, odom_data))
+
+    def _do_cb(self, msg:WrenchStamped):
+        do_time, do_state = MsgParser.parse_wrench_msg(msg)
+
+        # Time setup for watermark
+        self.time_latest[2] = do_time - self.latency[2]
+        clock_now = self.get_clock().now()
+        time_now = self._get_time_from_clock(clock_now)
+        self.latest_rx_wall[2] = time_now
+
+        if self.wrench_buf.is_full():
+            self.wrench_buf.pop()
+            self.wrench_buf.push((do_time, do_state))
+        else:
+            self.wrench_buf.push((do_time, do_state))
+
     def _timer_cb(self):
         self.cmd_pub.publish(self.cmd_msg)
 
@@ -142,17 +167,18 @@ class RcControlNode(Node):
         return not buffer.is_empty()
 
     def _watermark_time(self):
-        wall_time_now = self._get_time_from_clock(self.get_clock().now())
+        clock_now = self.get_clock().now()
+        wall_time_now = self._get_time_from_clock(clock_now)
         fresh_indices = [i for i in range(len(self.time_latest)) if self._freshByTTL(i, wall_time_now)]
 
         if not fresh_indices:
-            return -np.inf
-
-        watermark_now = -np.inf
-
-        for i in fresh_indices:
-            watermark_now = min(watermark_now, self.time_latest[i])
-
+            return self.t_prev
+        elif len(fresh_indices) == 1:
+            watermark_now = self.time_latest[fresh_indices[0]]
+        elif len(fresh_indices) > 1:
+            watermark_now = self.time_latest[fresh_indices[0]]
+            for i in fresh_indices[1:]:
+                watermark_now = min(watermark_now, self.time_latest[i])
         return watermark_now
 
     def _freshByTTL(self, i, now_wall):
