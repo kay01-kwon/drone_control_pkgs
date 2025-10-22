@@ -3,9 +3,29 @@ from enum import Enum
 
 class FlightMode(Enum):
     ARMED = 0
+    DISARMED = 1
     AUTO = 2
     MANUAL_STAB = 3
     KILL = 4
+
+class RcModeStr:
+    @staticmethod
+    def mode_str(mode:FlightMode):
+        ret=""
+        if mode == FlightMode.ARMED:
+            ret = "ARMED"
+        elif mode == FlightMode.DISARMED:
+            ret = "DISARMED"
+        elif mode == FlightMode.AUTO:
+            ret = "AUTO"
+        elif mode == FlightMode.MANUAL_STAB:
+            ret = "MANUAL_STAB"
+        elif mode == FlightMode.KILL:
+            ret = "KILL"
+        else:
+            ret = "UNKNOWN"
+        return ret
+
 
 class RcConverter:
     def __init__(self, ConverterParam):
