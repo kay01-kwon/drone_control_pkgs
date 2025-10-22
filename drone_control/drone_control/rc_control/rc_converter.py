@@ -10,45 +10,43 @@ class FlightMode(Enum):
 class RcConverter:
     def __init__(self, manualParam):
         # Set flight mode
-        self.mode_ = FlightMode.AUTO
+        self.mode = FlightMode.AUTO
 
         # Set maximum acceleration and altitude
-        self.a_max_ = manualParam['a_max']
-        self.z_max_ = manualParam['z_max']
+        self.vxy_max = manualParam['vxy_max']
+        self.vz_max = manualParam['vz_max']
 
-        self.R_max_ = np.sqrt(2*self.a_max_**2)
+        self.R_max = np.sqrt(2*self.vxy_max**2)
 
-        self.dpsi_dt_max_ = manualParam['dpsi_dt_max']
+        self.dpsi_dt_max = manualParam['dpsi_dt_max']
 
-        self.rc_in_mid_ = 1500
-        self.rc_in_delta_ = 512
-        self.rc_in_min_ = self.rc_in_mid_ - self.rc_in_delta_
-        self.rc_in_max_ = self.rc_in_mid_ + self.rc_in_delta_
+        self.rc_in_mid = 1500
+        self.rc_in_delta = 512
+        self.rc_in_min = self.rc_in_mid - self.rc_in_delta
+        self.rc_in_max = self.rc_in_mid + self.rc_in_delta
 
-        # a_des_ = [ax_des, ay_des]
-        self.a_des_ = np.zeros((2,))
-        self.z_des_ = np.zeros((1,))
+        self.v_des_ = np.zeros((3,))
         self.dpsi_dt_des_ = np.zeros((1,))
 
     def set_rc(self, rc_in):
-        ax_temp =  self.a_max_ * self._constrain(rc_in[1])
-        ay_temp = -self.a_max_ * self._constrain(rc_in[0])
+        vx_temp =  self.vxy_max * self._constrain(rc_in[1])
+        vy_temp = -self.vxy_max * self._constrain(rc_in[0])
 
-        R_temp = np.sqrt(ax_temp**2 + ay_temp**2)
+        R_temp = np.sqrt(vx_temp**2 + vy_temp**2)
 
         if R_temp > self.R_max_ and R_temp > 1e-9:
             scale = self.R_max_ / R_temp
-            ax_des = scale * ax_temp
-            ay_des = scale * ay_temp
+            vx_des = scale * vx_temp
+            vy_des = scale * vy_temp
         else:
-            ax_des = ax_temp
-            ay_des = ay_temp
+            vx_des = vx_temp
+            vy_des = vy_temp
 
-        self.a_des_[0] = ax_des
-        self.a_des_[1] = ay_des
-        self.z_des_ = (self.z_max_
-                       * self._altitude_constrain(rc_in[2]))
-        self.dpsi_dt_des_ = (- self.dpsi_dt_max_
+        self.v_des[0] = vx_des
+        self.v_des[1] = vy_des
+        self.v_des[2] = (self.vz_max
+                       * self._vz_constrain(rc_in[2]))
+        self.dpsi_dt_des = (- self.dpsi_dt_max
                              * self._constrain(rc_in[3]))
 
 
@@ -70,10 +68,13 @@ class RcConverter:
         float(self.rc_in_delta_))
         return temp
 
-    def _altitude_constrain(self, input):
-        temp = (float(input - self.rc_in_min_)/
-                float(2*self.rc_in_delta_))
-        return temp
+    def _vz_constrain(self, input):
+        if input > self.rc_in_min + 50:
+            vz_input = (float(input - self.rc_in_min)/
+                    float(2*self.rc_in_delta))
+        else:
+            vz_input = 0
+        return vz_input
 
     def _two_pos(self, pwm:int) -> str:
         '''
