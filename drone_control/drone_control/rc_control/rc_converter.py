@@ -8,17 +8,17 @@ class FlightMode(Enum):
     KILL = 4
 
 class RcConverter:
-    def __init__(self, manualParam):
+    def __init__(self, ConverterParam):
         # Set flight mode
         self.mode = FlightMode.AUTO
 
         # Set maximum acceleration and altitude
-        self.vxy_max = manualParam['vxy_max']
-        self.vz_max = manualParam['vz_max']
+        self.vxy_max = ConverterParam['vxy_max']
+        self.vz_max = ConverterParam['vz_max']
 
         self.R_max = np.sqrt(2*self.vxy_max**2)
 
-        self.dpsi_dt_max = manualParam['dpsi_dt_max']
+        self.dpsi_dt_max = ConverterParam['dpsi_dt_max']
 
         self.rc_in_mid = 1500
         self.rc_in_delta = 512
@@ -34,8 +34,8 @@ class RcConverter:
 
         R_temp = np.sqrt(vx_temp**2 + vy_temp**2)
 
-        if R_temp > self.R_max_ and R_temp > 1e-9:
-            scale = self.R_max_ / R_temp
+        if R_temp > self.R_max and R_temp > 1e-9:
+            scale = self.R_max / R_temp
             vx_des = scale * vx_temp
             vy_des = scale * vy_temp
         else:
@@ -51,17 +51,17 @@ class RcConverter:
 
 
         if self._two_pos(rc_in[8]) == 'LOW':
-            self.mode_ = FlightMode.KILL
+            self.mode = FlightMode.KILL
         else:
             if self._three_pos(rc_in[5]) == 'LOW':
-                self.mode_ = FlightMode.MANUAL_STAB
+                self.mode = FlightMode.MANUAL_STAB
             elif self._three_pos(rc_in[5]) == 'HIGH':
-                self.mode_ = FlightMode.AUTO
+                self.mode = FlightMode.AUTO
             else:
-                self.mode_ = FlightMode.ARMED
+                self.mode = FlightMode.ARMED
 
     def get_rc_state(self):
-        return self.mode_, self.v_des, self.dpsi_dt_des
+        return self.mode, self.v_des, self.dpsi_dt_des
 
     def _constrain(self, input):
         temp = (float(input-self.rc_in_mid)/
@@ -69,7 +69,7 @@ class RcConverter:
         return temp
 
     def _vz_constrain(self, input):
-        if input > self.rc_in_min + 50:
+        if input > self.rc_in_min + self.rc_in_delta*0.05:
             vz_input = (float(input - self.rc_in_min)/
                     float(2*self.rc_in_delta))
         else:
