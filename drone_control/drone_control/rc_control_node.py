@@ -1,6 +1,5 @@
 import rclpy
 from rclpy.node import Node
-from rclpy.clock import ClockType
 from rclpy.qos import QoSProfile, qos_profile_sensor_data
 
 import threading
@@ -37,14 +36,10 @@ class RcControlNode(Node):
         self.rc_converter = RcConverter(converterParam)
         self.rc_control = RcControl(gainParam, dynParam)
 
-        self.rc_state = (0, np.zeros((12,)))
         self.mode = FlightMode.MANUAL_STAB
-        self.prev_mode = self.mode
-        self.state = np.concatenate([p_world,v_body,q,w])
-        self.tau = np.zeros((3,))
 
         self.rc_state_buf = CircularBuffer(capacity=20)
-        self.state_buf = CircularBuffer(capacity=20)
+        self.odom_buf = CircularBuffer(capacity=20)
         self.wrench_buf = CircularBuffer(capacity=20)
 
         self.rc_in_sub = self.create_subscription(RCIn,
@@ -71,32 +66,51 @@ class RcControlNode(Node):
         self.cmd_msg = HexaCmdRaw()
 
 
-    def odom_cb(self, msg):
-        odom_data = MsgParser.parse_odom_msg(msg)
-        # print('odom callback')
+    def odom_cb(self, msg:Odometry):
+        odom_time, odom_data = MsgParser.parse_odom_msg(msg)
+        if self.odom_buf.is_full():
+            self.odom_buf.pop()
+            self.odom_buf.push((odom_time, odom_data))
+        else:
+            self.odom_buf.push((odom_time, odom_data))
 
-    def wrench_cb(self, msg):
-        print('wrench callback')
+    def do_cb(self, msg:WrenchStamped):
 
-    def rc_in_cb(self, msg):
+        do_time, do_state = MsgParser.parse_wrench_msg(msg)
+        if self.wrench_buf.is_full():
+            self.wrench_buf.pop()
+            self.wrench_buf.push((do_time, do_state))
+        else:
+            self.wrench_buf.push((do_time, do_state))
+
+
+    def rc_in_cb(self, msg:RCIn):
         rc_tuple = MsgParser.parse_rc_msg(msg)
         rc_time, rc_state = rc_tuple
         self.rc_converter.set_rc(rc_state)
         self.mode, v_des, dpsi_des = self.rc_converter.get_rc_state()
+        des = np.concatenate([v_des, dpsi_des])
 
+        if self.rc_state_buf.is_full():
+            self.rc_state_buf.pop()
+            self.rc_state_buf.push((rc_time, des))
+        else:
+            self.rc_state_buf.push((rc_time, des))
+
+        # Get string typed mode_name
         mode_name = RcModeStr.mode_str(self.mode)
-
-
+        # When mode is switched, print out the mode
         if self.mode is not self.prev_mode:
             self.get_logger().info(f'mode: {mode_name}')
 
         self.prev_mode = self.mode
 
     def timer_cb(self):
-        msg = HexaCmdRaw()
-        msg.header.stamp = self.get_clock().now().to_msg()
+        self.cmd_pub.publish(self.cmd_msg)
 
-        self.cmd_pub.publish(msg)
+    def _control_update(self):
+        print('control_update')
+
 
     def _config(self):
 
