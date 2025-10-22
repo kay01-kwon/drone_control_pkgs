@@ -36,21 +36,26 @@ class RcControlNode(Node):
         self.rc_converter = RcConverter(converterParam)
         self.rc_control = RcControl(gainParam, dynParam)
 
-        # Get parameter for water mark
+        # Get parameter for watermark
         watermarkParam = self._watermark_config()
 
         self.period = watermarkParam['period']
 
-        self.timeout = {'timeout_rc', watermarkParam['timeout_rc'],
-                        'timeout_odom', watermarkParam['timeout_odom'],
-                        'timeout_do', watermarkParam['timeout_do']}
+        self.timeout = np.array([watermarkParam['timeout_rc'],
+                                 watermarkParam['timeout_odom'],
+                                 watermarkParam['timeout_do']])
 
-        self.lateness = {'lateness_rc', watermarkParam['lateness_rc'],
-                         'lateness_odom', watermarkParam['lateness_odom'],
-                         'lateness_do', watermarkParam['lateness_do']}
+        self.latency = np.array([watermarkParam['latency_rc'],
+                                  watermarkParam['latency_odom'],
+                                  watermarkParam['latency_do']])
 
         self.loopback = watermarkParam['loopback']
         self.max_catchup_step =watermarkParam['max_catchup_step']
+
+        self.time_latest = np.array([-np.inf,
+                                     -np.inf,
+                                     -np.inf])
+        self.latest_rx_wall = np.zeros((3,))
 
         self.mode = FlightMode.MANUAL_STAB
         self.prev_mode = self.mode
@@ -58,8 +63,6 @@ class RcControlNode(Node):
         self.rc_state_buf = CircularBuffer(capacity=30)
         self.odom_buf = CircularBuffer(capacity=30)
         self.wrench_buf = CircularBuffer(capacity=30)
-
-        # Parameter for watermark
 
 
         self.rc_in_sub = self.create_subscription(RCIn,
@@ -129,6 +132,39 @@ class RcControlNode(Node):
     def _control_update(self):
         print('control_update')
 
+    def _prepareBufferNear(self, buffer:CircularBuffer, t_ref: float) -> bool:
+        if buffer.is_empty():
+            return False
+        # Remove data older than cutoff time
+        cutoff = t_ref - self.loopback
+        while not buffer.is_empty() and buffer.get_oldest()[0] < cutoff:
+            buffer.pop()
+        return not buffer.is_empty()
+
+    def _watermark_time(self):
+        wall_time_now = self._get_time_from_clock(self.get_clock().now())
+        fresh_indices = [i for i in range(len(self.time_latest)) if self._freshByTTL(i, wall_time_now)]
+
+        if not fresh_indices:
+            return -np.inf
+
+        watermark_now = -np.inf
+
+        for i in fresh_indices:
+            watermark_now = min(watermark_now, self.time_latest[i])
+
+        return watermark_now
+
+    def _freshByTTL(self, i, now_wall):
+        is_fresh = ((self.latest_rx_wall[i] >= 0 )
+                    and
+                    (now_wall - self.time_latest[i] < self.timeout[i]))
+        return is_fresh
+
+    def _get_time_from_clock(self, clock):
+        (sec, nsec) = clock.seconds_nanoseconds()
+        return sec + nsec * 1e-9
+
 
     def _config(self):
         self.get_logger().info(f'{self.get_name()}: Initializing...')
@@ -182,9 +218,9 @@ class RcControlNode(Node):
         timeout_odom = self.get_parameter('watermark_param.timeout.odom').value
         timeout_do = self.get_parameter('watermark_param.timeout.do').value
 
-        lateness_rc = self.get_parameter('watermark_param.lateness.rc').value
-        lateness_odom = self.get_parameter('watermark_param.lateness.odom').value
-        lateness_do = self.get_parameter('watermark_param.lateness.do').value
+        lateness_rc = self.get_parameter('watermark_param.latency.rc').value
+        lateness_odom = self.get_parameter('watermark_param.latency.odom').value
+        lateness_do = self.get_parameter('watermark_param.latency.do').value
 
         loopback = self.get_parameter('watermark_param.loopback').value
         max_catchup_step = self.get_parameter('watermark_param.max_catchup_step').value

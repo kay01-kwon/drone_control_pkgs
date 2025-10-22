@@ -20,7 +20,7 @@
         rc: 0.015
         odom: 0.015
         do: 0.015
-      lateness:
+      latency:
         rc: 0.0
         odom: 0.0
         do: 0.010
