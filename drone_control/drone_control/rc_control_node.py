@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, qos_profile_sensor_data
+from rclpy.qos import qos_profile_sensor_data
 
 import threading
 
@@ -77,7 +77,6 @@ class RcControlNode(Node):
                                                 self._do_cb,
                                                 qos_profile_sensor_data)
 
-
         self.cmd_pub = self.create_publisher(HexaCmdRaw, '/uav/cmd_raw', 5)
 
         timer_period = 0.010
@@ -95,7 +94,6 @@ class RcControlNode(Node):
             self.odom_buf.push((odom_time, odom_data))
 
     def _do_cb(self, msg:WrenchStamped):
-
         do_time, do_state = MsgParser.parse_wrench_msg(msg)
         if self.wrench_buf.is_full():
             self.wrench_buf.pop()
@@ -133,7 +131,6 @@ class RcControlNode(Node):
 
 
     def _config(self):
-
         self.get_logger().info(f'{self.get_name()}: Initializing...')
         self.get_logger().info(f'RC Converter and RC control parameters')
 
@@ -203,9 +200,6 @@ class RcControlNode(Node):
                           'max_catchup_step': max_catchup_step}
 
         return watermarkParam
-
-
-
 
 def main():
     rclpy.init()
