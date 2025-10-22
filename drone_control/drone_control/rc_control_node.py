@@ -57,8 +57,7 @@ class RcControlNode(Node):
                                      -np.inf])
         self.latest_rx_wall = np.zeros((3,))
 
-        clock_now = self.get_clock().now()
-        time_now = self._get_time_from_clock(clock_now)
+        time_now = self._get_time_now()
         self.t_curr = time_now
         self.t_prev = self.t_curr
 
@@ -98,8 +97,7 @@ class RcControlNode(Node):
 
         # Time setup for watermark
         self.time_latest[0] = rc_time - self.latency[0]
-        clock_now = self.get_clock().now()
-        time_now = self._get_time_from_clock(clock_now)
+        time_now = self._get_time_now()
         self.latest_rx_wall[0] = time_now
 
         # RC buffer
@@ -126,8 +124,7 @@ class RcControlNode(Node):
 
         # Time setup for watermark
         self.time_latest[1] = odom_time - self.latency[1]
-        clock_now = self.get_clock().now()
-        time_now = self._get_time_from_clock(clock_now)
+        time_now = self._get_time_now()
         self.latest_rx_wall[1] = time_now
 
         if self.odom_buf.is_full():
@@ -141,8 +138,7 @@ class RcControlNode(Node):
 
         # Time setup for watermark
         self.time_latest[2] = do_time - self.latency[2]
-        clock_now = self.get_clock().now()
-        time_now = self._get_time_from_clock(clock_now)
+        time_now = self._get_time_now()
         self.latest_rx_wall[2] = time_now
 
         if self.wrench_buf.is_full():
@@ -167,8 +163,8 @@ class RcControlNode(Node):
         return not buffer.is_empty()
 
     def _watermark_time(self):
-        clock_now = self.get_clock().now()
-        wall_time_now = self._get_time_from_clock(clock_now)
+
+        wall_time_now = self._get_time_now()
         fresh_indices = [i for i in range(len(self.time_latest)) if self._freshByTTL(i, wall_time_now)]
 
         if not fresh_indices:
@@ -187,9 +183,11 @@ class RcControlNode(Node):
                     (now_wall - self.time_latest[i] < self.timeout[i]))
         return is_fresh
 
-    def _get_time_from_clock(self, clock):
-        (sec, nsec) = clock.seconds_nanoseconds()
-        return sec + nsec * 1e-9
+    def _get_time_now(self):
+        clock_now = self.get_clock().now()
+        (sec, nsec) = clock_now.seconds_nanoseconds()
+        time_now = sec + nsec*1e-9
+        return time_now
 
 
     def _config(self):
