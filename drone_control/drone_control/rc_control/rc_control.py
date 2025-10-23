@@ -47,7 +47,7 @@ class RcControl():
         v_err_body = v - v_des
         v_err = R@v_err_body
 
-        accelCommand = -(self.KpTransDiag @ v_err / self.m
+        accelCommand = -(self.KpTransDiag @ v_err
                         + self.g_vec)
 
         f_des = self.m * accelCommand
@@ -83,8 +83,9 @@ class RcControl():
         q_des = math_tool.otimes(q_rp_des, q_yaw)
         q_des_conj = math_tool.conjugate(q_des)
         q_err = math_tool.otimes(q_des_conj, q)
-        q_err_vec = self._signum(q_err[0])*q_err[1:4]
-        error_R = math_tool.quaternion_to_angle_axis_vec(q_err_vec)
+        # q_err_vec = self._signum(q_err[0])*q_err[1:4]
+
+        error_R = math_tool.quaternion_to_angle_axis_vec(q_err)
 
         R_des = math_tool.quaternion_to_rotm(q_des)
 

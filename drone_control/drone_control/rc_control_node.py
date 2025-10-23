@@ -1,4 +1,5 @@
 import rclpy
+from mercurial.revset import predicate
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
@@ -31,10 +32,11 @@ class RcControlNode(Node):
         w = np.zeros((3,))
 
         # Get parameter for converter and controller
-        converterParam, gainParam, dynParam = self._config()
+        converterParam, gainParam, dynParam, droneParam = self._config()
 
         self.rc_converter = RcConverter(converterParam)
         self.rc_control = RcControl(gainParam, dynParam)
+        self.inverse_dynamics = InverseDynamics(droneParam)
 
         # Get parameter for watermark
         sensorTimeParam = self._sensor_time_config()
@@ -54,6 +56,7 @@ class RcControlNode(Node):
         self.odom_buf = CircularBuffer(capacity=30)
         self.wrench_buf = CircularBuffer(capacity=30)
 
+        self.des_rpm = np.zeros((6,))
 
         self.rc_in_sub = self.create_subscription(RCIn,
                                                  '/mavros/rc/in',
@@ -61,7 +64,7 @@ class RcControlNode(Node):
                                                  qos_profile_sensor_data)
 
         self.odom_sub = self.create_subscription(Odometry,
-                                                 '/mavros/local_position/odom',
+                                                 '/S550/ground_truth/odom',
                                                  self._odom_cb,
                                                  qos_profile_sensor_data)
 
@@ -84,13 +87,13 @@ class RcControlNode(Node):
         # RC buffer
         self.rc_converter.set_rc(rc_state)
         self.mode, v_des, dpsi_des = self.rc_converter.get_rc_state()
-        des = np.concatenate([v_des, np.array([dpsi_des])])
+        cmd_vel = np.concatenate([v_des, np.array([dpsi_des])])
 
         if self.rc_state_buf.is_full():
             self.rc_state_buf.pop()
-            self.rc_state_buf.push((rc_time, des))
+            self.rc_state_buf.push((rc_time, cmd_vel))
         else:
-            self.rc_state_buf.push((rc_time, des))
+            self.rc_state_buf.push((rc_time, cmd_vel))
 
         # Get string typed mode_name
         mode_name = RcModeStr.mode_str(self.mode)
@@ -101,8 +104,8 @@ class RcControlNode(Node):
         self.prev_mode = self.mode
 
     def _odom_cb(self, msg:Odometry):
-        odom_time, odom_data = MsgParser.parse_odom_msg(msg)
 
+        odom_time, odom_data = MsgParser.parse_odom_msg(msg)
         if self.odom_buf.is_full():
             self.odom_buf.pop()
             self.odom_buf.push((odom_time, odom_data))
@@ -119,23 +122,56 @@ class RcControlNode(Node):
             self.wrench_buf.push((do_time, do_state))
 
     def _timer_cb(self):
+
+        self.t_curr = self._get_time_now()
+
+        # self.get_logger().info(f'Timer callback')
+
+        if self.odom_buf.is_empty():
+            return
+
+        if self.rc_state_buf.is_empty():
+            return
+
+        # if self.wrench_buf.is_empty():
+        #     return
+
+        t_diff_odom_abs = np.abs(self.t_curr - self.odom_buf.get_latest()[0])
+
+        if t_diff_odom_abs > self.timeout[1]:
+            self.get_logger().info(f'odom : STALE')
+            self.get_logger().info(f'Switch to KILL Automatically')
+            self.mode = FlightMode.KILL
+
+        if self.mode == FlightMode.KILL:
+            for i in range(len(self.des_rpm)):
+                self.des_rpm[i] = 0
+        elif self.mode == FlightMode.DISARMED:
+            for i in range(len(self.des_rpm)):
+                self.des_rpm[i] = 0
+        elif self.mode == FlightMode.ARMED:
+            for i in range(len(self.des_rpm)):
+                self.des_rpm[i] = 2000
+        elif self.mode == FlightMode.MANUAL_STAB:
+            cmd_vel = self.rc_state_buf.get_latest()[1]
+            # wrench_recent = self.wrench_buf.get_latest()[1]
+            state_recent = self.odom_buf.get_latest()[1]
+            self.rc_control.set_ref(cmd_vel,
+                                    state_recent,
+                                    np.zeros((3,)))
+            u = self.rc_control.get_control_input()
+            self.get_logger().info(f'u: {u}')
+            self.des_rpm = self.inverse_dynamics.compute_des_rpm(u[0],u[1:])
+
+        self.cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.t_curr, self.des_rpm)
+
         self.cmd_pub.publish(self.cmd_msg)
-
-    def _control_update(self):
-        print('control_update')
-
-    def _freshByTTL(self, i, now_wall):
-        is_fresh = ((self.latest_rx_wall[i] >= 0 )
-                    and
-                    (now_wall - self.time_latest[i] < self.timeout[i]))
-        return is_fresh
 
     def _get_time_now(self):
         clock_now = self.get_clock().now()
         (sec, nsec) = clock_now.seconds_nanoseconds()
         time_now = sec + nsec*1e-9
         return time_now
-
 
     def _config(self):
         self.get_logger().info(f'{self.get_name()}: Initializing...')
@@ -158,12 +194,25 @@ class RcControlNode(Node):
         m = self.get_parameter('dynamic_param.m').value
         MoiArray = self.get_parameter('dynamic_param.MoiArray').value
 
+        # Get drone parameter
+        arm_length = self.get_parameter('drone_param.arm_length').value
+        rotor_const = self.get_parameter('drone_param.rotor_const').value
+        moment_const = self.get_parameter('drone_param.moment_const').value
+        T_max = self.get_parameter('drone_param.T_max').value
+        T_min = self.get_parameter('drone_param.T_min').value
+
         gainParam = {'KpTransArray': KpTransArray,
                      'KpOriArray': KpOriArray,
                      'KdOriArray': KdOriArray}
 
         dynParam = {'m': m,
                     'MoiArray': MoiArray}
+
+        droneParam = {'arm_length': arm_length,
+                      'rotor_const': rotor_const,
+                      'moment_const': moment_const,
+                      'T_max': T_max,
+                      'T_min': T_min}
 
         self.get_logger().info(f'vxy_max: {vxy_max}')
         self.get_logger().info(f'vz_max: {vz_max}')
@@ -176,7 +225,7 @@ class RcControlNode(Node):
         self.get_logger().info(f'm: {m}')
         self.get_logger().info(f'MoiArray: {MoiArray}')
 
-        return ConverterParam, gainParam, dynParam
+        return ConverterParam, gainParam, dynParam, droneParam
 
     def _sensor_time_config(self):
         self.get_logger().info(f'{self.get_name()}: Initializing...')
