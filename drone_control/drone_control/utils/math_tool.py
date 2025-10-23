@@ -43,14 +43,15 @@ def quaternion_to_angle_axis_vec(q):
     q_vec_norm = np.sqrt(q_vec.dot(q_vec))
     theta = 2*np.arctan2(qw, q_vec_norm)
     angle_axis_vec = np.zeros((3,))
+    sign = signum(qw)
     if theta > 1e-3:
         angle_axis_vec[0] = 0
         angle_axis_vec[1] = 0
         angle_axis_vec[2] = 0
     else:
-        angle_axis_vec[0] = theta*q_vec[0]/q_vec_norm
-        angle_axis_vec[1] = theta*q_vec[1]/q_vec_norm
-        angle_axis_vec[2] = theta*q_vec[2]/q_vec_norm
+        angle_axis_vec[0] = sign*theta*q_vec[0]/q_vec_norm
+        angle_axis_vec[1] = sign*theta*q_vec[1]/q_vec_norm
+        angle_axis_vec[2] = sign*theta*q_vec[2]/q_vec_norm
     return angle_axis_vec
 
 
@@ -64,3 +65,6 @@ def skew_symm(v):
         [vz, 0, -vx],
         [-vy, vx, 0]
     ])
+
+def signum(x):
+    return 1 if x >= 0 else -1

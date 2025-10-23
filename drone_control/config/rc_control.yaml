@@ -14,8 +14,15 @@
       m: 3.0
       MoiArray: [0.06, 0.06, 0.08]
 
+    drone_param:
+      arm_length: 0.265
+      rotor_const: 1.465e-07
+      moment_const: 0.01569
+      T_max: 9.376
+      T_min: 0.586
+
     sensor_time_param:
       timeout:
-        rc: 0.015
-        odom: 0.015
-        do: 0.015
+        rc: 0.10
+        odom: 0.10
+        do: 0.10
