@@ -37,25 +37,11 @@ class RcControlNode(Node):
         self.rc_control = RcControl(gainParam, dynParam)
 
         # Get parameter for watermark
-        watermarkParam = self._watermark_config()
+        sensorTimeParam = self._sensor_time_config()
 
-        self.period = watermarkParam['period']
-
-        self.timeout = np.array([watermarkParam['timeout_rc'],
-                                 watermarkParam['timeout_odom'],
-                                 watermarkParam['timeout_do']])
-
-        self.latency = np.array([watermarkParam['latency_rc'],
-                                  watermarkParam['latency_odom'],
-                                  watermarkParam['latency_do']])
-
-        self.loopback = watermarkParam['loopback']
-        self.max_catchup_step =watermarkParam['max_catchup_step']
-
-        self.time_latest = np.array([-np.inf,
-                                     -np.inf,
-                                     -np.inf])
-        self.latest_rx_wall = np.zeros((3,))
+        self.timeout = np.array([sensorTimeParam['timeout_rc'],
+                                 sensorTimeParam['timeout_odom'],
+                                 sensorTimeParam['timeout_do']])
 
         time_now = self._get_time_now()
         self.t_curr = time_now
@@ -95,11 +81,6 @@ class RcControlNode(Node):
         rc_tuple = MsgParser.parse_rc_msg(msg)
         rc_time, rc_state = rc_tuple
 
-        # Time setup for watermark
-        self.time_latest[0] = rc_time - self.latency[0]
-        time_now = self._get_time_now()
-        self.latest_rx_wall[0] = time_now
-
         # RC buffer
         self.rc_converter.set_rc(rc_state)
         self.mode, v_des, dpsi_des = self.rc_converter.get_rc_state()
@@ -122,11 +103,6 @@ class RcControlNode(Node):
     def _odom_cb(self, msg:Odometry):
         odom_time, odom_data = MsgParser.parse_odom_msg(msg)
 
-        # Time setup for watermark
-        self.time_latest[1] = odom_time - self.latency[1]
-        time_now = self._get_time_now()
-        self.latest_rx_wall[1] = time_now
-
         if self.odom_buf.is_full():
             self.odom_buf.pop()
             self.odom_buf.push((odom_time, odom_data))
@@ -135,11 +111,6 @@ class RcControlNode(Node):
 
     def _do_cb(self, msg:WrenchStamped):
         do_time, do_state = MsgParser.parse_wrench_msg(msg)
-
-        # Time setup for watermark
-        self.time_latest[2] = do_time - self.latency[2]
-        time_now = self._get_time_now()
-        self.latest_rx_wall[2] = time_now
 
         if self.wrench_buf.is_full():
             self.wrench_buf.pop()
@@ -152,30 +123,6 @@ class RcControlNode(Node):
 
     def _control_update(self):
         print('control_update')
-
-    def _prepareBufferNear(self, buffer:CircularBuffer, t_ref: float) -> bool:
-        if buffer.is_empty():
-            return False
-        # Remove data older than cutoff time
-        cutoff = t_ref - self.loopback
-        while not buffer.is_empty() and buffer.get_oldest()[0] < cutoff:
-            buffer.pop()
-        return not buffer.is_empty()
-
-    def _watermark_time(self):
-
-        wall_time_now = self._get_time_now()
-        fresh_indices = [i for i in range(len(self.time_latest)) if self._freshByTTL(i, wall_time_now)]
-
-        if not fresh_indices:
-            return self.t_prev
-        elif len(fresh_indices) == 1:
-            watermark_now = self.time_latest[fresh_indices[0]]
-        elif len(fresh_indices) > 1:
-            watermark_now = self.time_latest[fresh_indices[0]]
-            for i in fresh_indices[1:]:
-                watermark_now = min(watermark_now, self.time_latest[i])
-        return watermark_now
 
     def _freshByTTL(self, i, now_wall):
         is_fresh = ((self.latest_rx_wall[i] >= 0 )
@@ -231,35 +178,25 @@ class RcControlNode(Node):
 
         return ConverterParam, gainParam, dynParam
 
-    def _watermark_config(self):
+    def _sensor_time_config(self):
         self.get_logger().info(f'{self.get_name()}: Initializing...')
-        self.get_logger().info(f'water mark parameters')
+        self.get_logger().info(f'sensor time parameters')
 
         # Get watermark parameters
-        period = self.get_parameter('watermark_param.period').value
 
-        timeout_rc = self.get_parameter('watermark_param.timeout.rc').value
-        timeout_odom = self.get_parameter('watermark_param.timeout.odom').value
-        timeout_do = self.get_parameter('watermark_param.timeout.do').value
+        timeout_rc = self.get_parameter('sensor_time_param.timeout.rc').value
+        timeout_odom = self.get_parameter('sensor_time_param.timeout.odom').value
+        timeout_do = self.get_parameter('sensor_time_param.timeout.do').value
 
-        latency_rc = self.get_parameter('watermark_param.latency.rc').value
-        latency_odom = self.get_parameter('watermark_param.latency.odom').value
-        latency_do = self.get_parameter('watermark_param.latency.do').value
+        self.get_logger().info(f'timeout_rc: {timeout_rc}')
+        self.get_logger().info(f'timeout_odom: {timeout_odom}')
+        self.get_logger().info(f'timeout_do: {timeout_do}')
 
-        loopback = self.get_parameter('watermark_param.loopback').value
-        max_catchup_step = self.get_parameter('watermark_param.max_catchup_step').value
+        sensor_time_param = {'timeout_rc': timeout_rc,
+                             'timeout_odom': timeout_odom,
+                             'timeout_do': timeout_do}
 
-        watermarkParam = {'period': period,
-                          'timeout_rc': timeout_rc,
-                          'timeout_odom': timeout_odom,
-                          'timeout_do': timeout_do,
-                          'latency_rc': latency_rc,
-                          'latency_odom': latency_odom,
-                          'latency_do': latency_do,
-                          'loopback': loopback,
-                          'max_catchup_step': max_catchup_step}
-
-        return watermarkParam
+        return sensor_time_param
 
 def main():
     rclpy.init()
