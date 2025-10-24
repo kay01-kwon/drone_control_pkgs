@@ -45,16 +45,18 @@ class RcControl():
 
         R = math_tool.quaternion_to_rotm(q)
         v_err_body = v - v_des
-        v_err = R@v_err_body
+        v_err = R @ v_err_body
 
-        accelCommand = -(self.KpTransDiag @ v_err
+        accelCommand = -(self.KpTransDiag @ v_err / self.m
                         + self.g_vec)
+
+        accelCommand_norm = np.linalg.norm(accelCommand)
 
         f_des = self.m * accelCommand
 
-        self.u[0] = np.sqrt(f_des.transpose()@f_des)
+        self.u[0] = f_des.dot(R[:,2])
 
-        r = f_des/self.u[0]
+        r = accelCommand/accelCommand_norm
         rx = r[0]
         ry = r[1]
         rz = r[2]
@@ -63,7 +65,7 @@ class RcControl():
         sin_half_phi = np.sqrt((1+rz)/2.0)
         sin_phi = np.sqrt(1-rz**2)
 
-        if np.abs(sin_phi) > 1e-3:
+        if np.abs(sin_phi) > 1e-30:
             self.axis_des[0] = -1/sin_phi * ry
             self.axis_des[1] = 1/sin_phi * rx
         else:
@@ -75,7 +77,9 @@ class RcControl():
                              sin_half_phi*self.axis_des[1],
                              sin_half_phi*self.axis_des[2]])
 
-        half_psi = np.arctan2(q[3], q[0])
+        qw, qx, qy, qz = q[0], q[1], q[2], q[3]
+
+        half_psi = 0.5*np.arctan2(2.0*(qy*qz + qw*qx), qw*qw - qx*qx - qy*qy + qz*qz)
         cos_half_psi = np.cos(half_psi)
         sin_half_psi = np.sin(half_psi)
         q_yaw = np.array([cos_half_psi, 0, 0, sin_half_psi])
@@ -83,7 +87,6 @@ class RcControl():
         q_des = math_tool.otimes(q_rp_des, q_yaw)
         q_des_conj = math_tool.conjugate(q_des)
         q_err = math_tool.otimes(q_des_conj, q)
-        # q_err_vec = self._signum(q_err[0])*q_err[1:4]
 
         error_R = math_tool.quaternion_to_angle_axis_vec(q_err)
 
@@ -91,9 +94,8 @@ class RcControl():
 
         w_err = w - R.transpose() @ R_des @ w_des
 
-        M_pd = (-self.KpOriDiag @ error_R
-                -self.KdOriDiag @ w_err
-                +np.cross(w, self.J @ w))
+        M_pd =  self.J @ (-self.KpOriDiag @ error_R
+                -self.KdOriDiag @ w_err)
 
         self.u[1:] = M_pd - tau
 
