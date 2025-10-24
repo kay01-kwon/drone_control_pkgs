@@ -160,7 +160,6 @@ class RcControlNode(Node):
                                     state_recent,
                                     np.zeros((3,)))
             u = self.rc_control.get_control_input()
-            self.get_logger().info(f'u: {u}')
             self.des_rpm = self.inverse_dynamics.compute_des_rpm(u[0],u[1:])
 
         self.cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.t_curr, self.des_rpm)

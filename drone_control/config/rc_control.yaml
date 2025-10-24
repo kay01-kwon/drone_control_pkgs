@@ -6,9 +6,9 @@
       dpsi_dt_max: 0.2
 
     gain_param:
-      KpTransArray: [2., 2., 2.]
-      KpOriArray: [3., 3., 3.]
-      KdOriArray: [0.5, 0.5, 0.5]
+      KpTransArray: [2.7, 2.7, 2.7]
+      KpOriArray: [3.0, 3.0, 0.18]
+      KdOriArray: [0.4, 0.52, 0.15]
 
     dynamic_param:
       m: 3.0

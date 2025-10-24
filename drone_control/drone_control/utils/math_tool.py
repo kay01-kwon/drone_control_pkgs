@@ -44,14 +44,15 @@ def quaternion_to_angle_axis_vec(q):
     theta = 2*np.arctan2(qw, q_vec_norm)
     angle_axis_vec = np.zeros((3,))
     sign = signum(qw)
-    if theta > 1e-3:
-        angle_axis_vec[0] = 0
-        angle_axis_vec[1] = 0
-        angle_axis_vec[2] = 0
-    else:
+    if theta > 1e-30:
         angle_axis_vec[0] = sign*theta*q_vec[0]/q_vec_norm
         angle_axis_vec[1] = sign*theta*q_vec[1]/q_vec_norm
         angle_axis_vec[2] = sign*theta*q_vec[2]/q_vec_norm
+    else:
+        angle_axis_vec[0] = 0
+        angle_axis_vec[1] = 0
+        angle_axis_vec[2] = 0
+
     return angle_axis_vec
 
 
