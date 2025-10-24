@@ -12,9 +12,9 @@ class RcControl():
         AccelMaxArray = GainParam['AccelMaxArray']
 
         self.KpTransDiag = np.diag(KpTransArray)
-
         self.KpOriDiag = np.diag(KpOriArray)
         self.KdOriDiag = np.diag(KdOriArray)
+
         self.AccelMaxArray = AccelMaxArray
 
         self.m = DynParam['m']
@@ -55,13 +55,12 @@ class RcControl():
         accelCommand = self._accel_command_clamp(accelCommand)
 
         accelCommand = accelCommand - self.g_vec
-        accelCommand_norm = np.linalg.norm(accelCommand)
 
         f_des = self.m * accelCommand
-        self.u[0] = np.sqrt(f_des.dot(f_des))
+        self.u[0] = f_des.dot(R[:,2])
 
         # b1, b2, b3 : desired frame
-        b3 = accelCommand/accelCommand_norm
+        b3 = accelCommand/np.linalg.norm(accelCommand)
 
         b1 = R[:,0]
 
@@ -73,6 +72,7 @@ class RcControl():
                 b1 = R[:,2]
 
         b2 = np.cross(b3,b1)
+        b2 = b2 / np.linalg.norm(b2)
 
         # Construct desired rotation matrix
         R_des = np.column_stack((b1, b2, b3))
@@ -82,9 +82,7 @@ class RcControl():
         e_R = math_tool.skew_symm_to_vec(angle_error_matrix)
         e_w = w - R.transpose() @ R_des @ w_des
 
-
-        M_pd = -self.J @ (self.KpOriDiag @ e_R
-                          + self.KdOriDiag @ e_w)
+        M_pd = -(self.KpOriDiag @ e_R + self.KdOriDiag @ e_w)
 
         self.u[1:] = M_pd - tau
 
@@ -94,7 +92,7 @@ class RcControl():
     def _accel_command_clamp(self, accelCommand):
 
         for i in range(3):
-            if np.abs(accelCommand[i]) < self.AccelMaxArray[i]:
+            if np.abs(accelCommand[i]) >= self.AccelMaxArray[i]:
                 accelCommand[i] = (self.AccelMaxArray[i]
                                    * math_tool.signum(accelCommand[i]))
         return accelCommand

@@ -89,11 +89,9 @@ class RcConverter:
         return temp
 
     def _vz_constrain(self, input):
-        if input > self.rc_in_min + self.rc_in_delta*0.05:
-            vz_input = (float(input - self.rc_in_min)/
-                    float(2*self.rc_in_delta))
-        else:
-            vz_input = 0
+
+        vz_input = (float(input - self.rc_in_mid)/
+                    float(self.rc_in_delta))
         return vz_input
 
     def _two_pos(self, pwm:int) -> str:

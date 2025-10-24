@@ -153,6 +153,7 @@ class RcControlNode(Node):
             cmd_vel = self.rc_state_buf.get_latest()[1]
             # wrench_recent = self.wrench_buf.get_latest()[1]
             state_recent = self.odom_buf.get_latest()[1]
+            self.get_logger().info(f'cmd_vel: {cmd_vel}')
             self.rc_control.set_ref(cmd_vel,
                                     state_recent,
                                     np.zeros((3,)))
