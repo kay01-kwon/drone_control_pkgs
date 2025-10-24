@@ -9,11 +9,13 @@ class RcControl():
 
         KpOriArray = GainParam['KpOriArray']
         KdOriArray = GainParam['KdOriArray']
+        AccelMaxArray = GainParam['AccelMaxArray']
 
         self.KpTransDiag = np.diag(KpTransArray)
 
         self.KpOriDiag = np.diag(KpOriArray)
         self.KdOriDiag = np.diag(KdOriArray)
+        self.AccelMaxArray = AccelMaxArray
 
         self.m = DynParam['m']
         MoiArray = DynParam['MoiArray']
@@ -23,6 +25,7 @@ class RcControl():
 
         self.axis_des = np.zeros((3,))
 
+        # Force and moment
         self.u = np.zeros((4,))
 
 
@@ -36,7 +39,7 @@ class RcControl():
         '''
         vx_des, vy_des, vz_des = ref[0], ref[1], ref[2]
         dpsi_dt_des = ref[3]
-        v_des = np.array([vx_des, vy_des, vz_des])
+        cmd_vel = np.array([vx_des, vy_des, vz_des])
         w_des = np.array([0, 0, dpsi_dt_des])
 
         v = state[3:6]
@@ -44,63 +47,54 @@ class RcControl():
         w = state[10:13]
 
         R = math_tool.quaternion_to_rotm(q)
-        v_err_body = v - v_des
+        v_err_body = v - cmd_vel
         v_err = R @ v_err_body
 
-        accelCommand = -(self.KpTransDiag @ v_err / self.m
-                        + self.g_vec)
+        # P gain for velocity control
+        accelCommand = -self.KpTransDiag @ v_err / self.m
+        accelCommand = self._accel_command_clamp(accelCommand)
 
+        accelCommand = accelCommand - self.g_vec
         accelCommand_norm = np.linalg.norm(accelCommand)
 
         f_des = self.m * accelCommand
+        self.u[0] = np.sqrt(f_des.dot(f_des))
 
-        self.u[0] = f_des.dot(R[:,2])
+        # b1, b2, b3 : desired frame
+        b3 = accelCommand/accelCommand_norm
 
-        r = accelCommand/accelCommand_norm
-        rx = r[0]
-        ry = r[1]
-        rz = r[2]
+        b1 = R[:,0]
 
-        cos_half_phi = np.sqrt((1+rz)/2.0)
-        sin_half_phi = np.sqrt((1+rz)/2.0)
-        sin_phi = np.sqrt(1-rz**2)
+        tol = 1e-3
+        if np.linalg.norm(np.cross(b1, b3)) < tol:
+            b1 = R[:,1]
 
-        if np.abs(sin_phi) > 1e-30:
-            self.axis_des[0] = -1/sin_phi * ry
-            self.axis_des[1] = 1/sin_phi * rx
-        else:
-            self.axis_des[0] = 0
-            self.axis_des[1] = 0
+            if(np.linalg.norm(np.cross(b1, b3)) < tol):
+                b1 = R[:,2]
 
-        q_rp_des = np.array([cos_half_phi,
-                             sin_half_phi*self.axis_des[0],
-                             sin_half_phi*self.axis_des[1],
-                             sin_half_phi*self.axis_des[2]])
+        b2 = np.cross(b3,b1)
 
-        qw, qx, qy, qz = q[0], q[1], q[2], q[3]
+        # Construct desired rotation matrix
+        R_des = np.column_stack((b1, b2, b3))
 
-        half_psi = 0.5*np.arctan2(2.0*(qy*qz + qw*qx), qw*qw - qx*qx - qy*qy + qz*qz)
-        cos_half_psi = np.cos(half_psi)
-        sin_half_psi = np.sin(half_psi)
-        q_yaw = np.array([cos_half_psi, 0, 0, sin_half_psi])
+        angle_error_matrix = 0.5*(R_des.transpose()@R
+                                  -R.transpose()@R_des)
+        e_R = math_tool.skew_symm_to_vec(angle_error_matrix)
+        e_w = w - R.transpose() @ R_des @ w_des
 
-        q_des = math_tool.otimes(q_rp_des, q_yaw)
-        q_des_conj = math_tool.conjugate(q_des)
-        q_err = math_tool.otimes(q_des_conj, q)
 
-        error_R = math_tool.quaternion_to_angle_axis_vec(q_err)
-
-        R_des = math_tool.quaternion_to_rotm(q_des)
-
-        w_err = w - R.transpose() @ R_des @ w_des
-
-        M_pd =  self.J @ (-self.KpOriDiag @ error_R
-                -self.KdOriDiag @ w_err)
+        M_pd = -self.J @ (self.KpOriDiag @ e_R
+                          + self.KdOriDiag @ e_w)
 
         self.u[1:] = M_pd - tau
 
     def get_control_input(self):
         return self.u
 
-    def _signum(self, x):
-        return 1 if x >= 0 else -1
+    def _accel_command_clamp(self, accelCommand):
+
+        for i in range(3):
+            if np.abs(accelCommand[i]) < self.AccelMaxArray[i]:
+                accelCommand[i] = (self.AccelMaxArray[i]
+                                   * math_tool.signum(accelCommand[i]))
+        return accelCommand

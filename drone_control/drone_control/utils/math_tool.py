@@ -67,5 +67,11 @@ def skew_symm(v):
         [-vy, vx, 0]
     ])
 
+def skew_symm_to_vec(R):
+    vx = -R[1,2]
+    vy = R[0,2]
+    vz = -R[0,1]
+    return np.array([vx, vy, vz])
+
 def signum(x):
     return 1 if x >= 0 else -1
