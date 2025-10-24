@@ -1,9 +1,6 @@
 import rclpy
-from mercurial.revset import predicate
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
-
-import threading
 
 import numpy as np
 
@@ -188,6 +185,7 @@ class RcControlNode(Node):
         KpTransArray = self.get_parameter('gain_param.KpTransArray').value
         KpOriArray = self.get_parameter('gain_param.KpOriArray').value
         KdOriArray = self.get_parameter('gain_param.KdOriArray').value
+        AccelMaxArray = self.get_parameter('gain_param.AccelMaxArray').value
 
         # Get dynamic parameters
         m = self.get_parameter('dynamic_param.m').value
@@ -202,7 +200,8 @@ class RcControlNode(Node):
 
         gainParam = {'KpTransArray': KpTransArray,
                      'KpOriArray': KpOriArray,
-                     'KdOriArray': KdOriArray}
+                     'KdOriArray': KdOriArray,
+                     'AccelMaxArray': AccelMaxArray}
 
         dynParam = {'m': m,
                     'MoiArray': MoiArray}
@@ -220,6 +219,7 @@ class RcControlNode(Node):
         self.get_logger().info(f'KpTransArray: {KpTransArray}')
         self.get_logger().info(f'KpOriArray: {KpOriArray}')
         self.get_logger().info(f'KdOriArray: {KdOriArray}')
+        self.get_logger().info(f'AccelMaxArray: {AccelMaxArray}')
 
         self.get_logger().info(f'm: {m}')
         self.get_logger().info(f'MoiArray: {MoiArray}')
