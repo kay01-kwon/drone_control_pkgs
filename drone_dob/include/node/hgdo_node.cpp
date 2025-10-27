@@ -85,27 +85,22 @@ void HgdoNode::dobEstimateLoopCallback()
 
 void HgdoNode::configure_parameters()
 {
-    std::string node_name;
-
-    node_name = this->get_name();
-
-    std::string param_prefix = std::string(node_name) + ".";
 
     // 1. Pass Drone parameters
-    this->declare_parameter<double>(param_prefix + "drone.m", 3.0);
-    double m = this->get_parameter(param_prefix + "drone.m").as_double();
-    
-    this->declare_parameter<double>(param_prefix + "drone.l", 0.265);
-    double l = this->get_parameter(param_prefix + "drone.l").as_double();
+    this->declare_parameter<double>("drone.m", 3.0);
+    double m = this->get_parameter("drone.m").get_value<double>();
 
-    this->declare_parameter<std::vector<double>>(param_prefix + "drone.MoiArray", {0.03, 0.03, 0.05});
-    std::vector<double> MoiArray = this->get_parameter(param_prefix + "drone.MoiArray").as_double_array();
+    this->declare_parameter<double>("drone.l", 0.265);
+    double l = this->get_parameter("drone.l").get_value<double>();
 
-    this->declare_parameter<double>(param_prefix + "drone.motor_const", 1.465e-07);
-    double motor_const = this->get_parameter(param_prefix + "drone.motor_const").as_double();
+    this->declare_parameter<std::vector<double>>("drone.MoiArray", {0.03, 0.03, 0.05});
+    std::vector<double> MoiArray = this->get_parameter("drone.MoiArray").get_value<std::vector<double>>();
 
-    this->declare_parameter<double>(param_prefix + "drone.moment_const", 0.01569);
-    double moment_const = this->get_parameter(param_prefix + "drone.moment_const").as_double();
+    this->declare_parameter<double>("drone.motor_const", 1.465e-07);
+    double motor_const = this->get_parameter("drone.motor_const").get_value<double>();
+
+    this->declare_parameter<double>("drone.moment_const", 0.01569);
+    double moment_const = this->get_parameter("drone.moment_const").get_value<double>();
 
     DroneParam drone_param;
     drone_param.m = m;
@@ -118,15 +113,14 @@ void HgdoNode::configure_parameters()
     drone_param.k_m = moment_const;
 
     // 2. Pass Hgdo parameters
-    this->declare_parameter<double>(param_prefix + "dob.control_loop_frequency", 100.0);
-    double control_loop_frequency = this->get_parameter(param_prefix + "dob.control_loop_frequency").as_double();
-    dob_looptime_ = 1.0 / control_loop_frequency;
+    this->declare_parameter<double>("dob.dob_looptime", 100.0);
+    dob_looptime_ = this->get_parameter("dob.dob_looptime").get_value<double>();
 
-    this->declare_parameter<double>(param_prefix + "dob.eps_f", 0.01);
-    double eps_f = this->get_parameter(param_prefix + "dob.eps_f").as_double();
+    this->declare_parameter<double>("dob.eps_f", 0.01);
+    double eps_f = this->get_parameter("dob.eps_f").get_value<double>();
 
-    this->declare_parameter<double>(param_prefix + "dob.eps_tau", 0.01);
-    double eps_tau = this->get_parameter(param_prefix + "dob.eps_tau").as_double();
+    this->declare_parameter<double>("dob.eps_tau", 0.01);
+    double eps_tau = this->get_parameter("dob.eps_tau").get_value<double>();
 
     HgdoParam hgdo_param;
     hgdo_param.eps_f = eps_f;
@@ -134,11 +128,11 @@ void HgdoNode::configure_parameters()
 
 
     // 3. Pass LPF parameters
-    this->declare_parameter<double>(param_prefix + "lpf.ang_vel_cutoff", 60.0);
-    double ang_vel_cutoff = this->get_parameter(param_prefix + "lpf.ang_vel_cutoff").as_double();
+    this->declare_parameter<double>("lpf.ang_vel_cutoff", 60.0);
+    double ang_vel_cutoff = this->get_parameter("lpf.ang_vel_cutoff").as_double();
 
-    this->declare_parameter<double>(param_prefix + "lpf.lin_vel_cutoff", 20.0);
-    double lin_vel_cutoff = this->get_parameter(param_prefix + "lpf.lin_vel_cutoff").as_double();
+    this->declare_parameter<double>("lpf.lin_vel_cutoff", 20.0);
+    double lin_vel_cutoff = this->get_parameter("lpf.lin_vel_cutoff").as_double();
 
     // 4. Initialize HGDO model and other utilities
 
