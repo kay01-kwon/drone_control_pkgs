@@ -43,6 +43,9 @@ class HgdoNode : public rclcpp::Node {
     rclcpp::Publisher<Odometry>::SharedPtr filtered_odom_publisher_;
     rclcpp::Publisher<WrenchStamped>::SharedPtr dob_publisher_;
     
+    double t_curr_{0.0};
+    double t_prev_{0.0};
+    double dt_{0.01};
 
     CircularBuffer<OdomData> odom_buffer_;
     CircularBuffer<RpmData> hexa_rpm_buffer_;
@@ -50,6 +53,10 @@ class HgdoNode : public rclcpp::Node {
     HgdoModel *hgdo_model_{nullptr};
     HexaRotorRpmToCmd *rpm_to_cmd_converter_{nullptr};
 
+    LowPassFilter *angular_velocity_lpf_[3]{nullptr};
+    LowPassFilter *linear_velocity_lpf_[3]{nullptr};
+
+    Vector6d disturbance_estimate_{Vector6d::Zero()};
 
 };
 
