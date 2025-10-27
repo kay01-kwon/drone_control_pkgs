@@ -35,7 +35,7 @@ struct DroneParam{
 };
 
 struct OdomData{
-    double time_stamp{0.0};
+    double timestamp{0.0};
     Vector3d position{Vector3d::Zero()};
     Vector3d linear_velocity{Vector3d::Zero()};
     Quaterniond orientation{Quaterniond::Identity()};
@@ -43,7 +43,7 @@ struct OdomData{
 };
 
 struct RpmData{
-    double time_stamp{0.0};
+    double timestamp{0.0};
     Vector6int16 rpm{Vector6int16::Zero()};
 };
 

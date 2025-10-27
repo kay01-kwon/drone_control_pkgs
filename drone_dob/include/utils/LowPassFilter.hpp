@@ -12,7 +12,7 @@ class LowPassFilter{
     LowPassFilter();
 
     // Parameterized Constructor
-    LowPassFilter(double cutoff_freq, double dt);
+    LowPassFilter(double cutoff_freq);
 
     // Method to set cutoff frequency
     void setCutoffFrequency(double cutoff_freq);

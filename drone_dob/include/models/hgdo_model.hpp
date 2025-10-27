@@ -24,9 +24,6 @@ class HgdoModel {
                    const HgdoParam& hgdo_param);
     
     ~HgdoModel();
-
-    void configure(const DroneParam& drone_param,
-                   const HgdoParam& hgdo_param);
     
     void update(const double &t_prev,
                 const double &t_curr,
@@ -51,7 +48,7 @@ class HgdoModel {
     OdeRk4Solver<Vector6d> *ode_solver_;
 
     double m_{3.0};
-    Matrix3x3d J_;
+    Matrix3x3d J_, J_inv_;
 
     Vector6d gamma_;
 
@@ -64,9 +61,7 @@ class HgdoModel {
     Quaterniond q_;
 
     // Control inputs (forces and torques in Body frame)
-    Vector3d u_;
-
-    Matrix3x3d J_, J_inv_;
+    Vector4d u_;
 
     HgdoParam hgdo_param_;
 

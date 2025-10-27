@@ -23,7 +23,9 @@ using geometry_msgs::msg::WrenchStamped;
 class HgdoNode : public rclcpp::Node {
     
     public:
+
     HgdoNode();
+    
     ~HgdoNode();
     
     private:
@@ -35,6 +37,11 @@ class HgdoNode : public rclcpp::Node {
     // DOB estimate loop
     void dobEstimateLoopCallback();
 
+    void configure_parameters();
+
+    void print_parameters(const DroneParam &drone_param,
+                          const HgdoParam &hgdo_param);
+
     rclcpp::TimerBase::SharedPtr control_loop_timer_;
     
     rclcpp::Subscription<Odometry>::SharedPtr odom_subscriber_;
@@ -45,7 +52,7 @@ class HgdoNode : public rclcpp::Node {
     
     double t_curr_{0.0};
     double t_prev_{0.0};
-    double dt_{0.01};
+    double dob_looptime_{0.01};
 
     CircularBuffer<OdomData> odom_buffer_;
     CircularBuffer<RpmData> hexa_rpm_buffer_;

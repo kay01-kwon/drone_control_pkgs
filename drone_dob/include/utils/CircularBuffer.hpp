@@ -12,7 +12,11 @@ class CircularBuffer{
 
     public:
 
-    explicit CircularBuffer(size_t capacity);
+    CircularBuffer();
+
+    CircularBuffer(size_t capacity);
+
+    bool reserve(size_t new_capacity);
 
     void push_back(const T& item);
 
@@ -42,17 +46,29 @@ class CircularBuffer{
 
     bool empty_unsafe() const;
 
-    const size_t capacity_;
+    size_t capacity_;
     std::vector<T> buffer_;
     size_t head_;
     size_t tail_;
     size_t size_;
     bool is_full_;
-    std::mutex mutex_;
+    mutable std::mutex mutex_;
 };
 
 
 #endif // CircularBuffer_HPP
+
+template <typename T>
+CircularBuffer<T>::CircularBuffer()
+: capacity_(10),
+buffer_(capacity_),
+head_(0),
+tail_(0),
+size_(0),
+is_full_(false) 
+{
+
+}
 
 template <typename T>
 CircularBuffer<T>::CircularBuffer(size_t capacity)
@@ -67,7 +83,35 @@ is_full_(false)
 }
 
 template <typename T>
-void CircularBuffer<T>::push_back(const T& item){
+bool CircularBuffer<T>::reserve(size_t new_capacity){
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    if(new_capacity < size_){
+        return false;
+    }
+    
+    // Create new buffer
+    std::vector<T> new_buffer(new_capacity);
+    
+    // Copy existing elements to new buffer
+    for(size_t i = 0; i < size_; ++i){
+        size_t old_index = (tail_ + i) % capacity_;
+        new_buffer[i] = std::move(buffer_[old_index]);
+    }
+    
+    // Update buffer and indices
+    buffer_ = std::move(new_buffer);
+    capacity_ = new_capacity;
+    tail_ = 0;
+    head_ = size_;
+    is_full_ = (size_ == capacity_);
+    
+    return true;
+}
+
+template <typename T>
+void CircularBuffer<T>::push_back(const T& item)
+{
     std::lock_guard<std::mutex> lock(mutex_);
     buffer_[head_] = item;
 
@@ -126,12 +170,8 @@ std::optional<T> CircularBuffer<T>::at(size_t index) const{
 
 template <typename T>
 std::optional<T>& CircularBuffer<T>::operator[](size_t index){
-    std::lock_guard<std::mutex> lock(mutex_);
-    if(index >= size_){
-        throw std::out_of_range("Index out of range");
-    }
-    size_t real_index = (tail_ + index) % capacity_;
-    return buffer_[real_index];
+
+    return at(index);
 }
 
 template <typename T>
@@ -181,7 +221,8 @@ bool CircularBuffer<T>::is_empty() const{
 }
 
 template <typename T>
-bool CircularBuffer<T>::is_full() const{
+bool CircularBuffer<T>::is_full() const
+{
     std::lock_guard<std::mutex> lock(mutex_);
     return is_full_;
 }
