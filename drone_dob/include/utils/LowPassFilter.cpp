@@ -6,7 +6,7 @@ LowPassFilter::LowPassFilter()
 
 }
 
-LowPassFilter::LowPassFilter(double cutoff_freq, double dt)
+LowPassFilter::LowPassFilter(double cutoff_freq)
 : cutoff_frequency_(cutoff_freq)
 {
 
