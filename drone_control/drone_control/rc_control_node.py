@@ -130,8 +130,8 @@ class RcControlNode(Node):
         if self.rc_state_buf.is_empty():
             return
 
-        # if self.wrench_buf.is_empty():
-        #     return
+        if self.wrench_buf.is_empty():
+            return
 
         t_diff_odom_abs = np.abs(self.t_curr - self.odom_buf.get_latest()[0])
 
@@ -151,12 +151,13 @@ class RcControlNode(Node):
                 self.des_rpm[i] = 2000
         elif self.mode == FlightMode.MANUAL_STAB:
             cmd_vel = self.rc_state_buf.get_latest()[1]
-            # wrench_recent = self.wrench_buf.get_latest()[1]
+            wrench_recent = self.wrench_buf.get_latest()[1]
             state_recent = self.odom_buf.get_latest()[1]
+            self.get_logger().info(f'wrench recent: {wrench_recent[3:]}')
             self.get_logger().info(f'cmd_vel: {cmd_vel}')
             self.rc_control.set_ref(cmd_vel,
                                     state_recent,
-                                    np.zeros((3,)))
+                                    wrench_recent[3:])
             u = self.rc_control.get_control_input()
             self.des_rpm = self.inverse_dynamics.compute_des_rpm(u[0],u[1:])
 

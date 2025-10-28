@@ -37,6 +37,12 @@ class HgdoNode : public rclcpp::Node {
     // DOB estimate loop
     void dobEstimateLoopCallback();
 
+    Vector3d linear_interpolation(const Vector3d &start,
+                                  const Vector3d &end,
+                                  const double &t_start,
+                                  const double &t_end,
+                                  const double &t_query);
+
     void configure_parameters();
 
     void print_parameters(const DroneParam &drone_param,
