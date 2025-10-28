@@ -55,10 +55,7 @@ void HgdoModel::update(const double &t_prev,
             {
                 compute_dynamics(gamma, gamma_dot, t_prev);
             },
-            gamma_,
-            t_prev_,
-            dt_
-        );
+            gamma_, t_prev_, dt_);
 
     }
 }
@@ -94,7 +91,8 @@ void HgdoModel::compute_dynamics(const Vector6d& gamma,
 
     gamma_dot.tail<3>() = -1.0/hgdo_param_.eps_tau *
     (gamma.tail<3>() + 1.0/hgdo_param_.eps_tau*w_)
-    + 1.0/hgdo_param_.eps_tau*(-J_inv_*u_.tail<3>() + J_inv_*w_.cross(J_*w_));
+    + 1.0/hgdo_param_.eps_tau*
+    (-J_inv_*u_.tail<3>() + J_inv_*w_.cross(J_*w_));
 
 }
 
@@ -115,6 +113,7 @@ void HgdoModel::configure_internal(const DroneParam& drone_param,
     J_inv_ << 1/J_(0,0), 0, 0,
                0, 1/J_(1,1), 0,
                0, 0, 1/J_(2,2);
+
     m_ = drone_param.m;
 
     hgdo_param_ = hgdo_param;

@@ -19,7 +19,8 @@ def generate_launch_description():
         executable='hgdo_node',
         name='hgdo_node',
         output='screen',
-        parameters=[config_file_path]
+        parameters=[config_file_path,
+                    {'use_sim_time': True}]
     )
 
     # Create and return the LaunchDescription

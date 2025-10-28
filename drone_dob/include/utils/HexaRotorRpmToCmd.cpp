@@ -75,6 +75,6 @@ void HexaRotorRpmToCmd::configure_mapping(const DroneParam& drone_param)
     1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
     ly1, ly2, ly3, ly4, ly5, ly6,
     -lx1, -lx2, -lx3, -lx4, -lx5, -lx6,
-    -k_m_, k_m_, -k_m_, k_m_, k_m_, k_m_;
+    -k_m_, k_m_, -k_m_, k_m_, -k_m_, k_m_;
 
 }
