@@ -18,7 +18,7 @@ HgdoNode::HgdoNode()
         std::bind(&HgdoNode::hexaRpmCallback, this, std::placeholders::_1));
 
     // Publishers
-    filtered_odom_publisher_ = this->create_publisher<Odometry>("/filtered_odometry", rclcpp::SensorDataQoS());
+    filtered_odom_publisher_ = this->create_publisher<Odometry>("/filtered_odom", rclcpp::SensorDataQoS());
     dob_publisher_ = this->create_publisher<WrenchStamped>("/hgdo/wrench", rclcpp::SensorDataQoS());
 
     // Control loop timer
@@ -141,16 +141,16 @@ void HgdoNode::dobEstimateLoopCallback()
 
         Vector3d lin_vel_world = q_body_to_world * lin_vel_filtered;
 
-        Vector4d u_curr = rpm_to_cmd_converter_->convert(rpm_recent.rpm);
+        // Vector4d u_curr = rpm_to_cmd_converter_->convert(rpm_recent.rpm);
         Vector4d u_prev = rpm_to_cmd_converter_->convert(rpm_data_prev.rpm);
-        Vector4d u_med = (u_curr + u_prev) / 2.0;
+        // Vector4d u_med = (u_curr + u_prev) / 2.0;
 
         hgdo_model_->update(t_prev_, 
                             t_curr_, 
                             lin_vel_world, 
                             ang_vel_filtered,
                             odom_recent.orientation, 
-                            u_med);
+                            u_prev);
         disturbance_estimate_ = hgdo_model_->get_disturbance_estimate();
     }
     else
@@ -273,11 +273,13 @@ void HgdoNode::configure_parameters()
     rpm_to_cmd_converter_ = new HexaRotorRpmToCmd(drone_param);
     hgdo_model_ = new HgdoModel(drone_param, hgdo_param);
 
-    print_parameters(drone_param, hgdo_param);
+    print_parameters(drone_param, hgdo_param, ang_vel_cutoff, lin_vel_cutoff);
 }
 
 void HgdoNode::print_parameters(const DroneParam &drone_param,
-                                const HgdoParam &hgdo_param)
+                                const HgdoParam &hgdo_param,
+                                const double &ang_cutoff_freq,
+                                const double &lin_cutoff_freq)
 {
     RCLCPP_INFO(this->get_logger(), "===== HGDO Node Parameters =====");
     RCLCPP_INFO(this->get_logger(), "Drone Parameters:");
@@ -294,5 +296,11 @@ void HgdoNode::print_parameters(const DroneParam &drone_param,
     RCLCPP_INFO(this->get_logger(), "HGDO Parameters:");
     RCLCPP_INFO(this->get_logger(), "Epsilon for Force Estimation (eps_f): %.5f", hgdo_param.eps_f);
     RCLCPP_INFO(this->get_logger(), "Epsilon for Torque Estimation (eps_tau): %.5f", hgdo_param.eps_tau);
-    RCLCPP_INFO(this->get_logger(), "================================");
+
+    RCLCPP_INFO(this->get_logger(), "Low-Pass Filter Cutoff Frequencies:");
+    RCLCPP_INFO(this->get_logger(), 
+    "Angular Velocity LPF Cutoff Frequency: %.2f Hz", ang_cutoff_freq);
+    RCLCPP_INFO(this->get_logger(), 
+    "Linear Velocity LPF Cutoff Frequency: %.2f Hz", lin_cutoff_freq);
+    RCLCPP_INFO(this->get_logger(), "==========================");
 }

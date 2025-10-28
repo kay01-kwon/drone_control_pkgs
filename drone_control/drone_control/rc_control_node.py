@@ -61,7 +61,7 @@ class RcControlNode(Node):
                                                  qos_profile_sensor_data)
 
         self.odom_sub = self.create_subscription(Odometry,
-                                                 '/S550/ground_truth/odom',
+                                                 '/filtered_odom',
                                                  self._odom_cb,
                                                  qos_profile_sensor_data)
 
@@ -88,9 +88,7 @@ class RcControlNode(Node):
 
         if self.rc_state_buf.is_full():
             self.rc_state_buf.pop()
-            self.rc_state_buf.push((rc_time, cmd_vel))
-        else:
-            self.rc_state_buf.push((rc_time, cmd_vel))
+        self.rc_state_buf.push((rc_time, cmd_vel))
 
         # Get string typed mode_name
         mode_name = RcModeStr.mode_str(self.mode)
@@ -105,18 +103,14 @@ class RcControlNode(Node):
         odom_time, odom_data = MsgParser.parse_odom_msg(msg)
         if self.odom_buf.is_full():
             self.odom_buf.pop()
-            self.odom_buf.push((odom_time, odom_data))
-        else:
-            self.odom_buf.push((odom_time, odom_data))
+        self.odom_buf.push((odom_time, odom_data))
 
     def _do_cb(self, msg:WrenchStamped):
         do_time, do_state = MsgParser.parse_wrench_msg(msg)
 
         if self.wrench_buf.is_full():
             self.wrench_buf.pop()
-            self.wrench_buf.push((do_time, do_state))
-        else:
-            self.wrench_buf.push((do_time, do_state))
+        self.wrench_buf.push((do_time, do_state))
 
     def _timer_cb(self):
 
@@ -153,12 +147,13 @@ class RcControlNode(Node):
             cmd_vel = self.rc_state_buf.get_latest()[1]
             wrench_recent = self.wrench_buf.get_latest()[1]
             state_recent = self.odom_buf.get_latest()[1]
-            self.get_logger().info(f'wrench recent: {wrench_recent[3:]}')
-            self.get_logger().info(f'cmd_vel: {cmd_vel}')
+            
+            # self.get_logger().info(f'cmd_vel: {cmd_vel}')
             self.rc_control.set_ref(cmd_vel,
                                     state_recent,
                                     wrench_recent[3:])
             u = self.rc_control.get_control_input()
+            self.get_logger().info(f'u: {u}')
             self.des_rpm = self.inverse_dynamics.compute_des_rpm(u[0],u[1:])
 
         self.cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.t_curr, self.des_rpm)
