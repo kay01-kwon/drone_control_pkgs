@@ -18,7 +18,7 @@ HgdoNode::HgdoNode()
         std::bind(&HgdoNode::hexaRpmCallback, this, std::placeholders::_1));
 
     // Publishers
-    filtered_odom_publisher_ = this->create_publisher<Odometry>("/filtered_odometry", rclcpp::SensorDataQoS());
+    filtered_odom_publisher_ = this->create_publisher<Odometry>("/filtered_odom", rclcpp::SensorDataQoS());
     dob_publisher_ = this->create_publisher<WrenchStamped>("/hgdo/wrench", rclcpp::SensorDataQoS());
 
     // Control loop timer
@@ -40,6 +40,7 @@ void HgdoNode::odomCallback(const Odometry::SharedPtr msg)
 {
     OdomData odom_data;
     odom_data.timestamp = this->now().seconds();
+
     odom_data.position <<
         msg->pose.pose.position.x,
         msg->pose.pose.position.y,
@@ -273,11 +274,13 @@ void HgdoNode::configure_parameters()
     rpm_to_cmd_converter_ = new HexaRotorRpmToCmd(drone_param);
     hgdo_model_ = new HgdoModel(drone_param, hgdo_param);
 
-    print_parameters(drone_param, hgdo_param);
+    print_parameters(drone_param, hgdo_param, ang_vel_cutoff, lin_vel_cutoff);
 }
 
 void HgdoNode::print_parameters(const DroneParam &drone_param,
-                                const HgdoParam &hgdo_param)
+                                const HgdoParam &hgdo_param,
+                                const double &ang_cutoff_freq,
+                                const double &lin_cutoff_freq)
 {
     RCLCPP_INFO(this->get_logger(), "===== HGDO Node Parameters =====");
     RCLCPP_INFO(this->get_logger(), "Drone Parameters:");
@@ -294,5 +297,11 @@ void HgdoNode::print_parameters(const DroneParam &drone_param,
     RCLCPP_INFO(this->get_logger(), "HGDO Parameters:");
     RCLCPP_INFO(this->get_logger(), "Epsilon for Force Estimation (eps_f): %.5f", hgdo_param.eps_f);
     RCLCPP_INFO(this->get_logger(), "Epsilon for Torque Estimation (eps_tau): %.5f", hgdo_param.eps_tau);
-    RCLCPP_INFO(this->get_logger(), "================================");
+
+    RCLCPP_INFO(this->get_logger(), "Low-Pass Filter Cutoff Frequencies:");
+    RCLCPP_INFO(this->get_logger(), 
+    "Angular Velocity LPF Cutoff Frequency: %.2f Hz", ang_cutoff_freq);
+    RCLCPP_INFO(this->get_logger(), 
+    "Linear Velocity LPF Cutoff Frequency: %.2f Hz", lin_cutoff_freq);
+    RCLCPP_INFO(this->get_logger(), "==========================");
 }

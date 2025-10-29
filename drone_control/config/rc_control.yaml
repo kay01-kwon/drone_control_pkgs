@@ -8,7 +8,7 @@
     gain_param:
       KpTransArray: [2.7, 2.7, 2.7]
       KpOriArray: [3.0, 3.0, 0.18]
-      KdOriArray: [0.4, 0.4, 0.15]
+      KdOriArray: [0.5, 0.5, 0.015]
       AccelMaxArray: [1.0, 1.0, 1.0]
 
     dynamic_param:

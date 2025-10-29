@@ -46,7 +46,9 @@ class HgdoNode : public rclcpp::Node {
     void configure_parameters();
 
     void print_parameters(const DroneParam &drone_param,
-                          const HgdoParam &hgdo_param);
+                          const HgdoParam &hgdo_param,
+                          const double &ang_cutoff_freq,
+                          const double &lin_cutoff_freq);
 
     rclcpp::TimerBase::SharedPtr control_loop_timer_;
     
