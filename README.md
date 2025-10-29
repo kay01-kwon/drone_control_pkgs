@@ -77,3 +77,27 @@ source install/setup.bash
 ```
 ros2 launch drone_control rc_control.launch.py
 ```
+
+## To do list
+
+1. Configuration
+
+[] Add LPF on/off configuration
+
+[] Integrate launch file in drone_control pkg
+
+2. DOB Implementation
+
+[] L1 adaptation 
+
+[] UKF/EKF for DOB
+
+3. Control Implementation
+
+[] NMPC (Acados) with DOB
+
+[] NMPC + RC control with DOB (Switching)
+
+4. Localization
+
+[] EKF/ESKF for Localization
