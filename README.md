@@ -5,10 +5,16 @@
 ```
 cd ~/rotor_sim_ws/
 ```
+Install drone_control pacakge
+```
+colcon build --packages-select drone_control --symlink-install
+```
 
+Install drone_dob package
 ```
-cd colcon build --packages-select --symlink-install
+colcon build --packages-select drone_dob --symlink-install
 ```
+
 
 ## Run Launch
 
@@ -45,7 +51,21 @@ source install/setup.bash
 ros2 run px4_launch px4_client_node
 ```
 
-Terminal 3
+Terminal3
+```
+cd ~/rotor_sim_ws
+```
+
+```
+source install/setup.bash
+```
+
+```
+ros2 launch drone_dob hgdo.launch.py
+```
+
+
+Terminal 4
 ```
 cd ~/rotor_sim_ws
 ```
