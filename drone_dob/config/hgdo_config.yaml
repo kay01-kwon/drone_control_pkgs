@@ -8,8 +8,8 @@
       moment_const: 0.01569
     dob:
       dob_looptime: 0.010
-      eps_f: 0.01
-      eps_tau: 0.01
+      eps_f: 0.02
+      eps_tau: 0.02
     lpf:
       ang_vel_cutoff: 60.0
       lin_vel_cutoff: 20.0

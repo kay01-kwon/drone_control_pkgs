@@ -147,14 +147,19 @@ class RcControlNode(Node):
             cmd_vel = self.rc_state_buf.get_latest()[1]
             wrench_recent = self.wrench_buf.get_latest()[1]
             state_recent = self.odom_buf.get_latest()[1]
-            
-            # self.get_logger().info(f'cmd_vel: {cmd_vel}')
-            self.rc_control.set_ref(cmd_vel,
+
+            # Landing state
+            if cmd_vel[2] < 0.1 and state_recent[2] < 0.05:
+                self._set_idle_rpm()
+
+            # Takeoff state
+            else:
+                self.rc_control.set_ref(cmd_vel,
                                     state_recent,
                                     wrench_recent[3:])
-            u = self.rc_control.get_control_input()
-            self.get_logger().info(f'u: {u}')
-            self.des_rpm = self.inverse_dynamics.compute_des_rpm(u[0],u[1:])
+                u = self.rc_control.get_control_input()
+                self.des_rpm = self.inverse_dynamics.compute_des_rpm(u[0],u[1:])
+                # self.get_logger().info(f'u: {u}')
 
         self.cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.t_curr, self.des_rpm)
 
@@ -165,6 +170,10 @@ class RcControlNode(Node):
         (sec, nsec) = clock_now.seconds_nanoseconds()
         time_now = sec + nsec*1e-9
         return time_now
+
+    def _set_idle_rpm(self):
+        for i in range(len(self.des_rpm)):
+            self.des_rpm[i] = 2000
 
     def _config(self):
         self.get_logger().info(f'{self.get_name()}: Initializing...')

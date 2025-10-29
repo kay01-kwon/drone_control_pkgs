@@ -40,6 +40,7 @@ void HgdoNode::odomCallback(const Odometry::SharedPtr msg)
 {
     OdomData odom_data;
     odom_data.timestamp = this->now().seconds();
+
     odom_data.position <<
         msg->pose.pose.position.x,
         msg->pose.pose.position.y,
@@ -141,16 +142,16 @@ void HgdoNode::dobEstimateLoopCallback()
 
         Vector3d lin_vel_world = q_body_to_world * lin_vel_filtered;
 
-        // Vector4d u_curr = rpm_to_cmd_converter_->convert(rpm_recent.rpm);
+        Vector4d u_curr = rpm_to_cmd_converter_->convert(rpm_recent.rpm);
         Vector4d u_prev = rpm_to_cmd_converter_->convert(rpm_data_prev.rpm);
-        // Vector4d u_med = (u_curr + u_prev) / 2.0;
+        Vector4d u_med = (u_curr + u_prev) / 2.0;
 
         hgdo_model_->update(t_prev_, 
                             t_curr_, 
                             lin_vel_world, 
                             ang_vel_filtered,
                             odom_recent.orientation, 
-                            u_prev);
+                            u_med);
         disturbance_estimate_ = hgdo_model_->get_disturbance_estimate();
     }
     else
