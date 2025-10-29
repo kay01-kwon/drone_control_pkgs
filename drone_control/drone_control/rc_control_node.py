@@ -29,7 +29,7 @@ class RcControlNode(Node):
         w = np.zeros((3,))
 
         # Get parameter for converter and controller
-        converterParam, gainParam, dynParam, droneParam = self._config()
+        converterParam, ConstrainParam, gainParam, dynParam, droneParam = self._config()
 
         self.rc_converter = RcConverter(converterParam)
         self.rc_control = RcControl(gainParam, dynParam)
@@ -71,6 +71,10 @@ class RcControlNode(Node):
                                                 qos_profile_sensor_data)
 
         self.cmd_pub = self.create_publisher(HexaCmdRaw, '/uav/cmd_raw', 5)
+
+        # Takeoff condition
+        self.z_takeoff = ConstrainParam['z_takeoff']
+        self.vz_cmd_takeoff = ConstrainParam['vz_cmd_takeoff']
 
         timer_period = 0.010
         self.timer = self.create_timer(timer_period, self._timer_cb)
@@ -149,7 +153,7 @@ class RcControlNode(Node):
             state_recent = self.odom_buf.get_latest()[1]
 
             # Landing state
-            if cmd_vel[2] < 0.1 and state_recent[2] < 0.05:
+            if cmd_vel[2] < self.vz_cmd_takeoff and state_recent[2] < self.z_takeoff:
                 self._set_idle_rpm()
 
             # Takeoff state
@@ -186,6 +190,13 @@ class RcControlNode(Node):
 
         ConverterParam = {'vxy_max': vxy_max, 'vz_max': vz_max,
                           'dpsi_dt_max': dpsi_dt_max}
+
+        z_takeoff = self.get_parameter('constraint.z_takeoff').value
+        vz_cmd_takeoff = self.get_parameter('constraint.vz_cmd_takeoff').value
+
+        ConstraintParam = {'z_takeoff': z_takeoff,
+                           'vz_cmd_takeoff': vz_cmd_takeoff}
+
 
         # Get gain parameters
         KpTransArray = self.get_parameter('gain_param.KpTransArray').value
@@ -230,7 +241,7 @@ class RcControlNode(Node):
         self.get_logger().info(f'm: {m}')
         self.get_logger().info(f'MoiArray: {MoiArray}')
 
-        return ConverterParam, gainParam, dynParam, droneParam
+        return ConverterParam, ConstraintParam, gainParam, dynParam, droneParam
 
     def _sensor_time_config(self):
         self.get_logger().info(f'{self.get_name()}: Initializing...')

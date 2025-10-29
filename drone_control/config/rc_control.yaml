@@ -1,9 +1,11 @@
 /**:
   ros__parameters:
     constraint:
-      vxy_max: 0.3
-      vz_max: 0.3
-      dpsi_dt_max: 0.2
+      vxy_max: 0.3               # 0.3 m/s
+      vz_max: 0.3                # 0.3 m/s
+      dpsi_dt_max: 0.2           # 0.2 rad/s
+      z_takeoff: 0.05            # 5 cm
+      vz_cmd_takeoff: 0.1        # 0.1 m/s
 
     gain_param:
       KpTransArray: [2.7, 2.7, 2.7]
