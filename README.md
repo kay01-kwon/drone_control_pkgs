@@ -78,6 +78,20 @@ source install/setup.bash
 ros2 launch drone_control rc_control.launch.py
 ```
 
+## How to activate manual stab mode
+
+1. SE: Deactivate Kill switch by pressing the button.
+
+2. SD: Switch from Disamed to armed state.
+
+3. SB: Stick to Neutral position.
+
+4. To move up, increase throttle.
+
+<img src="drone_control/figures/Boxer1.png">
+
+<img src="drone_control/figures/Boxer2.png">
+
 ## To do list
 
 1. Configuration
@@ -96,8 +110,4 @@ ros2 launch drone_control rc_control.launch.py
 
 - [ ] NMPC (Acados) with DOB
 
-- [ ] NMPC + RC control with DOB (Switching)
-
-4. Localization
-
-- [ ] EKF/ESKF for Localization
+- [ ] NMPC/RC control with DOB (Switching)
