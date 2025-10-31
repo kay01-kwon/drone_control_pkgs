@@ -70,15 +70,19 @@ class RcConverter:
                              * self._constrain(rc_in[3]))
 
 
-        if self._two_pos(rc_in[8]) == 'LOW':
-            self.mode = FlightMode.KILL
-        else:
-            if self._three_pos(rc_in[5]) == 'LOW':
-                self.mode = FlightMode.MANUAL_STAB
-            elif self._three_pos(rc_in[5]) == 'HIGH':
-                self.mode = FlightMode.AUTO
+        if self._two_pos(rc_in[7]) == "HIGH":
+            self.mode = FlightMode.ARMED
+            if self._three_pos(rc_in[8]) == "LOW":
+                self.mode = FlightMode.KILL
             else:
-                self.mode = FlightMode.ARMED
+                if self._three_pos(rc_in[5]) == "LOW":
+                    self.mode = FlightMode.ARMED
+                elif self._three_pos(rc_in[5]) == "MID":
+                    self.mode = FlightMode.MANUAL_STAB
+                elif self._three_pos(rc_in[5]) == "HIGH":
+                    self.mode = FlightMode.AUTO
+        elif self._two_pos(rc_in[7]) == "LOW":
+            self.mode = FlightMode.DISARMED
 
     def get_rc_state(self):
         return self.mode, self.v_des, self.dpsi_dt_des
