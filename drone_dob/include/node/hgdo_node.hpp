@@ -47,8 +47,10 @@ class HgdoNode : public rclcpp::Node {
 
     void print_parameters(const DroneParam &drone_param,
                           const HgdoParam &hgdo_param,
+                          const double &lin_cutoff_freq,
                           const double &ang_cutoff_freq,
-                          const double &lin_cutoff_freq);
+                          const double &disturbance_force_cutoff,
+                          const double &disturbance_torque_cutoff);
 
     rclcpp::TimerBase::SharedPtr control_loop_timer_;
     
@@ -70,6 +72,9 @@ class HgdoNode : public rclcpp::Node {
 
     LowPassFilter *angular_velocity_lpf_[3]{nullptr};
     LowPassFilter *linear_velocity_lpf_[3]{nullptr};
+
+    LowPassFilter *disturbance_force_lpf_[3]{nullptr};
+    LowPassFilter *disturbance_torque_lpf_[3]{nullptr};
 
     Vector6d disturbance_estimate_{Vector6d::Zero()};
 
