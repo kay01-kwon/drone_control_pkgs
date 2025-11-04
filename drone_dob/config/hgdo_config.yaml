@@ -11,5 +11,7 @@
       eps_f: 0.02
       eps_tau: 0.02
     lpf:
-      ang_vel_cutoff: 60.0
       lin_vel_cutoff: 20.0
+      ang_vel_cutoff: 60.0
+      disturbance_force_cutoff: 20.0
+      disturbance_torque_cutoff: 60.0
