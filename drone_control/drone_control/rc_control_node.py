@@ -128,9 +128,6 @@ class RcControlNode(Node):
         if self.rc_state_buf.is_empty():
             return
 
-        if self.wrench_buf.is_empty():
-            return
-
         t_diff_odom_abs = np.abs(self.t_curr - self.odom_buf.get_latest()[0])
 
         if t_diff_odom_abs > self.timeout[1]:
@@ -149,7 +146,10 @@ class RcControlNode(Node):
                 self.des_rpm[i] = 2000
         elif self.mode == FlightMode.MANUAL_STAB:
             cmd_vel = self.rc_state_buf.get_latest()[1]
-            wrench_recent = self.wrench_buf.get_latest()[1]
+            if self.wrench_buf.is_empty():
+                wrench_recent = np.zeros((6,))
+            else:
+                wrench_recent = self.wrench_buf.get_latest()[1]
             state_recent = self.odom_buf.get_latest()[1]
 
             # Landing state

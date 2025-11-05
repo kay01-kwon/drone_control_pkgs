@@ -37,6 +37,10 @@ class HgdoNode : public rclcpp::Node {
     // DOB estimate loop
     void dobEstimateLoopCallback();
 
+    void odom_filter(const double &dt);
+
+    void dob_estimate();
+
     Vector3d linear_interpolation(const Vector3d &start,
                                   const Vector3d &end,
                                   const double &t_start,
@@ -64,10 +68,11 @@ class HgdoNode : public rclcpp::Node {
     double t_prev_{0.0};
     double dob_looptime_{0.01};
 
-    double bit_to_rpm_{MAX_RPM/MAX_BIT};
-
     CircularBuffer<OdomData> odom_buffer_;
     CircularBuffer<RpmData> hexa_rpm_buffer_;
+
+    Vector3d lin_vel_filtered_{Vector3d::Zero()};
+    Vector3d ang_vel_filtered_{Vector3d::Zero()};
 
     HgdoModel *hgdo_model_{nullptr};
     HexaRotorRpmToCmd *rpm_to_cmd_converter_{nullptr};
