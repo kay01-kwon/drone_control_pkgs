@@ -13,10 +13,10 @@ from drone_control.rc_control import RcControl, RcConverter
 from drone_control.rc_control import FlightMode, RcModeStr
 
 from drone_control.utils.circular_buffer import CircularBuffer
-from drone_control.utils.inverse_dynamics import InverseDynamics
+from drone_control.utils.control_allocator import ControlAllocator
 from drone_control.utils import math_tool, MsgParser
 from drone_control.utils.cmd_converter import HexaCmdConverter
-
+from drone_control.utils.low_pass_filter import LowPassFilter
 
 class RcControlNode(Node):
     def __init__(self):
@@ -33,7 +33,7 @@ class RcControlNode(Node):
 
         self.rc_converter = RcConverter(converterParam)
         self.rc_control = RcControl(gainParam, dynParam)
-        self.inverse_dynamics = InverseDynamics(droneParam)
+        self.control_allocator = ControlAllocator(droneParam)
 
         # Get parameter for watermark
         sensorTimeParam = self._sensor_time_config()
@@ -158,14 +158,20 @@ class RcControlNode(Node):
 
             # Takeoff state
             else:
+
+                dt = self.t_curr - self.t_prev
                 self.rc_control.set_ref(cmd_vel,
                                     state_recent,
                                     wrench_recent[3:])
                 u = self.rc_control.get_control_input()
-                self.des_rpm = self.inverse_dynamics.compute_des_rpm(u[0],u[1:])
-                # self.get_logger().info(f'u: {u}')
+                self.des_rpm = self.control_allocator.compute_relaxed_des_rpm(u[0],
+                                                                              u[1:],
+                                                                              self.des_rpm,
+                                                                              dt)
 
         self.cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.t_curr, self.des_rpm)
+
+        self.t_prev = self.t_curr
 
         self.cmd_pub.publish(self.cmd_msg)
 
@@ -214,6 +220,8 @@ class RcControlNode(Node):
         moment_const = self.get_parameter('drone_param.moment_const').value
         T_max = self.get_parameter('drone_param.T_max').value
         T_min = self.get_parameter('drone_param.T_min').value
+        acc_max = self.get_parameter('drone_param.acc_max').value
+        acc_min = self.get_parameter('drone_param.acc_min').value
 
         gainParam = {'KpTransArray': KpTransArray,
                      'KpOriArray': KpOriArray,
@@ -227,7 +235,9 @@ class RcControlNode(Node):
                       'rotor_const': rotor_const,
                       'moment_const': moment_const,
                       'T_max': T_max,
-                      'T_min': T_min}
+                      'T_min': T_min,
+                      'acc_max': acc_max,
+                      'acc_min': acc_min}
 
         self.get_logger().info(f'vxy_max: {vxy_max}')
         self.get_logger().info(f'vz_max: {vz_max}')
