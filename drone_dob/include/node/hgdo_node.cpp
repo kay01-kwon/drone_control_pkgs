@@ -13,9 +13,9 @@ HgdoNode::HgdoNode()
         "/S550/ground_truth/odom", rclcpp::SensorDataQoS(),
         std::bind(&HgdoNode::odomCallback, this, std::placeholders::_1));
 
-    hexa_rpm_subscriber_ = this->create_subscription<HexaActualRpm>(
-        "/uav/actual_rpm", rclcpp::SensorDataQoS(),
-        std::bind(&HgdoNode::hexaRpmCallback, this, std::placeholders::_1));
+    hexa_cmd_raw_subscriber_ = this->create_subscription<HexaCmdRaw>(
+        "/uav/cmd_raw", rclcpp::SensorDataQoS(),
+        std::bind(&HgdoNode::hexaCmdRawCallback, this, std::placeholders::_1));
 
     // Publishers
     filtered_odom_publisher_ = this->create_publisher<Odometry>("/filtered_odom", rclcpp::SensorDataQoS());
@@ -78,13 +78,17 @@ void HgdoNode::odomCallback(const Odometry::SharedPtr msg)
     odom_buffer_.push_back(odom_data);
 }
 
-void HgdoNode::hexaRpmCallback(const HexaActualRpm::SharedPtr msg)
+void HgdoNode::hexaCmdRawCallback(const HexaCmdRaw::SharedPtr msg)
 {
     RpmData rpm_data;
     rpm_data.timestamp = this->now().seconds();
-    rpm_data.rpm << msg->rpm[0], msg->rpm[1], msg->rpm[2],
-                    msg->rpm[3], msg->rpm[4], msg->rpm[5];
-    
+    rpm_data.rpm << msg->cmd_raw[0]*bit_to_rpm_, 
+                    msg->cmd_raw[1]*bit_to_rpm_, 
+                    msg->cmd_raw[2]*bit_to_rpm_,
+                    msg->cmd_raw[3]*bit_to_rpm_, 
+                    msg->cmd_raw[4]*bit_to_rpm_, 
+                    msg->cmd_raw[5]*bit_to_rpm_;
+
     if(hexa_rpm_buffer_.is_full())
     {
         hexa_rpm_buffer_.pop();
@@ -270,11 +274,11 @@ void HgdoNode::configure_parameters()
 
 
     // 3. Pass LPF parameters
-    this->declare_parameter<double>("lpf.ang_vel_cutoff", 60.0);
-    double ang_vel_cutoff = this->get_parameter("lpf.ang_vel_cutoff").as_double();
-
     this->declare_parameter<double>("lpf.lin_vel_cutoff", 20.0);
     double lin_vel_cutoff = this->get_parameter("lpf.lin_vel_cutoff").as_double();
+
+    this->declare_parameter<double>("lpf.ang_vel_cutoff", 60.0);
+    double ang_vel_cutoff = this->get_parameter("lpf.ang_vel_cutoff").as_double();
 
     this->declare_parameter<double>("lpf.disturbance_force_cutoff", 20.0);
     double disturbance_force_cutoff = this->get_parameter("lpf.disturbance_force_cutoff").as_double();
