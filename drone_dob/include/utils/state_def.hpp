@@ -20,8 +20,7 @@ static Vector3d g_vec{0.0, 0.0, -9.81}; // Gravity vector
 
 static Matrix3x3d Eye = Matrix3x3d::Identity(); // Identity matrix
 
-const int MAX_BIT{8191};
-const int MAX_RPM{9800};
+#define BIT_TO_RPM (9800.0/8191.0) // Conversion factor from command bit to RPM
 
 enum class DroneType{
     Quad,
