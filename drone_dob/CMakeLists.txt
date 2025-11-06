@@ -49,8 +49,21 @@ target_link_libraries(
   dob_lib
 )
 
+add_executable(
+  sync_test_node
+  src/sync_test_node_main.cpp
+  include/node/sync_test_node.cpp
+)
+
+ament_target_dependencies(
+  sync_test_node
+  ros2_libcanard_msgs
+  nav_msgs
+  rclcpp
+)
+
 install(
-  TARGETS hgdo_node
+  TARGETS hgdo_node sync_test_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

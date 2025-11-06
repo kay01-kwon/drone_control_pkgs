@@ -7,10 +7,11 @@ MaxRpm: int = 9800
 
 class HexaCmdConverter:
     @staticmethod
-    def Rpm_to_cmd_raw(time, des_rpm):
+    def Rpm_to_cmd_raw(time_stamp, des_rpm):
         cmd_msg = HexaCmdRaw()
-        # cmd_msg.header.stamp.sec = time
-
+        (sec, nsec) = time_stamp.seconds_nanoseconds()
+        cmd_msg.header.stamp.sec = sec
+        cmd_msg.header.stamp.nanosec = nsec
         for i in range(6):
             cmd_msg.cmd_raw[i] = int(des_rpm[i]*MaxBit/MaxRpm)
 

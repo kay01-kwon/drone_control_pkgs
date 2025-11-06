@@ -41,7 +41,8 @@ HgdoNode::~HgdoNode(){
 void HgdoNode::odomCallback(const Odometry::SharedPtr msg)
 {
     OdomData odom_data;
-    odom_data.timestamp = this->now().seconds();
+    odom_data.timestamp = msg->header.stamp.sec + 
+                        msg->header.stamp.nanosec * 1e-9;
 
     odom_data.position <<
         msg->pose.pose.position.x,
@@ -76,12 +77,24 @@ void HgdoNode::odomCallback(const Odometry::SharedPtr msg)
     }
 
     odom_buffer_.push_back(odom_data);
+
+    if(odom_buffer_.size() >= 2)
+        odom_filter();
+
+    if(!odom_buffer_.is_empty() && !hexa_rpm_buffer_.is_empty())
+    {
+        if(odom_buffer_.size() >= 2 && hexa_rpm_buffer_.size() >= 2)
+        {
+            dob_estimate();
+        }
+    }
 }
 
 void HgdoNode::hexaCmdRawCallback(const HexaCmdRaw::SharedPtr msg)
 {
     RpmData rpm_data;
-    rpm_data.timestamp = this->now().seconds();
+    rpm_data.timestamp = msg->header.stamp.sec + 
+                        msg->header.stamp.nanosec * 1e-9;
     rpm_data.rpm << msg->cmd_raw[0]*BIT_TO_RPM, 
                     msg->cmd_raw[1]*BIT_TO_RPM,
                     msg->cmd_raw[2]*BIT_TO_RPM,
@@ -103,36 +116,21 @@ void HgdoNode::dobEstimateLoopCallback()
     // This function will use the data from odom_buffer_ and hexa_rpm_buffer_
     // to compute the disturbance observer estimates and publish the results.
 
-    t_curr_ = this->now().seconds();
 
-    double dt = t_curr_ - t_prev_;
-
-    // RCLCPP_INFO(this->get_logger(),
-    // "DOB Loop Time: %.4f s", dt);
-
-    // RCLCPP_INFO(this->get_logger(),
-    // "Bit to RPM conversion factor: %.4f", BIT_TO_RPM);
-
-    if(!odom_buffer_.is_empty())
-    {
-        odom_filter(dt);
-    }
-
-    if(!odom_buffer_.is_empty() && !hexa_rpm_buffer_.is_empty())
-    {
-        if(odom_buffer_.size() >= 2 && hexa_rpm_buffer_.size() >= 2)
-            dob_estimate();
-    }
-
-    t_prev_ = t_curr_;
+    filtered_odom_publisher_->publish(filtered_odom_msg_);
+    dob_publisher_->publish(dob_msg_);
 }
 
-void HgdoNode::odom_filter(const double &dt)
+void HgdoNode::odom_filter()
 {
     // Implement odometry filtering if needed
 
     OdomData odom_recent;
+    OdomData odom_prev;
     odom_recent = odom_buffer_.get_latest().value();
+    odom_prev = odom_buffer_.at(odom_buffer_.size()-2).value();
+
+    double dt = odom_recent.timestamp - odom_prev.timestamp;
 
     // Apply LPF to linear and angular velocity
     for (int i = 0; i < 3; ++i)
@@ -148,24 +146,22 @@ void HgdoNode::odom_filter(const double &dt)
 
 
     // Publish filtered odometry
-    Odometry filtered_odom_msg;
-    filtered_odom_msg.header.stamp = this->now();
-    filtered_odom_msg.header.frame_id = "odom";
-    filtered_odom_msg.child_frame_id = "base_link";
-    filtered_odom_msg.pose.pose.position.x = odom_recent.position(0);
-    filtered_odom_msg.pose.pose.position.y = odom_recent.position(1);
-    filtered_odom_msg.pose.pose.position.z = odom_recent.position(2);
-    filtered_odom_msg.pose.pose.orientation.w = odom_recent.orientation.w();
-    filtered_odom_msg.pose.pose.orientation.x = odom_recent.orientation.x();
-    filtered_odom_msg.pose.pose.orientation.y = odom_recent.orientation.y();
-    filtered_odom_msg.pose.pose.orientation.z = odom_recent.orientation.z();
-    filtered_odom_msg.twist.twist.linear.x = lin_vel_filtered_(0);
-    filtered_odom_msg.twist.twist.linear.y = lin_vel_filtered_(1);
-    filtered_odom_msg.twist.twist.linear.z = lin_vel_filtered_(2);
-    filtered_odom_msg.twist.twist.angular.x = ang_vel_filtered_(0);
-    filtered_odom_msg.twist.twist.angular.y = ang_vel_filtered_(1);
-    filtered_odom_msg.twist.twist.angular.z = ang_vel_filtered_(2);
-    filtered_odom_publisher_->publish(filtered_odom_msg);
+    filtered_odom_msg_.header.stamp = this->now();
+    filtered_odom_msg_.header.frame_id = "odom";
+    filtered_odom_msg_.child_frame_id = "base_link";
+    filtered_odom_msg_.pose.pose.position.x = odom_recent.position(0);
+    filtered_odom_msg_.pose.pose.position.y = odom_recent.position(1);
+    filtered_odom_msg_.pose.pose.position.z = odom_recent.position(2);
+    filtered_odom_msg_.pose.pose.orientation.w = odom_recent.orientation.w();
+    filtered_odom_msg_.pose.pose.orientation.x = odom_recent.orientation.x();
+    filtered_odom_msg_.pose.pose.orientation.y = odom_recent.orientation.y();
+    filtered_odom_msg_.pose.pose.orientation.z = odom_recent.orientation.z();
+    filtered_odom_msg_.twist.twist.linear.x = lin_vel_filtered_(0);
+    filtered_odom_msg_.twist.twist.linear.y = lin_vel_filtered_(1);
+    filtered_odom_msg_.twist.twist.linear.z = lin_vel_filtered_(2);
+    filtered_odom_msg_.twist.twist.angular.x = ang_vel_filtered_(0);
+    filtered_odom_msg_.twist.twist.angular.y = ang_vel_filtered_(1);
+    filtered_odom_msg_.twist.twist.angular.z = ang_vel_filtered_(2);
 
 }
 
@@ -212,16 +208,15 @@ void HgdoNode::dob_estimate()
     }
 
     // Publish DOB estimate
-    WrenchStamped dob_msg;
-    dob_msg.header.stamp = this->now();
-    dob_msg.header.frame_id = "base_link";
-    dob_msg.wrench.force.x = disturbance_force_filtered(0);
-    dob_msg.wrench.force.y = disturbance_force_filtered(1);
-    dob_msg.wrench.force.z = disturbance_force_filtered(2);
-    dob_msg.wrench.torque.x = disturbance_torque_filtered(0);
-    dob_msg.wrench.torque.y = disturbance_torque_filtered(1);
-    dob_msg.wrench.torque.z = disturbance_torque_filtered(2);
-    dob_publisher_->publish(dob_msg);
+
+    dob_msg_.header.stamp = this->now();
+    dob_msg_.header.frame_id = "base_link";
+    dob_msg_.wrench.force.x = disturbance_force_filtered(0);
+    dob_msg_.wrench.force.y = disturbance_force_filtered(1);
+    dob_msg_.wrench.force.z = disturbance_force_filtered(2);
+    dob_msg_.wrench.torque.x = disturbance_torque_filtered(0);
+    dob_msg_.wrench.torque.y = disturbance_torque_filtered(1);
+    dob_msg_.wrench.torque.z = disturbance_torque_filtered(2);
 
 }
 

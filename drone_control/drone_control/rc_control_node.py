@@ -169,7 +169,7 @@ class RcControlNode(Node):
                                                                               self.des_rpm,
                                                                               dt)
 
-        self.cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.t_curr, self.des_rpm)
+        self.cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(), self.des_rpm)
 
         self.t_prev = self.t_curr
 
