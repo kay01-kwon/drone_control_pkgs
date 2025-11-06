@@ -37,7 +37,7 @@ class HgdoNode : public rclcpp::Node {
     // DOB estimate loop
     void dobEstimateLoopCallback();
 
-    void odom_filter(const double &dt);
+    void odom_filter();
 
     void dob_estimate();
 
@@ -84,6 +84,10 @@ class HgdoNode : public rclcpp::Node {
     LowPassFilter *disturbance_torque_lpf_[3]{nullptr};
 
     Vector6d disturbance_estimate_{Vector6d::Zero()};
+    
+    nav_msgs::msg::Odometry filtered_odom_msg_;
+    WrenchStamped dob_msg_;
+
 
 };
 
