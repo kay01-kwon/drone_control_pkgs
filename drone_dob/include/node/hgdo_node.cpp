@@ -172,22 +172,21 @@ void HgdoNode::dob_estimate()
     Vector3d disturbance_force_filtered = Vector3d::Zero();
     Vector3d disturbance_torque_filtered = Vector3d::Zero();
 
-    RpmData rpm_recent;
+
     OdomData odom_recent;
-    rpm_recent = hexa_rpm_buffer_.get_latest().value();
     odom_recent = odom_buffer_.get_latest().value();
 
-    size_t rpm_recent_index = hexa_rpm_buffer_.size() - 1;
     size_t odom_recent_index = odom_buffer_.size() - 1;
 
     OdomData odom_prev = odom_buffer_.at(odom_recent_index-1).value();
-    RpmData rpm_prev = hexa_rpm_buffer_.at(rpm_recent_index-1).value();
-
     double dt_odom = odom_recent.timestamp - odom_prev.timestamp;
 
-    Vector4d u_curr = rpm_to_cmd_converter_->convert(rpm_recent.rpm);
-    Vector4d u_prev = rpm_to_cmd_converter_->convert(rpm_prev.rpm);
-    Vector4d u_med = (u_curr + u_prev) / 2.0;
+    Vector6int16 rpm_recent = get_rpm_near_odom(odom_recent.timestamp);
+    Vector6int16 rpm_prev = get_rpm_near_odom(odom_prev.timestamp);
+
+    Vector4d u_recent = rpm_to_cmd_converter_->convert(rpm_recent);
+    Vector4d u_prev = rpm_to_cmd_converter_->convert(rpm_prev);
+    Vector4d u_med = 0.5 * (u_prev + u_recent);
 
     hgdo_model_->update(odom_prev.timestamp, 
                         odom_recent.timestamp, 
@@ -220,22 +219,70 @@ void HgdoNode::dob_estimate()
 
 }
 
-Vector3d HgdoNode::linear_interpolation(const Vector3d &start,
-                                     const Vector3d &end,
-                                     const double &t_start,
-                                     const double &t_end,
-                                     const double &t_query)
+Vector6int16 HgdoNode::get_rpm_near_odom(const double &odom_time_stamp)
 {
-    if(t_query <= t_start){
-        return start;
+    size_t rpm_recent_index = hexa_rpm_buffer_.size() - 1;
+
+    double rpm_recent_time_stamp = get_rpm_time_stamp(hexa_rpm_buffer_, rpm_recent_index);
+
+    if(odom_time_stamp < rpm_recent_time_stamp)
+    {
+        // Search for the closest rpm data before the odom timestamp
+        for(int i = rpm_recent_index - 1; i >= 0; --i)
+        {
+            double rpm_time_stamp = get_rpm_time_stamp(hexa_rpm_buffer_, i);
+            if(rpm_time_stamp <= odom_time_stamp)
+            {
+                Vector6int16 rpm_before = hexa_rpm_buffer_.at(i).value().rpm;
+                Vector6int16 rpm_after = hexa_rpm_buffer_.at(i+1).value().rpm;
+
+                double time_before = rpm_time_stamp;
+                double time_after = get_rpm_time_stamp(hexa_rpm_buffer_, i+1);
+                return rpm_linear_interpolation(odom_time_stamp,
+                                                rpm_before,
+                                                time_before,
+                                                rpm_after,
+                                                time_after);
+            }
+        }
     }
-    else if(t_query >= t_end){
-        return end;
+    // If no interpolation is needed, return the most recent rpm data
+    return hexa_rpm_buffer_.at(rpm_recent_index).value().rpm;
+}
+
+Vector6int16 HgdoNode::rpm_linear_interpolation(const double &odom_time_stamp,
+                                        const Vector6int16 &rpm_before,
+                                        const double &time_before,
+                                        const Vector6int16 &rpm_after,
+                                        const double &time_after)
+{
+    Vector6int16 rpm_interpolated;
+    if(time_after - time_before < 1e-6)
+    {
+        rpm_interpolated = rpm_before;
+        return rpm_interpolated;
     }
-    else{
-        double alpha = (t_query - t_start) / (t_end - t_start);
-        return (1.0 - alpha) * start + alpha * end;
+
+    double alpha = (odom_time_stamp - time_before) / (time_after - time_before);
+
+
+    for(int i = 0; i < 6; ++i)
+    {
+        rpm_interpolated(i) = static_cast<int16_t>(
+            rpm_before(i) + alpha * (rpm_after(i) - rpm_before(i))
+        );
     }
+
+    return rpm_interpolated;
+}
+
+double HgdoNode::get_rpm_time_stamp(CircularBuffer<RpmData>& buffer, size_t index)
+{
+    if(index >= buffer.size())
+    {
+        throw std::out_of_range("Index out of range in get_rpm_time_stamp");
+    }
+    return buffer.at(index).value().timestamp;
 }
 
 void HgdoNode::configure_parameters()

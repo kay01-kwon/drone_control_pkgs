@@ -4,7 +4,7 @@ project(drone_dob)
 set(CMAKE_CXX_STANDARD 17)
 
 set(dob_src
-  include/models/hgdo_model.cpp
+  include/models/hgdo_model/hgdo_model.cpp
   include/node/hgdo_node.cpp
   include/utils/HexaRotorRpmToCmd.cpp
   include/utils/LowPassFilter.cpp
@@ -49,21 +49,8 @@ target_link_libraries(
   dob_lib
 )
 
-add_executable(
-  sync_test_node
-  src/sync_test_node_main.cpp
-  include/node/sync_test_node.cpp
-)
-
-ament_target_dependencies(
-  sync_test_node
-  ros2_libcanard_msgs
-  nav_msgs
-  rclcpp
-)
-
 install(
-  TARGETS hgdo_node sync_test_node
+  TARGETS hgdo_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

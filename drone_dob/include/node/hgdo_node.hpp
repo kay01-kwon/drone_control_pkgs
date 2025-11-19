@@ -12,7 +12,7 @@
 #include "utils/HexaRotorRpmToCmd.hpp"
 #include "utils/LowPassFilter.hpp"
 
-#include "models/hgdo_model.hpp"
+#include "models/hgdo_model/hgdo_model.hpp"
 
 using namespace std::chrono_literals;
 
@@ -41,11 +41,15 @@ class HgdoNode : public rclcpp::Node {
 
     void dob_estimate();
 
-    Vector3d linear_interpolation(const Vector3d &start,
-                                  const Vector3d &end,
-                                  const double &t_start,
-                                  const double &t_end,
-                                  const double &t_query);
+    Vector6int16 get_rpm_near_odom(const double &odom_time_stamp);
+
+    Vector6int16 rpm_linear_interpolation(const double &odom_time_stamp,
+                                        const Vector6int16 &rpm_before,
+                                        const double &time_before,
+                                        const Vector6int16 &rpm_after,
+                                        const double &time_after);
+
+    double get_rpm_time_stamp(CircularBuffer<RpmData>& buffer, size_t index);
 
     void configure_parameters();
 
