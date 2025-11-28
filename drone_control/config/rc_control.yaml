@@ -9,8 +9,8 @@
 
     gain_param:
       KpTransArray: [2.7, 2.7, 2.7]
-      KpOriArray: [3.0, 3.0, 0.18]
-      KdOriArray: [0.5, 0.5, 0.015]
+      KpOriArray: [1.0, 1.0, 0.18]
+      KdOriArray: [0.3, 0.3, 0.015]
       AccelMaxArray: [1.0, 1.0, 1.0]
 
     dynamic_param:
@@ -23,8 +23,8 @@
       moment_const: 0.01569
       T_max: 9.376
       T_min: 0.586
-      acc_max: 20000.0    # Acc 20 krpm/s
-      acc_min: 20000.0    # Dec 20 krpm/s
+      acc_max: 15000.0    # Acc 15 krpm/s
+      acc_min: 15000.0    # Dec 15 krpm/s
 
     sensor_time_param:
       timeout:

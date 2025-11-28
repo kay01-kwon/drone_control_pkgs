@@ -13,5 +13,5 @@
     lpf:
       lin_vel_cutoff: 20.0
       ang_vel_cutoff: 60.0
-      disturbance_force_cutoff: 10.0
-      disturbance_torque_cutoff: 2.0
+      disturbance_force_cutoff: 100.0
+      disturbance_torque_cutoff: 40.0
