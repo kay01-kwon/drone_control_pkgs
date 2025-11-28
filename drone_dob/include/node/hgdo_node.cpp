@@ -13,9 +13,9 @@ HgdoNode::HgdoNode()
         "/S550/ground_truth/odom", rclcpp::SensorDataQoS(),
         std::bind(&HgdoNode::odomCallback, this, std::placeholders::_1));
 
-    hexa_cmd_raw_subscriber_ = this->create_subscription<HexaCmdRaw>(
-        "/uav/cmd_raw", 1,
-        std::bind(&HgdoNode::hexaCmdRawCallback, this, std::placeholders::_1));
+    hexa_actual_rpm_subscriber_ = this->create_subscription<HexaActualRpm>(
+        "/uav/actual_rpm", rclcpp::SensorDataQoS(),
+        std::bind(&HgdoNode::hexaActualRpmCallback, this, std::placeholders::_1));
 
     // Publishers
     filtered_odom_publisher_ = this->create_publisher<Odometry>("/filtered_odom", rclcpp::SensorDataQoS());
@@ -90,17 +90,17 @@ void HgdoNode::odomCallback(const Odometry::SharedPtr msg)
     }
 }
 
-void HgdoNode::hexaCmdRawCallback(const HexaCmdRaw::SharedPtr msg)
+void HgdoNode::hexaActualRpmCallback(const HexaActualRpm::SharedPtr msg)
 {
     RpmData rpm_data;
     rpm_data.timestamp = msg->header.stamp.sec + 
                         msg->header.stamp.nanosec * 1e-9;
-    rpm_data.rpm << msg->cmd_raw[0]*BIT_TO_RPM, 
-                    msg->cmd_raw[1]*BIT_TO_RPM,
-                    msg->cmd_raw[2]*BIT_TO_RPM,
-                    msg->cmd_raw[3]*BIT_TO_RPM,
-                    msg->cmd_raw[4]*BIT_TO_RPM,
-                    msg->cmd_raw[5]*BIT_TO_RPM;
+    rpm_data.rpm << msg->rpm[0], 
+                    msg->rpm[1],
+                    msg->rpm[2],
+                    msg->rpm[3],
+                    msg->rpm[4],
+                    msg->rpm[5];
 
     if(hexa_rpm_buffer_.is_full())
     {

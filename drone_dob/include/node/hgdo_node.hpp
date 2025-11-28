@@ -5,7 +5,7 @@
 #include <chrono>
 
 #include "nav_msgs/msg/odometry.hpp"
-#include <ros2_libcanard_msgs/msg/hexa_cmd_raw.hpp>
+#include <ros2_libcanard_msgs/msg/hexa_actual_rpm.hpp>
 #include "geometry_msgs/msg/wrench_stamped.hpp"
 
 #include "utils/CircularBuffer.hpp"
@@ -17,7 +17,7 @@
 using namespace std::chrono_literals;
 
 using nav_msgs::msg::Odometry;
-using ros2_libcanard_msgs::msg::HexaCmdRaw;
+using ros2_libcanard_msgs::msg::HexaActualRpm;
 using geometry_msgs::msg::WrenchStamped;
 
 class HgdoNode : public rclcpp::Node {
@@ -32,7 +32,7 @@ class HgdoNode : public rclcpp::Node {
 
     // Sensor Msg data callbacks
     void odomCallback(const Odometry::SharedPtr msg);
-    void hexaCmdRawCallback(const HexaCmdRaw::SharedPtr msg);
+    void hexaActualRpmCallback(const HexaActualRpm::SharedPtr msg);
 
     // DOB estimate loop
     void dobEstimateLoopCallback();
@@ -63,7 +63,7 @@ class HgdoNode : public rclcpp::Node {
     rclcpp::TimerBase::SharedPtr control_loop_timer_;
     
     rclcpp::Subscription<Odometry>::SharedPtr odom_subscriber_;
-    rclcpp::Subscription<HexaCmdRaw>::SharedPtr hexa_cmd_raw_subscriber_;
+    rclcpp::Subscription<HexaActualRpm>::SharedPtr hexa_actual_rpm_subscriber_;
 
     rclcpp::Publisher<Odometry>::SharedPtr filtered_odom_publisher_;
     rclcpp::Publisher<WrenchStamped>::SharedPtr dob_publisher_;
