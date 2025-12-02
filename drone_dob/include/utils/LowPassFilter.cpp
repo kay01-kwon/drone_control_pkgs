@@ -17,8 +17,7 @@ void LowPassFilter::setCutoffFrequency(double cutoff_freq) {
 }
 
 double LowPassFilter::update(double input, double dt) {
-    double tau = 1.0 / (2 * M_PI * cutoff_frequency_);
-    double alpha = 1 - exp(-dt / tau);
+    double alpha = 1 - exp(-dt * 2 * M_PI * cutoff_frequency_);
     // std::cout << "Alpha: " << alpha << std::endl;
     // std::cout << "dt: " << dt << std::endl;
     output_ = output_*(1 - alpha) + input * alpha;
