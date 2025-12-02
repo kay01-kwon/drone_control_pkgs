@@ -62,6 +62,13 @@ Vector6d StatePredictor::get_predicted_state() const{
     return z_hat_;
 }
 
+Vector6d StatePredictor::get_z_tilde() const{
+    Vector6d z_tilde;
+    z_tilde.head<3>() = z_hat_.head<3>() - state_meas_.v;
+    z_tilde.tail<3>() = z_hat_.tail<3>() - state_meas_.w;
+    return z_tilde;
+}
+
 
 void StatePredictor::compute_dynamics(const Vector6d& z_hat,
                                       Vector6d& z_hat_dot,

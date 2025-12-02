@@ -43,6 +43,8 @@ class StatePredictor{
 
     Vector6d get_predicted_state() const;
 
+    Vector6d get_z_tilde() const;
+
     private:
 
     /**
@@ -71,7 +73,7 @@ class StatePredictor{
 
     Matrix6x6d As_;
 
-    OdeRk4Solver<Vector6d> rk4_solver_;
+    OdeRk4Solver<Vector6d> *rk4_solver_;
 
     double t_curr_{0.0};
     double t_prev_{0.0};
