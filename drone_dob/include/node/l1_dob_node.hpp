@@ -13,6 +13,12 @@
 
 #include "models/l1_adaptive_model/l1_adaptation_model.hpp"
 
+using namespace std::chrono_literals;
+
+using nav_msgs::msg::Odometry;
+using ros2_libcanard_msgs::msg::HexaActualRpm;
+using geometry_msgs::msg::WrenchStamped;
+
 
 class L1DobNode : public rclcpp::Node {
     
@@ -51,6 +57,38 @@ class L1DobNode : public rclcpp::Node {
                           const double &ang_cutoff_freq,
                           const double &disturbance_force_cutoff,
                           const double &adaptation_gain);
+
+    rclcpp::TimerBase::SharedPtr control_loop_timer_;
+
+    // Subscribers
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_subscriber_;
+    rclcpp::Subscription<ros2_libcanard_msgs::msg::HexaActualRpm>::SharedPtr hexa_rpm_subscriber_;
+
+    // Publishers
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr filtered_odom_publisher_;
+    rclcpp::Publisher<geometry_msgs::msg::WrenchStamped>::SharedPtr dob_publisher_;
+
+    double t_curr_{0.0};
+    double t_prev_{0.0};
+    double dob_looptime_{0.01};
+
+    CircularBuffer<OdomData> odom_buffer_;
+    CircularBuffer<RpmData> hexa_rpm_buffer_;
+
+    Vector3d lin_vel_filtered_{Vector3d::Zero()};
+    Vector3d ang_vel_filtered_{Vector3d::Zero()};
+
+    L1AdaptationModel* l1_dob_model_{nullptr};
+    HexaRotorRpmToCmd* rpm_to_cmd_converter_{nullptr};
+
+    LowPassFilter* linear_velocity_lpf_[3];
+    LowPassFilter* angular_velocity_lpf_[3];
+
+    Vector6d disturbance_estimate_{Vector6d::Zero()};
+
+    nav_msgs::msg::Odometry filtered_odom_msg_;
+    WrenchStamped dob_msg_;
+
 };
 
 #endif // L1_DOB_NODE_HPP
