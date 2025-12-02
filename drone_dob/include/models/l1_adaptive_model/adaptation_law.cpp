@@ -2,12 +2,30 @@
 
 AdaptationLaw::AdaptationLaw()
 {
+    sigma_hat_.setZero();
+    mu_.setZero();
+}
 
+AdaptationLaw::AdaptationLaw(const DroneParam& drone_param,
+                               const Matrix6x6d& As)
+{
+    configure(drone_param, As);
+    sigma_hat_.setZero();
+    mu_.setZero();
 }
 
 AdaptationLaw::~AdaptationLaw()
 {
 
+}
+
+void AdaptationLaw::configure(const DroneParam& drone_param,
+                              const Matrix6x6d& As)
+{
+    m_ = drone_param.m;
+    J_ = drone_param.J;
+    As_ = As;
+    As_inv_ = As_.inverse();
 }
 
 void AdaptationLaw::update(const double &t_prev,
@@ -18,6 +36,11 @@ void AdaptationLaw::update(const double &t_prev,
     // Implementation of the update method goes here
 
     double dt = t_curr - t_prev;
+
+    if (dt <= 0.0)
+    {
+        return;
+    }
 
     Matrix6x6d Phi, Phi_inv;
 

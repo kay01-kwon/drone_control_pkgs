@@ -2,7 +2,21 @@
 
 StatePredictor::StatePredictor(){
     // Constructor
+    initialize_state();
+
+    // Default Hurwitz matrix
+    As_.setIdentity();
+    As_ = -5.0 * As_;
+
     ode_solver_ = new OdeRk4Solver<Vector6d>();
+}
+
+StatePredictor::StatePredictor(const DroneParam& drone_param,
+                               const Matrix6x6d& As)
+{
+    initialize_state();
+    ode_solver_ = new OdeRk4Solver<Vector6d>();
+    configure(drone_param, As);
 }
 
 StatePredictor::~StatePredictor(){
@@ -69,6 +83,19 @@ Vector6d StatePredictor::get_z_tilde() const{
     return z_tilde;
 }
 
+void StatePredictor::initialize_state(){
+
+    state_meas_.p.setZero();
+    state_meas_.v.setZero();
+    state_meas_.q.setIdentity();
+    state_meas_.w.setZero();
+
+    z_hat_.setZero();
+
+    sigma_.setZero();
+    u_BL_.setZero();
+    u_L1_.setZero();
+}
 
 void StatePredictor::compute_dynamics(const Vector6d& z_hat,
                                       Vector6d& z_hat_dot,

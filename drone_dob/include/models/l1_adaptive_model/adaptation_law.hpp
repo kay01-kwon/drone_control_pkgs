@@ -9,7 +9,13 @@ class AdaptationLaw {
 
     AdaptationLaw();
 
+    AdaptationLaw(const DroneParam& drone_param,
+                    const Matrix6x6d& As);
+
     ~AdaptationLaw();
+
+    void configure(const DroneParam& drone_param,
+                   const Matrix6x6d& As);
 
     /**
      * @brief Updates the adaptation law based on the previous and current time, the error state, and the measured quaternion.
