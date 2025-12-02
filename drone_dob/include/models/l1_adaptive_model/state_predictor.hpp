@@ -4,9 +4,6 @@
 #include "utils/state_def.hpp"
 #include "utils/rk4_ode_solver.hpp"
 
-// Matrix 6 by 6 definition for Hurwitz matrix
-typedef Eigen::Matrix<double, 6, 6> Matrix6x6d;
-
 // Matrix 6 by 4 definition for control input mapping
 typedef Eigen::Matrix<double, 6, 4> Matrix6x4d;
 

@@ -13,6 +13,16 @@ StatePredictor::~StatePredictor(){
 void StatePredictor::configure(const DroneParam& drone_param,
                                const Matrix6x6d& hurwitz_matrix)
 {
+    m_ = drone_param.m;
+    J_ = drone_param.J;
+    J_inv_.setZero();
+
+    for(int i=0; i<3; i++)
+    {
+        if(J_.coeff(i,i) != 0.0)
+            J_inv_.coeffRef(i,i) = 1.0 / J_.coeff(i,i);
+    }
+    
     As_ = hurwitz_matrix;
 }
 

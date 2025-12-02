@@ -14,6 +14,9 @@ typedef Eigen::Quaternion<double> Quaterniond;
 
 typedef Eigen::Matrix<double, 3, 3> Matrix3x3d;
 
+// Matrix 6 by 6 definition for Hurwitz matrix
+typedef Eigen::Matrix<double, 6, 6> Matrix6x6d;
+
 typedef Eigen::Matrix<int16_t, 6, 1> Vector6int16;
 
 static Vector3d g_vec{0.0, 0.0, -9.81}; // Gravity vector
