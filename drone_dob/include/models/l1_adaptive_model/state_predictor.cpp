@@ -16,11 +16,14 @@ void StatePredictor::configure(const DroneParam& drone_param,
 
 void StatePredictor::update(const double &t_prev,
                             const double &t_curr,
-                            const Vector6d &state_meas,
+                            const StateVector13d &state_meas,
                             const Vector4d& u_BL,
                             const Vector4d& u_L1,
                             const Vector6d &sigma)
 {
+    t_prev_ = t_prev;
+    t_curr_ = t_curr;
+    
 
 }
 

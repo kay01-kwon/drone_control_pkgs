@@ -43,6 +43,21 @@ struct DroneParam{
     double k_m{0.01569};        // Moment constant
 };
 
+
+/**
+ * @brief State data structure
+ * p: Position vector (World frame)
+ * v: Linear velocity vector (World frame)
+ * q: Orientation quaternion (World to Body)
+ * w: Angular velocity vector (Body frame)
+ */
+struct StateData{
+    Vector3d p{Vector3d::Zero()};          // Position (World frame)
+    Vector3d v{Vector3d::Zero()};          // Linear velocity (World frame)
+    Quaterniond q{Quaterniond::Identity()}; // Orientation (World to Body)
+    Vector3d w{Vector3d::Zero()};          // Angular velocity (Body
+};
+
 /**
  * @brief Odometry data structure
  * timestamp: Time stamp

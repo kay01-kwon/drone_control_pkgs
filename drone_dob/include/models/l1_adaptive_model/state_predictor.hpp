@@ -20,9 +20,19 @@ class StatePredictor{
     void configure(const DroneParam& drone_param,
                    const Matrix6x6d& hurwitz_matrix);
 
+    /**
+     * @brief Updates the state predictor with the latest measurements and inputs
+     * 
+     * @param t_prev : previous time
+     * @param t_curr : current time
+     * @param state_meas : measured state vector
+     * @param u_BL : baseline control input
+     * @param u_L1 : L1 adaptive control input
+     * @param sigma : Matched (Fx, Fy) and unmatched (Fz, Mx, My, Mz) uncertainties
+     */
     void update(const double &t_prev,
                 const double &t_curr,
-                const Vector6d &state_meas,
+                const StateVector13d &state_meas,
                 const Vector4d& u_BL,
                 const Vector4d& u_L1,
                 const Vector6d &sigma);
@@ -32,6 +42,13 @@ class StatePredictor{
 
     private:
 
+    /**
+     * @brief Computes the dynamics of the predicted state
+     * 
+     * @param z_hat : Estimated state vector
+     * @param z_hat_dot : Time derivative of the estimated state vector
+     * @param t_prev : Previous time
+     */
     void compute_dynamics(const Vector6d& z_hat,
                           Vector6d& z_hat_dot,
                           const double &t_prev);
