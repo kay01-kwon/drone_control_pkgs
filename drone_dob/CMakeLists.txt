@@ -5,7 +5,11 @@ set(CMAKE_CXX_STANDARD 17)
 
 set(dob_src
   include/models/hgdo_model/hgdo_model.cpp
+  include/models/l1_adaptive_model/l1_adaptation_model.cpp
+  include/models/l1_adaptive_model/adaptation_law.cpp
+  include/models/l1_adaptive_model/state_predictor.cpp
   include/node/hgdo_node.cpp
+  include/node/l1_adaptive_node.cpp
   include/utils/HexaRotorRpmToCmd.cpp
   include/utils/LowPassFilter.cpp
   include/utils/math_tool.cpp
@@ -39,6 +43,7 @@ ament_target_dependencies(
   rclcpp
 )
 
+# HGDO Node
 add_executable(
   hgdo_node
   src/hgdo_node_main.cpp
@@ -49,8 +54,19 @@ target_link_libraries(
   dob_lib
 )
 
+# L1-ADAPTIVE Node
+add_executable(
+  l1_adaptive_node
+  src/l1_adaptive_node_main.cpp
+)
+
+target_link_libraries(
+  l1_adaptive_node
+  dob_lib
+)
+
 install(
-  TARGETS hgdo_node
+  TARGETS hgdo_node l1_adaptive_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

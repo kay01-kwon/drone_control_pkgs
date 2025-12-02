@@ -10,14 +10,14 @@ L1AdaptationModel::L1AdaptationModel()
 }
 
 L1AdaptationModel::L1AdaptationModel(const DroneParam& drone_param,
-                                     const L1DobParam& l1_dob_param)
+                                     const L1AdaptiveParam& l1_adaptive_param)
 {
     initialize_state();
     for(size_t i = 0; i < 6; ++i)
     {
         lpf_sigma_hat_[i] = new LowPassFilter();
     }
-    configure(drone_param, l1_dob_param);
+    configure(drone_param, l1_adaptive_param);
 }
 
 L1AdaptationModel::~L1AdaptationModel()
@@ -28,19 +28,19 @@ L1AdaptationModel::~L1AdaptationModel()
     }
 }
 void L1AdaptationModel::configure(const DroneParam& drone_param,
-                                  const L1DobParam& l1_dob_param)
+                                  const L1AdaptiveParam& l1_adaptive_param)
 {
-    state_predictor_.configure(drone_param, l1_dob_param.As);
-    adaptation_law_.configure(drone_param, l1_dob_param.As);
+    state_predictor_.configure(drone_param, l1_adaptive_param.As);
+    adaptation_law_.configure(drone_param, l1_adaptive_param.As);
 
     for(size_t i = 0; i < 3; ++i)
     {
-        lpf_sigma_hat_[i]->setCutoffFrequency(l1_dob_param.freq_cutoff_trans);
+        lpf_sigma_hat_[i]->setCutoffFrequency(l1_adaptive_param.freq_cutoff_trans);
     }
 
     for(size_t i = 3; i < 6; ++i)
     {
-        lpf_sigma_hat_[i]->setCutoffFrequency(l1_dob_param.freq_cutoff_rot);
+        lpf_sigma_hat_[i]->setCutoffFrequency(l1_adaptive_param.freq_cutoff_rot);
     }
 }
 
@@ -70,7 +70,7 @@ void L1AdaptationModel::update(const double &t_prev,
     
 }
 
-Vector6d L1AdaptationModel::get_u_L1() const
+Vector4d L1AdaptationModel::get_u_L1() const
 {
     return u_L1_;
 }
