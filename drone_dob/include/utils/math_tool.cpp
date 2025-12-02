@@ -48,25 +48,3 @@ Matrix3x3d w_cross_Jw_deriv(const Matrix3x3d& J,
 
     return result;
 }
-
-Matrix3x3d quatToRotMat(const Quaterniond& q) {
-    Matrix3x3d R;
-    double qw = q.w();
-    double qx = q.x();
-    double qy = q.y();
-    double qz = q.z();
-
-    R(0, 0) = 1 - 2 * (qy * qy + qz * qz);
-    R(0, 1) = 2 * (qx * qy - qz * qw);
-    R(0, 2) = 2 * (qx * qz + qy * qw);
-
-    R(1, 0) = 2 * (qx * qy + qz * qw);
-    R(1, 1) = 1 - 2 * (qx * qx + qz * qz);
-    R(1, 2) = 2 * (qy * qz - qx * qw);
-
-    R(2, 0) = 2 * (qx * qz - qy * qw);
-    R(2, 1) = 2 * (qy * qz + qx * qw);
-    R(2, 2) = 1 - 2 * (qx * qx + qy * qy);
-
-    return R;
-}
