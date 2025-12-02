@@ -17,6 +17,9 @@ class StatePredictor{
     // Constructor
     StatePredictor();
 
+    StatePredictor(const DroneParam& drone_param,
+                   const Matrix6x6d& As);
+
     // Destructor
     ~StatePredictor();
 
@@ -46,6 +49,8 @@ class StatePredictor{
     Vector6d get_z_tilde() const;
 
     private:
+
+    void initialize_state();
 
     /**
      * @brief Computes the dynamics of the predicted state
