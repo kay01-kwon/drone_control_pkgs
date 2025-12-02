@@ -27,6 +27,14 @@ enum class DroneType{
     Hexa,
 };
 
+/**
+ * @brief Parameters for the drone
+ * m: Mass
+ * l: Arm length
+ * J: Inertia matrix
+ * C_T: Motor constant (N / RPM^2)
+ * k_m: Moment constant (Nm / N)
+ */
 struct DroneParam{
     double m{3.0};              // Mass
     double l{0.265};            // Arm length
@@ -35,6 +43,14 @@ struct DroneParam{
     double k_m{0.01569};        // Moment constant
 };
 
+/**
+ * @brief Odometry data structure
+ * timestamp: Time stamp
+ * position: Position vector (World frame)
+ * linear_velocity: Linear velocity vector (World frame)
+ * orientation: Orientation quaternion (World to Body)
+ * angular_velocity: Angular velocity vector (Body frame)
+ */
 struct OdomData{
     double timestamp{0.0};
     Vector3d position{Vector3d::Zero()};
@@ -43,6 +59,11 @@ struct OdomData{
     Vector3d angular_velocity{Vector3d::Zero()};
 };
 
+/**
+ * @brief RPM data structure (Hexacopter)
+ * timestamp: Time stamp
+ * rpm: RPM vector for each motor
+ */
 struct RpmData{
     double timestamp{0.0};
     Vector6int16 rpm{Vector6int16::Zero()};
