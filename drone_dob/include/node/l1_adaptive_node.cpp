@@ -1,7 +1,7 @@
-#include "hgdo_node.hpp"
+#include "l1_adaptive_node.hpp"
 
-HgdoNode::HgdoNode()
-: Node("hgdo_node")
+L1AdaptiveNode::L1AdaptiveNode()
+: Node("l1_dob_node")
 {
     configure_parameters();
 
@@ -9,36 +9,35 @@ HgdoNode::HgdoNode()
     hexa_rpm_buffer_.reserve(20);
 
     // Subscribers
-    odom_subscriber_ = this->create_subscription<Odometry>(
+    odom_subscriber_ = this->create_subscription<nav_msgs::msg::Odometry>(
         "/S550/ground_truth/odom", rclcpp::SensorDataQoS(),
-        std::bind(&HgdoNode::odomCallback, this, std::placeholders::_1));
+        std::bind(&L1AdaptiveNode::odomCallback, this, std::placeholders::_1));
 
-    hexa_actual_rpm_subscriber_ = this->create_subscription<HexaActualRpm>(
+    hexa_rpm_subscriber_ = this->create_subscription<ros2_libcanard_msgs::msg::HexaActualRpm>(
         "/uav/actual_rpm", rclcpp::SensorDataQoS(),
-        std::bind(&HgdoNode::hexaActualRpmCallback, this, std::placeholders::_1));
-
+        std::bind(&L1AdaptiveNode::hexaActualRpmCallback, this, std::placeholders::_1));
     // Publishers
     filtered_odom_publisher_ = this->create_publisher<Odometry>("/filtered_odom", rclcpp::SensorDataQoS());
-    dob_publisher_ = this->create_publisher<WrenchStamped>("/hgdo/wrench", rclcpp::SensorDataQoS());
+
+    dob_publisher_ = this->create_publisher<WrenchStamped>("/l1_adaptive/wrench", rclcpp::SensorDataQoS());
 
     // Control loop timer
     control_loop_timer_ = this->create_wall_timer(
         std::chrono::duration<double>(dob_looptime_),
-        std::bind(&HgdoNode::dobEstimateLoopCallback, this));
+        std::bind(&L1AdaptiveNode::dobEstimateLoopCallback, this));
 }
 
-HgdoNode::~HgdoNode(){
-    delete hgdo_model_;
+L1AdaptiveNode::~L1AdaptiveNode(){
+    delete l1_adaptive_model_;
     delete rpm_to_cmd_converter_;
+
     for(int i = 0; i < 3; ++i){
         delete angular_velocity_lpf_[i];
         delete linear_velocity_lpf_[i];
-        delete disturbance_force_lpf_[i];
-        delete disturbance_torque_lpf_[i];
     }
 }
 
-void HgdoNode::odomCallback(const Odometry::SharedPtr msg)
+void L1AdaptiveNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
 {
     OdomData odom_data;
     odom_data.timestamp = msg->header.stamp.sec + 
@@ -66,11 +65,6 @@ void HgdoNode::odomCallback(const Odometry::SharedPtr msg)
     odom_data.orientation.z()
     = msg->pose.pose.orientation.z;
 
-    odom_data.angular_velocity << 
-        msg->twist.twist.angular.x,
-        msg->twist.twist.angular.y,
-        msg->twist.twist.angular.z;
-    
     if(odom_buffer_.is_full())
     {
         odom_buffer_.pop();
@@ -79,18 +73,15 @@ void HgdoNode::odomCallback(const Odometry::SharedPtr msg)
     odom_buffer_.push_back(odom_data);
 
     if(odom_buffer_.size() >= 2)
-        odom_filter();
-
-    if(!odom_buffer_.is_empty() && !hexa_rpm_buffer_.is_empty())
     {
-        if(odom_buffer_.size() >= 2 && hexa_rpm_buffer_.size() >= 2)
+        if(odom_buffer_.size() >= 2 && !hexa_rpm_buffer_.is_empty())
         {
             dob_estimate();
         }
     }
 }
 
-void HgdoNode::hexaActualRpmCallback(const HexaActualRpm::SharedPtr msg)
+void L1AdaptiveNode::hexaActualRpmCallback(const ros2_libcanard_msgs::msg::HexaActualRpm::SharedPtr msg)
 {
     RpmData rpm_data;
     rpm_data.timestamp = msg->header.stamp.sec + 
@@ -110,18 +101,17 @@ void HgdoNode::hexaActualRpmCallback(const HexaActualRpm::SharedPtr msg)
     hexa_rpm_buffer_.push_back(rpm_data);
 }
 
-void HgdoNode::dobEstimateLoopCallback()
+void L1AdaptiveNode::dobEstimateLoopCallback()
 {
     // Implementation of the DOB estimate loop
     // This function will use the data from odom_buffer_ and hexa_rpm_buffer_
     // to compute the disturbance observer estimates and publish the results.
 
-
     filtered_odom_publisher_->publish(filtered_odom_msg_);
     dob_publisher_->publish(dob_msg_);
 }
 
-void HgdoNode::odom_filter()
+void L1AdaptiveNode::odom_filter()
 {
     // Implement odometry filtering if needed
 
@@ -162,64 +152,50 @@ void HgdoNode::odom_filter()
     filtered_odom_msg_.twist.twist.angular.x = ang_vel_filtered_(0);
     filtered_odom_msg_.twist.twist.angular.y = ang_vel_filtered_(1);
     filtered_odom_msg_.twist.twist.angular.z = ang_vel_filtered_(2);
-
 }
 
-void HgdoNode::dob_estimate()
+void L1AdaptiveNode::dob_estimate()
 {
-    // Implement DOB estimation logic if needed
-
-    Vector3d disturbance_force_filtered = Vector3d::Zero();
-    Vector3d disturbance_torque_filtered = Vector3d::Zero();
-
-
     OdomData odom_recent;
     odom_recent = odom_buffer_.get_latest().value();
 
     size_t odom_recent_index = odom_buffer_.size() - 1;
 
     OdomData odom_prev = odom_buffer_.at(odom_recent_index-1).value();
-    double dt_odom = odom_recent.timestamp - odom_prev.timestamp;
-
+    
     Vector6int16 rpm_recent = get_rpm_near_odom(odom_recent.timestamp);
     Vector6int16 rpm_prev = get_rpm_near_odom(odom_prev.timestamp);
 
     Vector4d u_recent = rpm_to_cmd_converter_->convert(rpm_recent);
     Vector4d u_prev = rpm_to_cmd_converter_->convert(rpm_prev);
+
     Vector4d u_med = 0.5 * (u_prev + u_recent);
 
-    hgdo_model_->update(odom_prev.timestamp, 
-                        odom_recent.timestamp, 
-                        lin_vel_filtered_, 
-                        ang_vel_filtered_,
-                        odom_recent.orientation, 
-                        u_med);
+    StateData state_meas;
+    state_meas.p = odom_recent.position;
+    state_meas.v = lin_vel_filtered_;
+    state_meas.w = ang_vel_filtered_;
+    state_meas.q = odom_recent.orientation;
+    // Update L1 adaptive model
+    l1_adaptive_model_->update(odom_prev.timestamp,
+                               odom_recent.timestamp,
+                               state_meas,
+                               u_med);
     
-    disturbance_estimate_ = hgdo_model_->get_disturbance_estimate();
-
-    for(int i = 0; i < 3; ++i)
-    {
-        disturbance_force_filtered(i) = 
-        disturbance_force_lpf_[i]->update(disturbance_estimate_(i), dt_odom);
-
-        disturbance_torque_filtered(i) = 
-        disturbance_torque_lpf_[i]->update(disturbance_estimate_(i+3), dt_odom);
-    }
+    disturbance_estimate_.tail<4>() = l1_adaptive_model_->get_u_L1();
 
     // Publish DOB estimate
-
     dob_msg_.header.stamp = this->now();
     dob_msg_.header.frame_id = "base_link";
-    dob_msg_.wrench.force.x = disturbance_force_filtered(0);
-    dob_msg_.wrench.force.y = disturbance_force_filtered(1);
-    dob_msg_.wrench.force.z = disturbance_force_filtered(2);
-    dob_msg_.wrench.torque.x = disturbance_torque_filtered(0);
-    dob_msg_.wrench.torque.y = disturbance_torque_filtered(1);
-    dob_msg_.wrench.torque.z = disturbance_torque_filtered(2);
-
+    dob_msg_.wrench.force.x = disturbance_estimate_(0);
+    dob_msg_.wrench.force.y = disturbance_estimate_(1);
+    dob_msg_.wrench.force.z = disturbance_estimate_(2);
+    dob_msg_.wrench.torque.x = disturbance_estimate_(3);
+    dob_msg_.wrench.torque.y = disturbance_estimate_(4);
+    dob_msg_.wrench.torque.z = disturbance_estimate_(5);
 }
 
-Vector6int16 HgdoNode::get_rpm_near_odom(const double &odom_time_stamp)
+Vector6int16 L1AdaptiveNode::get_rpm_near_odom(const double &odom_time_stamp)
 {
     size_t rpm_recent_index = hexa_rpm_buffer_.size() - 1;
 
@@ -250,7 +226,7 @@ Vector6int16 HgdoNode::get_rpm_near_odom(const double &odom_time_stamp)
     return hexa_rpm_buffer_.at(rpm_recent_index).value().rpm;
 }
 
-Vector6int16 HgdoNode::rpm_linear_interpolation(const double &odom_time_stamp,
+Vector6int16 L1AdaptiveNode::rpm_linear_interpolation(const double &odom_time_stamp,
                                         const Vector6int16 &rpm_before,
                                         const double &time_before,
                                         const Vector6int16 &rpm_after,
@@ -264,19 +240,16 @@ Vector6int16 HgdoNode::rpm_linear_interpolation(const double &odom_time_stamp,
     }
 
     double alpha = (odom_time_stamp - time_before) / (time_after - time_before);
-
-
     for(int i = 0; i < 6; ++i)
     {
         rpm_interpolated(i) = static_cast<int16_t>(
             rpm_before(i) + alpha * (rpm_after(i) - rpm_before(i))
         );
     }
-
     return rpm_interpolated;
 }
 
-double HgdoNode::get_rpm_time_stamp(CircularBuffer<RpmData>& buffer, size_t index)
+double L1AdaptiveNode::get_rpm_time_stamp(CircularBuffer<RpmData>& buffer, size_t index)
 {
     if(index >= buffer.size())
     {
@@ -285,7 +258,7 @@ double HgdoNode::get_rpm_time_stamp(CircularBuffer<RpmData>& buffer, size_t inde
     return buffer.at(index).value().timestamp;
 }
 
-void HgdoNode::configure_parameters()
+void L1AdaptiveNode::configure_parameters()
 {
 
     // 1. Pass Drone parameters
@@ -314,63 +287,53 @@ void HgdoNode::configure_parameters()
     drone_param.C_T = motor_const;
     drone_param.k_m = moment_const;
 
-    // 2. Pass Hgdo parameters
-    this->declare_parameter<double>("dob.dob_looptime", 0.01);
-    dob_looptime_ = this->get_parameter("dob.dob_looptime").get_value<double>();
+    rpm_to_cmd_converter_ = new HexaRotorRpmToCmd(drone_param);
 
-    this->declare_parameter<double>("dob.eps_f", 0.01);
-    double eps_f = this->get_parameter("dob.eps_f").get_value<double>();
+    // 2. Pass L1 DOB parameters
+    this->declare_parameter<double>("l1_adaptive.dob_looptime", 0.01);
+    dob_looptime_ = this->get_parameter("l1_adaptive.dob_looptime").get_value<double>();
 
-    this->declare_parameter<double>("dob.eps_tau", 0.01);
-    double eps_tau = this->get_parameter("dob.eps_tau").get_value<double>();
+    L1AdaptiveParam l1_adaptive_param;
 
-    HgdoParam hgdo_param;
-    hgdo_param.eps_f = eps_f;
-    hgdo_param.eps_tau = eps_tau;
-
-
-    // 3. Pass LPF parameters
-    this->declare_parameter<double>("lpf.lin_vel_cutoff", 20.0);
-    double lin_vel_cutoff = this->get_parameter("lpf.lin_vel_cutoff").as_double();
-
-    this->declare_parameter<double>("lpf.ang_vel_cutoff", 60.0);
-    double ang_vel_cutoff = this->get_parameter("lpf.ang_vel_cutoff").as_double();
-
-    this->declare_parameter<double>("lpf.disturbance_force_cutoff", 20.0);
-    double disturbance_force_cutoff = this->get_parameter("lpf.disturbance_force_cutoff").as_double();
-
-    this->declare_parameter<double>("lpf.disturbance_torque_cutoff", 60.0);
-    double disturbance_torque_cutoff = this->get_parameter("lpf.disturbance_torque_cutoff").as_double();
-
-
-    // 4. Initialize HGDO model and other utilities
-
-    for(int i = 0; i < 3; ++i){
-        linear_velocity_lpf_[i] = new LowPassFilter(lin_vel_cutoff);
-        angular_velocity_lpf_[i] = new LowPassFilter(ang_vel_cutoff);
-        disturbance_force_lpf_[i] = new LowPassFilter(disturbance_force_cutoff);
-        disturbance_torque_lpf_[i] = new LowPassFilter(disturbance_torque_cutoff);
+    this->declare_parameter<std::vector<double>>("l1_adaptive.As_array",
+    {-5.0, -5.0, -5.0, -5.0, -5.0, -5.0});
+    std::vector<double> As_array = this->get_parameter("l1_adaptive.As_array").get_value<std::vector<double>>();
+    
+    l1_adaptive_param.As = Matrix6x6d::Zero();
+    for(size_t i = 0; i < 6; ++i){
+        l1_adaptive_param.As(i, i) = As_array[i];
     }
 
-    rpm_to_cmd_converter_ = new HexaRotorRpmToCmd(drone_param);
-    hgdo_model_ = new HgdoModel(drone_param, hgdo_param);
+    this->declare_parameter("l1_adaptive.freq_cutoff_trans", 20.0);
+    l1_adaptive_param.freq_cutoff_trans = this->get_parameter("l1_adaptive.freq_cutoff_trans").get_value<double>();
 
-    print_parameters(drone_param, 
-        hgdo_param, 
-        lin_vel_cutoff, 
-        ang_vel_cutoff,
-        disturbance_force_cutoff,
-        disturbance_torque_cutoff);
+    this->declare_parameter("l1_adaptive.freq_cutoff_rot", 60.0);
+    l1_adaptive_param.freq_cutoff_rot = this->get_parameter("l1_adaptive.freq_cutoff_rot").get_value<double>();
+    
+    l1_adaptive_model_ = new L1AdaptationModel(drone_param, l1_adaptive_param);
+
+    // 3. Other parameters
+    this->declare_parameter("lpf.lin_vel_lpf_cutoff_freq", 20.0);
+    double lin_cutoff_freq = this->get_parameter("lpf.lin_vel_lpf_cutoff_freq").get_value<double>();
+    
+    this->declare_parameter("lpf.ang_vel_lpf_cutoff_freq", 60.0);
+    double ang_cutoff_freq = this->get_parameter("lpf.ang_vel_lpf_cutoff_freq").get_value<double>();
+
+    for(int i = 0; i < 3; ++i){
+        linear_velocity_lpf_[i] = new LowPassFilter(lin_cutoff_freq);
+        angular_velocity_lpf_[i] = new LowPassFilter(ang_cutoff_freq);
+    }
+
+    print_parameters(drone_param, l1_adaptive_param, lin_cutoff_freq, ang_cutoff_freq);
+
 }
 
-void HgdoNode::print_parameters(const DroneParam &drone_param,
-                                const HgdoParam &hgdo_param,
+void L1AdaptiveNode::print_parameters(const DroneParam &drone_param,
+                                const L1AdaptiveParam &l1_adaptive_param,
                                 const double &lin_cutoff_freq,
-                                const double &ang_cutoff_freq,
-                                const double &disturbance_force_cutoff,
-                                const double &disturbance_torque_cutoff)
+                                const double &ang_cutoff_freq)
 {
-    RCLCPP_INFO(this->get_logger(), "===== HGDO Node Parameters =====");
+    RCLCPP_INFO(this->get_logger(), "===== L1 DOB Node Parameters =====");
     RCLCPP_INFO(this->get_logger(), "Drone Parameters:");
     RCLCPP_INFO(this->get_logger(), "Mass (m): %.3f kg", drone_param.m);
     RCLCPP_INFO(this->get_logger(), "Arm length (l): %.3f m", drone_param.l);
@@ -382,18 +345,22 @@ void HgdoNode::print_parameters(const DroneParam &drone_param,
     RCLCPP_INFO(this->get_logger(), "Thrust Coefficient (C_T): %.8e", drone_param.C_T);
     RCLCPP_INFO(this->get_logger(), "Moment Coefficient (k_m): %.8e", drone_param.k_m);
 
-    RCLCPP_INFO(this->get_logger(), "HGDO Parameters:");
-    RCLCPP_INFO(this->get_logger(), "Epsilon for Force Estimation (eps_f): %.5f", hgdo_param.eps_f);
-    RCLCPP_INFO(this->get_logger(), "Epsilon for Torque Estimation (eps_tau): %.5f", hgdo_param.eps_tau);
+    RCLCPP_INFO(this->get_logger(), "L1 Adaptive Parameters:");
+    RCLCPP_INFO(this->get_logger(), "DOB Looptime: %.3f ms", dob_looptime_);
+    RCLCPP_INFO(this->get_logger(), "Hurwitz Matrix (As):");
+    RCLCPP_INFO(this->get_logger(), "%.3f %.3f %.3f %.3f %.3f %.3f\n",
+                l1_adaptive_param.As(0,0), l1_adaptive_param.As(1,1), l1_adaptive_param.As(2,2),
+                l1_adaptive_param.As(3,3), l1_adaptive_param.As(4,4), l1_adaptive_param.As(5,5));
 
-    RCLCPP_INFO(this->get_logger(), "Low-Pass Filter Cutoff Frequencies:");
-    RCLCPP_INFO(this->get_logger(), 
-    "Linear Velocity LPF Cutoff Frequency: %.2f Hz", lin_cutoff_freq);
-    RCLCPP_INFO(this->get_logger(), 
-    "Angular Velocity LPF Cutoff Frequency: %.2f Hz", ang_cutoff_freq);
-    RCLCPP_INFO(this->get_logger(),
-    "Disturbance Force LPF Cutoff Frequency: %.2f Hz", disturbance_force_cutoff);
-    RCLCPP_INFO(this->get_logger(),
-    "Disturbance Torque LPF Cutoff Frequency: %.2f Hz", disturbance_torque_cutoff);
+    RCLCPP_INFO(this->get_logger(), "Cutoff Frequencies for Uncertainty LPF:");
+    RCLCPP_INFO(this->get_logger(), "Translational Uncertainty LPF Cutoff Frequency: %.3f Hz", 
+    l1_adaptive_param.freq_cutoff_trans);
+
+    RCLCPP_INFO(this->get_logger(), "Rotational Uncertainty LPF Cutoff Frequency: %.3f Hz",
+    l1_adaptive_param.freq_cutoff_rot);
+
+    RCLCPP_INFO(this->get_logger(), "Low Pass Filter Cutoff Frequencies:");
+    RCLCPP_INFO(this->get_logger(), "Linear Velocity LPF Cutoff Frequency: %.3f Hz", lin_cutoff_freq);
+    RCLCPP_INFO(this->get_logger(), "Angular Velocity LPF Cutoff Frequency: %.3f Hz", ang_cutoff_freq);
     RCLCPP_INFO(this->get_logger(), "==========================");
 }

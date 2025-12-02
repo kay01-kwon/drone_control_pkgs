@@ -1,5 +1,5 @@
-#ifndef L1_DOB_NODE_HPP
-#define L1_DOB_NODE_HPP
+#ifndef L1_ADAPTIVE_NODE_HPP
+#define L1_ADAPTIVE_NODE_HPP
 
 #include <rclcpp/rclcpp.hpp>
 #include <chrono>
@@ -20,13 +20,13 @@ using ros2_libcanard_msgs::msg::HexaActualRpm;
 using geometry_msgs::msg::WrenchStamped;
 
 
-class L1DobNode : public rclcpp::Node {
+class L1AdaptiveNode : public rclcpp::Node {
     
     public:
 
-    L1DobNode();
+    L1AdaptiveNode();
     
-    ~L1DobNode();
+    ~L1AdaptiveNode();
     
     private:
 
@@ -36,6 +36,8 @@ class L1DobNode : public rclcpp::Node {
 
     // DOB estimate loop
     void dobEstimateLoopCallback();
+
+    void odom_filter();
 
     void dob_estimate();
 
@@ -52,11 +54,9 @@ class L1DobNode : public rclcpp::Node {
     void configure_parameters();
 
     void print_parameters(const DroneParam &drone_param,
-                          const L1DobParam &l1_dob_param,
+                          const L1AdaptiveParam &l1_adaptive_param,
                           const double &lin_cutoff_freq,
-                          const double &ang_cutoff_freq,
-                          const double &disturbance_force_cutoff,
-                          const double &adaptation_gain);
+                          const double &ang_cutoff_freq);
 
     rclcpp::TimerBase::SharedPtr control_loop_timer_;
 
@@ -78,7 +78,7 @@ class L1DobNode : public rclcpp::Node {
     Vector3d lin_vel_filtered_{Vector3d::Zero()};
     Vector3d ang_vel_filtered_{Vector3d::Zero()};
 
-    L1AdaptationModel* l1_dob_model_{nullptr};
+    L1AdaptationModel* l1_adaptive_model_{nullptr};
     HexaRotorRpmToCmd* rpm_to_cmd_converter_{nullptr};
 
     LowPassFilter* linear_velocity_lpf_[3];
@@ -91,4 +91,4 @@ class L1DobNode : public rclcpp::Node {
 
 };
 
-#endif // L1_DOB_NODE_HPP
+#endif // L1_ADAPTIVE_NODE_HPP
