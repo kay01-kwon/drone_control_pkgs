@@ -17,6 +17,19 @@ void AdaptationLaw::update(const double &t_prev,
 {
     // Implementation of the update method goes here
 
+    double dt = t_curr - t_prev;
+
+    Matrix6x6d Phi, Phi_inv;
+
+    double exp_As_dt;
+
+    for(size_t i = 0; i < 6; ++i)
+    {
+        exp_As_dt = exp(dt*As_(i,i));
+        Phi(i,i) = 1/As_(i,i)*(exp_As_dt - 1.0);
+        Phi_inv(i,i) = 1/Phi(i,i);
+        mu_(i) = exp_As_dt*z_tilde(i);
+    }
     
     Matrix3x3d R_B_I;
     R_B_I = q_meas.toRotationMatrix();
@@ -32,6 +45,8 @@ void AdaptationLaw::update(const double &t_prev,
     G_inv.block<3,3>(1,3) = J_;
     G_inv.block<1,3>(4,0) = e_y_B.transpose() * m_;
     G_inv.block<1,3>(5,0) = e_z_B.transpose() * m_;
+
+    sigma_hat_ = -G_inv * Phi_inv * mu_;
 
 }
 
