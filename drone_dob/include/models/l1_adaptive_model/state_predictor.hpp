@@ -7,6 +7,12 @@
 // Matrix 6 by 6 definition for Hurwitz matrix
 typedef Eigen::Matrix<double, 6, 6> Matrix6x6d;
 
+// Matrix 6 by 4 definition for control input mapping
+typedef Eigen::Matrix<double, 6, 4> Matrix6x4d;
+
+// Matrix 6 by 2 definition for control input mapping
+typedef Eigen::Matrix<double, 6, 2> Matrix6x2d;
+
 class StatePredictor{
 
     public:
@@ -32,7 +38,7 @@ class StatePredictor{
      */
     void update(const double &t_prev,
                 const double &t_curr,
-                const StateVector13d &state_meas,
+                const StateData &state_meas,
                 const Vector4d& u_BL,
                 const Vector4d& u_L1,
                 const Vector6d &sigma);
@@ -53,7 +59,13 @@ class StatePredictor{
                           Vector6d& z_hat_dot,
                           const double &t_prev);
 
-    Vector6d state_meas_;
+    OdeRk4Solver<Vector6d> *ode_solver_;
+
+    double m_{3.0};             // Mass
+    Matrix3x3d J_, J_inv_;              // Inertia matrix
+
+
+    StateData state_meas_;
     Vector6d z_hat_;
 
     Vector6d sigma_;
