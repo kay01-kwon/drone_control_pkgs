@@ -102,7 +102,7 @@ ros2 launch drone_control rc_control.launch.py
 
 1. DOB Implementation
 
-- [ ] L1 adaptation 
+- [x] L1 adaptation 
 
 - [ ] Inversion Dynamics (INDI)
 
