@@ -102,6 +102,8 @@ ros2 launch drone_control rc_control.launch.py
 
 1. DOB Implementation
 
+- [x] HGDO
+
 - [x] L1 adaptation 
 
 - [ ] Inversion Dynamics (INDI)
@@ -109,6 +111,8 @@ ros2 launch drone_control rc_control.launch.py
 - [ ] UKF/EKF for DOB
 
 2. Control Implementation
+
+- [x] Simple NMPC
 
 - [ ] NMPC (Acados) with DOB
 
