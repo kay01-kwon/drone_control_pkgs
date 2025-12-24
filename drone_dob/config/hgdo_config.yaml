@@ -1,0 +1,17 @@
+/**:
+  ros__parameters:
+    drone:
+      m: 3.0
+      l: 0.265
+      MoiArray: [0.060, 0.060, 0.080]
+      motor_const: 1.465e-7
+      moment_const: 0.01569
+    dob:
+      dob_looptime: 0.010
+      eps_f: 0.01
+      eps_tau: 0.01
+    lpf:
+      lin_vel_cutoff: 20.0
+      ang_vel_cutoff: 60.0
+      disturbance_force_cutoff: 20.0
+      disturbance_torque_cutoff: 60.0

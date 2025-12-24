@@ -1,0 +1,33 @@
+/**:
+  ros__parameters:
+    constraint:
+      vxy_max: 0.3               # 0.1 m/s
+      vz_max: 0.3                # 0.3 m/s
+      dpsi_dt_max: 0.2           # 0.2 rad/s
+      z_takeoff: 0.05            # 5 cm
+      vz_cmd_takeoff: 0.1        # 0.1 m/s
+
+    gain_param:
+      KpTransArray: [10.0, 10.0, 10.0]
+      KpOriArray: [10.5, 10.5, 1.0]
+      KdOriArray: [5.5, 5.5, 0.5]
+      AccelMaxArray: [1.0, 1.0, 2.0]
+
+    dynamic_param:
+      m: 3.0
+      MoiArray: [0.06, 0.06, 0.08]
+
+    drone_param:
+      arm_length: 0.265
+      rotor_const: 1.465e-07
+      moment_const: 0.01569
+      T_max: 8.0
+      T_min: 0.586
+      acc_max: 15000.0    # Acc 15 krpm/s
+      acc_min: 15000.0    # Dec 15 krpm/s
+
+    sensor_time_param:
+      timeout:
+        rc: 0.10
+        odom: 0.10
+        do: 0.10

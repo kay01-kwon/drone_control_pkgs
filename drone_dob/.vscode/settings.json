@@ -1,0 +1,29 @@
+{
+    "files.associations": {
+        "array": "cpp",
+        "bitset": "cpp",
+        "chrono": "cpp",
+        "deque": "cpp",
+        "string": "cpp",
+        "vector": "cpp",
+        "string_view": "cpp"
+    },
+    "python.autoComplete.extraPaths": [
+        "/home/kay/ros2_ws/install/ros2_libcanard_msgs/local/lib/python3.10/dist-packages",
+        "/home/kay/ros2_ws/install/py_pubsub/lib/python3.10/site-packages",
+        "/home/kay/rotors_sim_ws/build/drone_control",
+        "/home/kay/rotors_sim_ws/install/drone_control/lib/python3.10/site-packages",
+        "/home/kay/optitrack_ws/install/natnet_ros2/local/lib/python3.10/dist-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/kay/ros2_ws/install/ros2_libcanard_msgs/local/lib/python3.10/dist-packages",
+        "/home/kay/ros2_ws/install/py_pubsub/lib/python3.10/site-packages",
+        "/home/kay/rotors_sim_ws/build/drone_control",
+        "/home/kay/rotors_sim_ws/install/drone_control/lib/python3.10/site-packages",
+        "/home/kay/optitrack_ws/install/natnet_ros2/local/lib/python3.10/dist-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ]
+}
