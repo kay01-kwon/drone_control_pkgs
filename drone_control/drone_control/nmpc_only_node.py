@@ -102,7 +102,9 @@ class NmpcOnlyNode(Node):
             return
 
         time_diff = self._get_time_now() - self.odom_buf.get_latest()[0]
-        # self.get_logger().info(f'solver time: {time_diff * 1000:.2f} ms')
+        # Check odom data freshness
+        if time_diff > 0.05:  # Warn if odom is older than 50ms
+            self.get_logger().warn(f'Odom data age: {time_diff * 1000:.2f} ms (stale!)')
 
         state_recent = self.odom_buf.get_latest()[1]
         # Transform linear velocity
@@ -112,13 +114,13 @@ class NmpcOnlyNode(Node):
         R = math_tool.quaternion_to_rotm(q)
         v_World = R @ v_Body
         state_recent[3:6] = v_World
-        # time_now = self._get_time_now()
+        time_now = self._get_time_now()
         status, u = self.nmpc_solver.solve(state=state_recent,
                                ref=self.ref,
                                u_prev=None)  # ROS1 matches: u_prev not used
-        # dt = self._get_time_now() - time_now
-        # # Assuming dt is in seconds
-        # self.get_logger().info(f'solver time: {dt * 1000:.2f} ms')
+        dt = self._get_time_now() - time_now
+        # Log solver time to check if it exceeds timer period (10ms)
+        self.get_logger().info(f'solver time: {dt * 1000:.2f} ms, status: {status}')
 
         self.des_rotor_thrust = u
         des_rpm = np.zeros((6,))
