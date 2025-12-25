@@ -96,6 +96,12 @@ class S550_Ocp:
         self.ocp.constraints.ubu = np.array([u_max]*nu)
         self.ocp.constraints.idxbu = np.array([0, 1, 2, 3, 4, 5])
 
+        # Quaternion normalization constraint: ||q||^2 - 1 = 0
+        self.ocp.constraints.lh = np.array([0.0])
+        self.ocp.constraints.uh = np.array([0.0])
+        self.ocp.constraints.lh_e = np.array([0.0])
+        self.ocp.constraints.uh_e = np.array([0.0])
+
         # 3. Set ocp solver
         self.ocp.solver_options.qp_solver = 'FULL_CONDENSING_HPIPM'
         self.ocp.solver_options.hessian_approx = 'GAUSS_NEWTON'

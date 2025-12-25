@@ -77,12 +77,18 @@ class S550_model:
 
         f_impl = self.xdot - f_expl
 
+        # Quaternion normalization constraint: ||q||^2 = 1
+        q_norm_constraint = self.q[0]**2 + self.q[1]**2 + self.q[2]**2 + self.q[3]**2 - 1.0
+
         self.model.f_expl_expr = f_expl
         self.model.f_impl_expr = f_impl
         self.model.x = self.x
         self.model.xdot = self.xdot
         self.model.u = self.u
         self.model.name = self.model_name
+
+        # Add quaternion norm constraint
+        self.model.con_h_expr = q_norm_constraint
 
         return self.model
 
