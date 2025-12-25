@@ -37,7 +37,7 @@ class NmpcOnlyNode(Node):
         self.odom_buf = CircularBuffer(capacity=30)
         self.ref = np.zeros((13,))
         self.ref[6] = 1.0
-        self.des_rotor_thrust = self.u_hover.copy()  # Initialize with hover thrust
+        self.des_rotor_thrust = np.zeros((6,))  # ROS1 matches: initialized as zeros
         self.cmd_msg = HexaCmdRaw()
 
         self.group_sub = MutuallyExclusiveCallbackGroup()
@@ -115,7 +115,7 @@ class NmpcOnlyNode(Node):
         # time_now = self._get_time_now()
         status, u = self.nmpc_solver.solve(state=state_recent,
                                ref=self.ref,
-                               u_prev=self.des_rotor_thrust)
+                               u_prev=None)  # ROS1 matches: u_prev not used
         # dt = self._get_time_now() - time_now
         # # Assuming dt is in seconds
         # self.get_logger().info(f'solver time: {dt * 1000:.2f} ms')
