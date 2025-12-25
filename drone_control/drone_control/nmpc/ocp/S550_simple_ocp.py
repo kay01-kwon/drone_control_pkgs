@@ -37,13 +37,13 @@ class S550_Ocp:
                         0.5, 0.5, 0.5,      # vx, vy, vz
                         0, 0.5, 0.5, 0.5,   # qw, qx, qy, qz
                         0.05, 0.05, 0.05])  #wx, wy ,wz
-            R = np.diag([0.01*6])           # u1...u6
+            R = np.diag([0.01]*6)           # u1...u6
 
         else:
             t_horizon = MpcParam['t_horizon']
             n_nodes = MpcParam['n_nodes']
             Q = np.diag(MpcParam['QArray'])
-            R = np.diag(MpcParam['RArray'])
+            R = np.diag(MpcParam['R']*6)
 
 
         self.ocp = AcadosOcp()
@@ -66,8 +66,6 @@ class S550_Ocp:
         nx = acados_model.x.rows()
         nu = acados_model.u.rows()
         ny = nx + nu
-
-        self.ocp.dims.N = n_nodes
 
         # 1. Cost setup
 
@@ -99,13 +97,13 @@ class S550_Ocp:
         self.ocp.constraints.idxbu = np.array([0, 1, 2, 3, 4, 5])
 
         # 3. Set ocp solver
-        self.ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM'
+        self.ocp.solver_options.qp_solver = 'FULL_CONDENSING_HPIPM'
         self.ocp.solver_options.hessian_approx = 'GAUSS_NEWTON'
         self.ocp.solver_options.integrator_type = 'ERK'
         self.ocp.solver_options.print_level = 0
         self.ocp.solver_options.nlp_solver_type = 'SQP_RTI'
         self.ocp.solver_options.tf = t_horizon
-
+        self.ocp.solver_options.N_horizon = n_nodes
         self.ocp_solver = AcadosOcpSolver(self.ocp)
 
     def solve(self, state, ref, u_prev=None):
@@ -127,11 +125,11 @@ class S550_Ocp:
         self.ocp_solver.set(0, 'lbx', state)
         self.ocp_solver.set(0, 'ubx', state)
 
-        for stage in range(self.ocp.dims.N):
+        for stage in range(self.ocp.solver_options.N_horizon):
             self.ocp_solver.set(stage, 'y_ref', y_ref)
 
         # Set y ref at the terminal stage
-        self.ocp_solver.set(self.ocp.dims.N, 'y_ref', y_ref_N)
+        self.ocp_solver.set(self.ocp.solver_options.N_horizon, 'y_ref', y_ref_N)
 
         status = self.ocp_solver.solve()
 

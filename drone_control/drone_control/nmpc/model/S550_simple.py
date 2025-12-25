@@ -23,7 +23,7 @@ class S550_model:
         # State x (p, v, q, w) (dim: 13)
         self.p = cs.MX.sym('p', 3)      # Position (World)
         self.v = cs.MX.sym('v', 3)      # Velocity (World)
-        self.q = cs.MX.sym('q', 4)      # Quaternion (World to Body) qw, qx, qy, qz
+        self.q = cs.MX.sym('q', 4)      # Quaternion (Body to World) qw, qx, qy, qz
         self.w = cs.MX.sym('w', 3)      # Angular velocity (Body)
         self.x = cs.vertcat(self.p, self.v, self.q, self.w)
         self.x_dim = 13
@@ -54,6 +54,27 @@ class S550_model:
         '''
         f_expl = cs.vertcat(self._p_dynamics(), self._v_dynamics(),
                             self._q_dynamics(), self._w_dynamics())
+        # print('dpdt')
+        # print(f_expl[0])
+        # print(f_expl[1])
+        # print(f_expl[2])
+        #
+        # print('dvdt')
+        # print(f_expl[3])
+        # print(f_expl[4])
+        # print(f_expl[5])
+        #
+        # print('dqdt')
+        # print(f_expl[6])
+        # print(f_expl[7])
+        # print(f_expl[8])
+        # print(f_expl[9])
+        #
+        # print('dwdt')
+        # print(f_expl[10])
+        # print(f_expl[11])
+        # print(f_expl[12])
+
         f_impl = self.xdot - f_expl
 
         self.model.f_expl_expr = f_expl
@@ -125,7 +146,7 @@ class S550_model:
         w_y = self.w[1]
         w_z = self.w[2]
 
-        # inertial effect = w x (J*w)
+        # inertial effect = J_inv @ (w x (J*w))
         inertial_effect = cs.vertcat((Jzz-Jyy)/Jxx*w_y*w_z,
                                      (Jxx-Jzz)/Jyy*w_x*w_z,
                                      (Jyy-Jxx)/Jzz*w_x*w_y)
@@ -141,41 +162,19 @@ class S550_model:
         cos_pi_3 = np.cos(np.pi/3)
         sin_pi_3 = np.sin(np.pi/3)
 
-        ly1 = self.l * cos_pi_3
-        ly2 = self.l
-        ly3 = self.l * cos_pi_3
+        Mx = self.l * (
+        (self.u1 + self.u3)*cos_pi_3 + self.u2
+        -(self.u4 + self.u6)*cos_pi_3 - self.u5
+        )
 
-        ly4 = -self.l * cos_pi_3
-        ly5 = -self.l
-        ly6 = -self.l * cos_pi_3
+        My = self.l * (
+            -(self.u1 + self.u6)*sin_pi_3
+            +(self.u3 + self.u4)*sin_pi_3
+        )
 
-        lx1 = self.l * sin_pi_3
-        lx2 = 0
-        lx3 = -self.l * sin_pi_3
-
-        lx4 = -self.l * sin_pi_3
-        lx5 = 0
-        lx6 = self.l * sin_pi_3
-
-        Mx = (  ly1 * self.u1
-              + ly2 * self.u2
-              + ly3 * self.u3
-              + ly4 * self.u4
-              + ly5 * self.u5
-              + ly6 * self.u6)
-
-        My = -(  lx1 * self.u1
-               + lx2 * self.u2
-               + lx3 * self.u3
-               + lx4 * self.u4
-               + lx5 * self.u5
-               + lx6 * self.u6)
-
-        Mz = self.k_m * (-self.u1
-                         + self.u2
-                         - self.u3
-                         + self.u4
-                         - self.u5
-                         + self.u6)
+        Mz = self.k_m * (
+            -self.u1 + self.u2 - self.u3
+            +self.u4 - self.u5 + self.u6
+        )
 
         return Mx, My, Mz
