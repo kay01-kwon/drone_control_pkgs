@@ -8,18 +8,17 @@
       arm_length: 0.265
       rotor_const: 1.465e-07
       moment_const: 0.01569
-      T_max: 8.0
+      T_max: 9.0
       T_min: 0.586
 
     nmpc_param:
-      t_horizon: 0.20
+      t_horizon: 1.0
       n_nodes: 20
-      QArray: [ 2.0, 2.0, 2.0,       # px, py, pz
-                1.0, 1.0, 1.0,        # vx, vy ,vz
-                0.0, 0.7, 0.7, 0.7,   # qw, qx, qy ,qz
-                0.05, 0.05, 0.05 ]     # wx, wy, wz
-      RArray: [ 0.01, 0.01, 0.01,    # u1...u3
-                0.01, 0.01, 0.01 ]     # u4...u6
+      QArray: [ 10.0, 10.0, 10.0,       # px, py, pz
+                2.0, 2.0, 2.0,        # vx, vy ,vz
+                1.0, 1.0, 1.0, 1.0,   # qw, qx, qy ,qz
+                0.1, 0.1, 0.1]     # wx, wy, wz
+      R: [0.1]     # u1...u6
 
     sensor_time_param:
       timeout:

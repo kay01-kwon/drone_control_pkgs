@@ -4,6 +4,8 @@ import shutil
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
 
 import numpy as np
 
@@ -24,6 +26,8 @@ class NmpcOnlyNode(Node):
                          automatically_declare_parameters_from_overrides=True)
         dynamic_param, drone_param, nmpc_param = self._config()
 
+        self.u_hover = dynamic_param['m'] * 9.81 / 6.0 * np.ones((6,))
+
         self.C_T = drone_param['rotor_const']
 
         self.nmpc_solver = S550_Ocp(DynParam=dynamic_param,
@@ -36,10 +40,14 @@ class NmpcOnlyNode(Node):
         self.des_rotor_thrust = np.zeros((6,))
         self.cmd_msg = HexaCmdRaw()
 
+        self.group_sub = MutuallyExclusiveCallbackGroup()
+        self.group_pub = MutuallyExclusiveCallbackGroup()
+
         self.odom_sub = self.create_subscription(Odometry,
                                                  '/filtered_odom',
                                                  self._odom_cb,
-                                                 qos_profile_sensor_data)
+                                                 qos_profile=qos_profile_sensor_data,
+                                                 callback_group=self.group_sub)
 
         self.ref_sub = self.create_subscription(Ref,
                                                 '/nmpc/ref',
@@ -48,9 +56,11 @@ class NmpcOnlyNode(Node):
 
         self.cmd_pub = self.create_publisher(HexaCmdRaw,
                                              '/uav/cmd_raw',
-                                             1)
+                                            5)
         time_period = 0.01
-        self.timer = self.create_timer(time_period, self._time_cb)
+        self.timer = self.create_timer(time_period,
+                                       self._time_cb,
+                                       callback_group=self.group_pub)
 
         self.t_curr = self._get_time_now()
         self.t_prev = self.t_curr
@@ -91,31 +101,37 @@ class NmpcOnlyNode(Node):
         if self.odom_buf.is_empty():
             return
 
+        time_diff = self._get_time_now() - self.odom_buf.get_latest()[0]
+        # self.get_logger().info(f'solver time: {time_diff * 1000:.2f} ms')
+
         state_recent = self.odom_buf.get_latest()[1]
         # Transform linear velocity
         # from body to world frame
         v_Body = state_recent[3:6]
         q = state_recent[6:10]
         R = math_tool.quaternion_to_rotm(q)
-        v_World = R@v_Body
+        v_World = R @ v_Body
         state_recent[3:6] = v_World
-
+        # time_now = self._get_time_now()
         status, u = self.nmpc_solver.solve(state=state_recent,
                                ref=self.ref,
-                               u_prev=self.des_rotor_thrust)
+                               u_prev=self.u_hover)
+        # dt = self._get_time_now() - time_now
+        # # Assuming dt is in seconds
+        # self.get_logger().info(f'solver time: {dt * 1000:.2f} ms')
+
         self.des_rotor_thrust = u
         des_rpm = np.zeros((6,))
 
-        self.get_logger().info('des_rotor_thrust = {}'.format(self.des_rotor_thrust))
+        if status == 0:
+            for i in range(6):
+                des_rpm[i] = np.sqrt(self.des_rotor_thrust[i]/self.C_T)
 
-        for i in range(6):
-            des_rpm[i] = np.sqrt(self.des_rotor_thrust[i]/self.C_T)
-
-        self.cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(), des_rpm)
-
+            self.cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(), des_rpm)
+            self.cmd_pub.publish(self.cmd_msg)
+        else:
+            self.get_logger().warn(f'Solver failed with status {status}!')
         self.t_prev = self.t_curr
-
-        self.cmd_pub.publish(self.cmd_msg)
 
     def _get_time_now(self):
         clock_now = self.get_clock().now()
@@ -145,7 +161,7 @@ class NmpcOnlyNode(Node):
         t_horizon = self.get_parameter('nmpc_param.t_horizon').value
         n_nodes = self.get_parameter('nmpc_param.n_nodes').value
         QArray = self.get_parameter('nmpc_param.QArray').value
-        RArray = self.get_parameter('nmpc_param.RArray').value
+        R = self.get_parameter('nmpc_param.R').value
 
         self.get_logger().info(f'{self.get_name()}: Initializing...')
         self.get_logger().info(f'{self.get_name()}: m: {m}')
@@ -158,7 +174,7 @@ class NmpcOnlyNode(Node):
         self.get_logger().info(f'{self.get_name()}: t_horizon: {t_horizon}')
         self.get_logger().info(f'{self.get_name()}: n_nodes: {n_nodes}')
         self.get_logger().info(f'{self.get_name()}: QArray: {QArray}')
-        self.get_logger().info(f'{self.get_name()}: RArray: {RArray}')
+        self.get_logger().info(f'{self.get_name()}: R: {R}')
 
         dynamic_param = {'m': m,
                          'MoiArray': MoiArray}
@@ -171,7 +187,7 @@ class NmpcOnlyNode(Node):
         nmpc_param = {'t_horizon': t_horizon,
                       'n_nodes': n_nodes,
                       'QArray': QArray,
-                      'RArray': RArray}
+                      'R': R}
 
         return dynamic_param, drone_param, nmpc_param
 
@@ -190,8 +206,11 @@ def cleanup():
 def main():
     rclpy.init()
     node = NmpcOnlyNode()
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        # rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         cleanup()
     finally:
