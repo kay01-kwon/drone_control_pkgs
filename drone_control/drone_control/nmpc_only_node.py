@@ -37,7 +37,7 @@ class NmpcOnlyNode(Node):
         self.odom_buf = CircularBuffer(capacity=30)
         self.ref = np.zeros((13,))
         self.ref[6] = 1.0
-        self.des_rotor_thrust = np.zeros((6,))
+        self.des_rotor_thrust = self.u_hover.copy()  # Initialize with hover thrust
         self.cmd_msg = HexaCmdRaw()
 
         self.group_sub = MutuallyExclusiveCallbackGroup()
