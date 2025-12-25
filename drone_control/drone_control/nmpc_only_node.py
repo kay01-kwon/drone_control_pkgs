@@ -115,7 +115,7 @@ class NmpcOnlyNode(Node):
         # time_now = self._get_time_now()
         status, u = self.nmpc_solver.solve(state=state_recent,
                                ref=self.ref,
-                               u_prev=self.u_hover)
+                               u_prev=self.des_rotor_thrust)
         # dt = self._get_time_now() - time_now
         # # Assuming dt is in seconds
         # self.get_logger().info(f'solver time: {dt * 1000:.2f} ms')

@@ -12,7 +12,7 @@
       T_min: 0.586
 
     nmpc_param:
-      t_horizon: 1.0
+      t_horizon: 0.5
       n_nodes: 20
       QArray: [ 10.0, 10.0, 10.0,       # px, py, pz
                 2.0, 2.0, 2.0,        # vx, vy ,vz
