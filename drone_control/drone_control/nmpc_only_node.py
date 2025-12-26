@@ -1,5 +1,7 @@
 import os
 import shutil
+import threading
+import time
 
 import rclpy
 from rclpy.node import Node
@@ -57,13 +59,14 @@ class NmpcOnlyNode(Node):
         self.cmd_pub = self.create_publisher(HexaCmdRaw,
                                              '/uav/cmd_raw',
                                             5)
-        time_period = 0.01
-        self.timer = self.create_timer(time_period,
-                                       self._time_cb,
-                                       callback_group=self.group_pub)
 
-        self.t_curr = self._get_time_now()
-        self.t_prev = self.t_curr
+        # Control loop thread (ROS1-style)
+        self.control_rate = 100  # Hz
+        self.running = True
+        self.control_thread = threading.Thread(target=self._control_loop, daemon=True)
+        self.control_thread.start()
+
+        self.get_logger().info('NMPC control thread started at 100 Hz')
 
     def _odom_cb(self, msg):
 
@@ -94,44 +97,62 @@ class NmpcOnlyNode(Node):
         self.ref[11] = 0.0
         self.ref[12] = psi_dot
 
-    def _time_cb(self):
+    def _control_loop(self):
+        """
+        ROS1-style control loop running in separate thread.
+        This ensures regular, blocking execution like ROS1 while loop.
+        """
+        period = 1.0 / self.control_rate  # 0.01s for 100Hz
 
-        self.t_curr = self._get_time_now()
+        while self.running and rclpy.ok():
+            loop_start = time.time()
 
-        if self.odom_buf.is_empty():
-            return
+            # Skip if no odometry data yet
+            if self.odom_buf.is_empty():
+                time.sleep(period)
+                continue
 
-        time_diff = self._get_time_now() - self.odom_buf.get_latest()[0]
-        # self.get_logger().info(f'solver time: {time_diff * 1000:.2f} ms')
+            # Check odom data freshness
+            time_diff = self._get_time_now() - self.odom_buf.get_latest()[0]
+            if time_diff > 0.05:  # Warn if odom is older than 50ms
+                self.get_logger().warn(f'Odom data age: {time_diff * 1000:.2f} ms (stale!)')
 
-        state_recent = self.odom_buf.get_latest()[1]
-        # Transform linear velocity
-        # from body to world frame
-        v_Body = state_recent[3:6]
-        q = state_recent[6:10]
-        R = math_tool.quaternion_to_rotm(q)
-        v_World = R @ v_Body
-        state_recent[3:6] = v_World
-        # time_now = self._get_time_now()
-        status, u = self.nmpc_solver.solve(state=state_recent,
-                               ref=self.ref,
-                               u_prev=None)  # ROS1 matches: u_prev not used
-        # dt = self._get_time_now() - time_now
-        # # Assuming dt is in seconds
-        # self.get_logger().info(f'solver time: {dt * 1000:.2f} ms')
+            # Get latest state and transform velocity to world frame
+            state_recent = self.odom_buf.get_latest()[1].copy()
+            v_Body = state_recent[3:6]
+            q = state_recent[6:10]
+            R = math_tool.quaternion_to_rotm(q)
+            v_World = R @ v_Body
+            state_recent[3:6] = v_World
 
-        self.des_rotor_thrust = u
-        des_rpm = np.zeros((6,))
+            # Solve NMPC
+            time_now = self._get_time_now()
+            status, u = self.nmpc_solver.solve(state=state_recent,
+                                   ref=self.ref,
+                                   u_prev=None)  # ROS1 matches: u_prev not used
+            dt = self._get_time_now() - time_now
 
-        if status == 0:
-            for i in range(6):
-                des_rpm[i] = np.sqrt(self.des_rotor_thrust[i]/self.C_T)
+            # Log solver time (less frequently to avoid spam)
+            if int(loop_start * 10) % 10 == 0:  # Every 1 second
+                self.get_logger().info(f'solver time: {dt * 1000:.2f} ms, status: {status}')
 
-            self.cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(), des_rpm)
-            self.cmd_pub.publish(self.cmd_msg)
-        else:
-            self.get_logger().warn(f'Solver failed with status {status}!')
-        self.t_prev = self.t_curr
+            # Publish control command
+            self.des_rotor_thrust = u
+            des_rpm = np.zeros((6,))
+
+            if status == 0:
+                for i in range(6):
+                    des_rpm[i] = np.sqrt(self.des_rotor_thrust[i]/self.C_T)
+
+                self.cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(), des_rpm)
+                self.cmd_pub.publish(self.cmd_msg)
+            else:
+                self.get_logger().warn(f'Solver failed with status {status}!')
+
+            # Sleep to maintain control rate (ROS1-style)
+            elapsed = time.time() - loop_start
+            sleep_time = max(0, period - elapsed)
+            time.sleep(sleep_time)
 
     def _get_time_now(self):
         clock_now = self.get_clock().now()
@@ -209,9 +230,12 @@ def main():
     executor = MultiThreadedExecutor()
     executor.add_node(node)
     try:
-        # rclpy.spin(node)
         executor.spin()
     except KeyboardInterrupt:
+        print('\n[Shutdown] Stopping control thread...')
+        node.running = False
+        if node.control_thread.is_alive():
+            node.control_thread.join(timeout=2.0)
         cleanup()
     finally:
         node.destroy_node()
