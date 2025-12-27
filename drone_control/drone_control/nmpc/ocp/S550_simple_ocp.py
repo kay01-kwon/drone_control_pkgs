@@ -97,14 +97,25 @@ class S550_Ocp:
         self.ocp.constraints.idxbu = np.array([0, 1, 2, 3, 4, 5])
 
         # 3. Set ocp solver
-        self.ocp.solver_options.qp_solver = 'FULL_CONDENSING_HPIPM'
+        self.ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM'
         self.ocp.solver_options.hessian_approx = 'GAUSS_NEWTON'
+        self.ocp.solver_options.levenberg_marquardt = 1e-2
         self.ocp.solver_options.integrator_type = 'ERK'
+        self.ocp.solver_options.sim_method_num_stages = 4       # RK4
+        self.ocp.solver_options.sim_method_num_steps = 1
         self.ocp.solver_options.print_level = 0
         self.ocp.solver_options.nlp_solver_type = 'SQP_RTI'
+        self.ocp.solver_options.nlp_solver_max_iter = 50
+        # self.ocp.solver_options.qp_solver_cond_N = n_nodes
+        self.ocp.solver_options.qp_solver_warm_start = 1
+        self.ocp.solver_options.globalization = 'MERIT_BACKTRACKING'
         self.ocp.solver_options.tf = t_horizon
         self.ocp.solver_options.N_horizon = n_nodes
-        self.ocp_solver = AcadosOcpSolver(self.ocp)
+        # self.ocp_solver = AcadosOcpSolver(self.ocp)
+        solver_json = 'acados_ocp_' + self.ocp.model.name + '.json'
+        AcadosOcpSolver.generate(self.ocp, json_file = solver_json)
+        AcadosOcpSolver.build(self.ocp.code_export_directory, with_cython=True)
+        self.ocp_solver = AcadosOcpSolver.create_cython_solver(solver_json)
 
     def solve(self, state, ref, u_prev=None):
         '''

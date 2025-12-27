@@ -1,7 +1,18 @@
 import os
+import sys
 import shutil
 import threading
 import time
+
+'''
+Append nmpc_pkg directory using sys module
+'''
+dir_path = os.path.dirname(os.path.realpath(__file__))
+print(dir_path)
+
+pkg_dir = dir_path[:dir_path.rfind('/')]
+print(pkg_dir)
+sys.path.append(pkg_dir)
 
 import rclpy
 from rclpy.node import Node
@@ -28,7 +39,7 @@ class NmpcOnlyNode(Node):
                          automatically_declare_parameters_from_overrides=True)
         dynamic_param, drone_param, nmpc_param = self._config()
 
-        self.u_hover = dynamic_param['m'] * 9.81 / 6.0 * np.ones((6,))
+        u_hover = dynamic_param['m'] * 9.81 / 6.0 * np.ones((6,))
 
         self.C_T = drone_param['rotor_const']
 
@@ -39,11 +50,10 @@ class NmpcOnlyNode(Node):
         self.odom_buf = CircularBuffer(capacity=30)
         self.ref = np.zeros((13,))
         self.ref[6] = 1.0
-        self.des_rotor_thrust = np.zeros((6,))  # ROS1 matches: initialized as zeros
+        self.des_rotor_thrust = u_hover  # ROS1 matches: initialized as zeros
         self.cmd_msg = HexaCmdRaw()
 
         self.group_sub = MutuallyExclusiveCallbackGroup()
-        self.group_pub = MutuallyExclusiveCallbackGroup()
 
         self.odom_sub = self.create_subscription(Odometry,
                                                  '/filtered_odom',
@@ -61,10 +71,13 @@ class NmpcOnlyNode(Node):
                                             5)
 
         # Control loop thread (ROS1-style)
-        self.control_rate = 100  # Hz
+        self.control_rate = 100.0  # Hz
         self.running = True
         self.control_thread = threading.Thread(target=self._control_loop, daemon=True)
         self.control_thread.start()
+
+        self.t_curr = time.time()
+        self.t_prev = self.t_curr
 
         self.get_logger().info('NMPC control thread started at 100 Hz')
 
@@ -105,6 +118,7 @@ class NmpcOnlyNode(Node):
         period = 1.0 / self.control_rate  # 0.01s for 100Hz
 
         while self.running and rclpy.ok():
+            self.t_curr = time.time()
             loop_start = time.time()
 
             # Skip if no odometry data yet
@@ -126,15 +140,19 @@ class NmpcOnlyNode(Node):
             state_recent[3:6] = v_World
 
             # Solve NMPC
-            time_now = self._get_time_now()
+            time_now = time.time()
             status, u = self.nmpc_solver.solve(state=state_recent,
                                    ref=self.ref,
-                                   u_prev=None)  # ROS1 matches: u_prev not used
-            dt = self._get_time_now() - time_now
+                                   u_prev=self.des_rotor_thrust)  # ROS1 matches: u_prev not used
+            dt = time.time() - time_now
+            self.des_rotor_thrust = u
 
             # Log solver time (less frequently to avoid spam)
-            if int(loop_start * 10) % 10 == 0:  # Every 1 second
-                self.get_logger().info(f'solver time: {dt * 1000:.2f} ms, status: {status}')
+            # if int(loop_start * 10) % 10 == 0:  # Every 1 second
+            #     self.get_logger().info(f'solver time: {dt * 1000:.2f} ms, status: {status}')
+
+            dt = self.t_curr - self.t_prev
+            # self.get_logger().info(f'NMPC solver status: {dt*1000:.2f} ms')
 
             # Publish control command
             self.des_rotor_thrust = u
@@ -149,9 +167,10 @@ class NmpcOnlyNode(Node):
             else:
                 self.get_logger().warn(f'Solver failed with status {status}!')
 
-            # Sleep to maintain control rate (ROS1-style)
+            # Sleep to maintain control rate
             elapsed = time.time() - loop_start
             sleep_time = max(0, period - elapsed)
+            self.t_prev = self.t_curr
             time.sleep(sleep_time)
 
     def _get_time_now(self):
