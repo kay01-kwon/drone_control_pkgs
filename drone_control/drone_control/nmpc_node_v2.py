@@ -13,9 +13,9 @@ Date: 2025-12-28
 """
 
 import os
-import sys
 import shutil
 import numpy as np
+import time
 from typing import Optional, Tuple
 
 import rclpy
@@ -26,11 +26,6 @@ from rclpy.executors import SingleThreadedExecutor
 from nav_msgs.msg import Odometry
 from drone_msgs.msg import Ref
 from ros2_libcanard_msgs.msg import HexaCmdRaw
-
-# Add package to path
-dir_path = os.path.dirname(os.path.realpath(__file__))
-pkg_dir = dir_path[:dir_path.rfind('/')]
-sys.path.append(pkg_dir)
 
 from drone_control.utils.circular_buffer import CircularBuffer
 from drone_control.utils.cmd_converter import HexaCmdConverter
@@ -256,14 +251,14 @@ class NmpcNodeV2(Node):
         state_current[3:6] = v_world
 
         # Solve NMPC
-        solve_start = self.get_clock().now()
+        solve_start = time.time()
         status, u = self.nmpc_solver.solve(
             state=state_current,
             ref=self.ref_state,
             u_prev=self.des_rotor_thrust
         )
-        solve_end = self.get_clock().now()
-        solve_time = (solve_end - solve_start).nanoseconds / 1e6  # ms
+        solve_end = time.time()
+        solve_time = (solve_end - solve_start)*1e3  # ms
 
         # Update statistics
         self.solve_count += 1
