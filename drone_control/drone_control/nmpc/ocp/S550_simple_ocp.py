@@ -103,20 +103,22 @@ class S550_Ocp:
         self.ocp.solver_options.integrator_type = 'ERK'
         self.ocp.solver_options.sim_method_num_stages = 4       # RK4
         self.ocp.solver_options.sim_method_num_steps = 1
-        self.ocp.solver_options.print_level = 0
+        self.ocp.solver_options.print_level = 0                 # 0 : Do not print
         self.ocp.solver_options.nlp_solver_type = 'SQP_RTI'
-        self.ocp.solver_options.nlp_solver_max_iter = 50
+        self.ocp.solver_options.nlp_solver_max_iter = 100
         # self.ocp.solver_options.qp_solver_cond_N = n_nodes
-        self.ocp.solver_options.qp_solver_warm_start = 1
+        # self.ocp.solver_options.qp_solver_warm_start = 1
         self.ocp.solver_options.globalization = 'MERIT_BACKTRACKING'
+        self.ocp.solver_options.regularize_method = 'PROJECT'
         self.ocp.solver_options.tf = t_horizon
         self.ocp.solver_options.N_horizon = n_nodes
+
         # self.ocp_solver = AcadosOcpSolver(self.ocp)
+        # generate json file and generate cython
         solver_json = 'acados_ocp_' + self.ocp.model.name + '.json'
         AcadosOcpSolver.generate(self.ocp, json_file = solver_json)
         AcadosOcpSolver.build(self.ocp.code_export_directory, with_cython=True)
         self.ocp_solver = AcadosOcpSolver.create_cython_solver(solver_json)
-
         # Store state trajectory for warm start
         self.previous_states = None
 
