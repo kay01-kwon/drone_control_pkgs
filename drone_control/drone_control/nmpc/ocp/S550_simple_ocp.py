@@ -117,9 +117,12 @@ class S550_Ocp:
         AcadosOcpSolver.build(self.ocp.code_export_directory, with_cython=True)
         self.ocp_solver = AcadosOcpSolver.create_cython_solver(solver_json)
 
+        # Store state trajectory for warm start
+        self.previous_states = None
+
     def solve(self, state, ref, u_prev=None):
         '''
-        Solve OCP problem
+        Solve OCP problem with warm start
         :param state: p (World), v (World), q, w (Body)
         :param ref: p (World), v (World), q, w (Body)
         :param u_prev: u1...u6 (Rotor thrust)
@@ -136,13 +139,38 @@ class S550_Ocp:
         self.ocp_solver.set(0, 'lbx', state)
         self.ocp_solver.set(0, 'ubx', state)
 
-        for stage in range(self.ocp.solver_options.N_horizon):
-            self.ocp_solver.set(stage, 'y_ref', y_ref)
+        # Warm start: Use previous state trajectory as reference
+        if self.previous_states is not None:
+            # Shift previous trajectory forward by one step
+            for stage in range(self.ocp.solver_options.N_horizon):
+                if stage < self.ocp.solver_options.N_horizon - 1:
+                    # Use next state from previous trajectory
+                    prev_state = self.previous_states[stage + 1]
+                    y_ref_warm = np.concatenate((prev_state, u_prev))
+                    self.ocp_solver.set(stage, 'y_ref', y_ref_warm)
+                else:
+                    # Last stage: use terminal reference
+                    y_ref_warm = np.concatenate((ref, u_prev))
+                    self.ocp_solver.set(stage, 'y_ref', y_ref_warm)
 
-        # Set y ref at the terminal stage
-        self.ocp_solver.set(self.ocp.solver_options.N_horizon, 'y_ref', y_ref_N)
+            # Set terminal reference
+            self.ocp_solver.set(self.ocp.solver_options.N_horizon, 'y_ref', ref)
+        else:
+            # First solve: use constant reference
+            for stage in range(self.ocp.solver_options.N_horizon):
+                self.ocp_solver.set(stage, 'y_ref', y_ref)
+
+            # Set y ref at the terminal stage
+            self.ocp_solver.set(self.ocp.solver_options.N_horizon, 'y_ref', y_ref_N)
 
         status = self.ocp_solver.solve()
+
+        # Store current state trajectory for next iteration
+        N = self.ocp.solver_options.N_horizon
+        self.previous_states = []
+        for stage in range(N + 1):
+            x_stage = self.ocp_solver.get(stage, 'x')
+            self.previous_states.append(x_stage.copy())
 
         # Get control input at the first stage
         u = self.ocp_solver.get(0, 'u')
