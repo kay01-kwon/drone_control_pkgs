@@ -41,7 +41,7 @@ class ControlAllocator:
     def compute_des_rpm(self, f, M):
         u = np.hstack([f,M])
         rotors_thrust = self.K_inv @ u
-        rotors_thrust = self.clamp(rotors_thrust)
+        rotors_thrust = self._clamp(rotors_thrust)
         rotors_speed = np.sqrt(rotors_thrust/self.C_T)
         return rotors_speed
 
@@ -49,7 +49,7 @@ class ControlAllocator:
     def compute_relaxed_des_rpm(self, f, M, rotor_speed_prev, dt):
         u = np.hstack([f,M])
         rotors_thrust = self.K_inv @ u
-        rotors_thrust = self.clamp(rotors_thrust)
+        rotors_thrust = self._clamp(rotors_thrust)
         rotors_speed = np.sqrt(rotors_thrust/self.C_T)
         
         # Acceleration saturation
@@ -61,7 +61,7 @@ class ControlAllocator:
 
         return rotors_speed
 
-    def clamp(self, rotors_thrust):
+    def _clamp(self, rotors_thrust):
         for i in range(len(rotors_thrust)):
             if self.T_max < rotors_thrust[i]:
                 rotors_thrust[i] = self.T_max
