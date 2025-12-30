@@ -42,8 +42,8 @@ class S550_Ocp:
         else:
             t_horizon = MpcParam['t_horizon']
             n_nodes = MpcParam['n_nodes']
-            Q = np.diag(MpcParam['QArray'])
-            R = np.diag(MpcParam['R']*6)
+            Q = 2*np.diag(MpcParam['QArray'])
+            R = 2*np.diag(MpcParam['R']*6)
 
 
         self.ocp = AcadosOcp()

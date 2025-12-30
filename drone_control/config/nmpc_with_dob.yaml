@@ -1,0 +1,23 @@
+/**:
+  ros__parameters:
+    dynamic_param:
+      m: 2.9
+      MoiArray: [0.06, 0.06, 0.08]
+
+    drone_param:
+      arm_length: 0.265
+      rotor_const: 1.465e-07
+      moment_const: 0.01569
+      T_max: 8.0
+      T_min: 0.586
+      acc_max: 15000.0    # Acc 15 krpm/s
+      acc_min: 15000.0    # Dec 15 krpm/s
+
+    nmpc_param:
+      t_horizon: 1.0
+      n_nodes: 20
+      QArray: [ 2.0, 2.0, 2.0,        # px, py, pz
+                1.0, 1.0, 1.0,        # vx, vy, vz
+                100.0, 100.0, 100.0, 100.0,   # qw, qx, qy, qz
+                50.0, 50.0, 50.0]     # wx, wy, wz
+      R: [100.0]     # u1...u6

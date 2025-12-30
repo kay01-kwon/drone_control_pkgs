@@ -3,7 +3,7 @@ from nav_msgs.msg import Odometry
 from mavros_msgs.msg import RCIn
 from geometry_msgs.msg import WrenchStamped
 
-def stamp_to_time(stamp):
+def stamp_to_time(stamp) -> float:
     return stamp.sec + stamp.nanosec * 1e-9
 
 class MsgParser:
