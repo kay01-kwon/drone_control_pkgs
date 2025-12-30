@@ -26,7 +26,7 @@ from ros2_libcanard_msgs.msg import HexaCmdRaw
 
 from drone_control.utils.circular_buffer import CircularBuffer
 from drone_control.utils.cmd_converter import HexaCmdConverter
-from drone_control.utils import MsgParser, math_tool
+from drone_control.utils import MsgParser, math_tool, cleanup_acados_files
 from drone_control.nmpc.ocp.S550_simple_ocp import S550_Ocp
 
 class NmpcWithDOB(Node):
@@ -38,6 +38,15 @@ class NmpcWithDOB(Node):
     def __init__(self):
         super().__init__('nmpc_with_dob',
                          automatically_declare_parameters_from_overrides=True)
+
+        # Load parameters
+        dynamc_param, drone_param, nmpc_param = self._load_parameters()
+
+        # Create NMPC solver
+        self.get_logger().info('Creating NMPC solver...')
+        self.nmpc_solver = S550_Ocp(DynParam=dynamc_param,
+                                    DroneParam=drone_param,
+                                    MpcParam=nmpc_param)
 
         # Odometry buffer
         self.odom_buffer = CircularBuffer(capacity=30)
@@ -171,6 +180,38 @@ class NmpcWithDOB(Node):
 
         # Solve NMPC
         solve_start = time.time()
+        status, u = self.nmpc_solver.solve(
+            state = state_current,
+            ref = self.ref_state,
+            u_prev = self.des_rotor_thrust
+        )
+        solve_end = time.time()
+        solve_time = (solve_end - solve_start)*1e3  # ms
+
+        # Update statistics
+        self.solve_count += 1
+        self.total_solve_time += solve_time
+
+        if status != 0:
+            self.failure_count += 1
+            if self.solve_count % 10 == 0:
+                self.get_logger().warn(
+                    f'Solver failed! Status: {status}',
+                    throttle_duration_sec = 1.0
+                )
+            return
+
+        # Log statistics periodically (every 100 iterations = 1 second at 100 Hz)
+        if self.solve_count % 100 == 0:
+            avg_solve_time = self.total_solve_time / self.solve_count
+            success_rate = (1.0 - self.failure_count / self.solve_count) * 100.0
+
+            self.get_logger().info(
+                f'Stats: solve = {avg_solve_time:.2f} ms, '
+                f'success = {success_rate:.1f} %',
+                f'odom_age = {odom_age*1000:.1f} ms',
+            )
+
 
     def _get_time_now(self) -> float:
         """Get the current ROS time as float (seconds)"""

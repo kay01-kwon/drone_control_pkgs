@@ -11,15 +11,13 @@ from rclpy.executors import MultiThreadedExecutor
 
 import numpy as np
 
-from mavros_msgs.msg import RCIn
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import WrenchStamped
 from drone_msgs.msg import Ref
 from ros2_libcanard_msgs.msg import HexaCmdRaw
 
 from drone_control.utils.circular_buffer import CircularBuffer
 from drone_control.utils.cmd_converter import HexaCmdConverter
-from drone_control.utils import MsgParser, math_tool
+from drone_control.utils import MsgParser, math_tool, cleanup_acados_files
 from drone_control.nmpc.ocp.S550_simple_ocp import S550_Ocp
 
 class NmpcOnlyNode(Node):
@@ -220,17 +218,6 @@ class NmpcOnlyNode(Node):
 
         return dynamic_param, drone_param, nmpc_param
 
-def cleanup():
-    curr_dir = os.getcwd()
-    target_list = ['c_generated_code', 'acados_ocp.json']
-    for target in target_list:
-        path = os.path.join(curr_dir, target)
-        if os.path.exists(path):
-            if os.path.isdir(path):
-                shutil.rmtree(path)
-            else:
-                os.remove(path)
-    print(f'\n[Cleanup] Removed acados files in {curr_dir}')
 
 def main():
     rclpy.init()
@@ -244,7 +231,7 @@ def main():
         node.running = False
         if node.control_thread.is_alive():
             node.control_thread.join(timeout=2.0)
-        cleanup()
+        cleanup_acados_files()
     finally:
         node.destroy_node()
         rclpy.shutdown()
