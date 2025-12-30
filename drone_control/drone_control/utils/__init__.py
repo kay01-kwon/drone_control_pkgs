@@ -6,6 +6,7 @@ from .cmd_converter import HexaCmdConverter
 from .circular_buffer import CircularBuffer
 from .circular_buffer import CircularBufferDeque
 from .low_pass_filter import LowPassFilter
+from .acados_cleanup import cleanup_acados_files
 
 __all__ = ['ControlAllocator',
            'math_tool',
@@ -14,4 +15,5 @@ __all__ = ['ControlAllocator',
            'HexaCmdConverter',
            'CircularBuffer',
            'CircularBufferDeque',
-           'LowPassFilter']
+           'LowPassFilter',
+           'cleanup_acados_files']
