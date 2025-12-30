@@ -28,9 +28,8 @@ from ros2_libcanard_msgs.msg import HexaCmdRaw
 
 from drone_control.utils.circular_buffer import CircularBuffer
 from drone_control.utils.cmd_converter import HexaCmdConverter
-from drone_control.utils import MsgParser, math_tool
+from drone_control.utils import MsgParser, math_tool, cleanup_acados_files
 from drone_control.nmpc.ocp.S550_simple_ocp import S550_Ocp
-
 
 class NmpcNodeV2(Node):
     """
@@ -317,24 +316,6 @@ class NmpcNodeV2(Node):
             self.get_logger().info('='*60)
 
         super().destroy_node()
-
-
-def cleanup_acados_files():
-    """Remove generated Acados files"""
-    curr_dir = os.getcwd()
-    target_list = ['c_generated_code', 'acados_ocp.json']
-
-    for target in target_list:
-        path = os.path.join(curr_dir, target)
-        if os.path.exists(path):
-            try:
-                if os.path.isdir(path):
-                    shutil.rmtree(path)
-                else:
-                    os.remove(path)
-                print(f'[Cleanup] Removed: {path}')
-            except Exception as e:
-                print(f'[Cleanup] Failed to remove {path}: {e}')
 
 
 def main(args=None):
