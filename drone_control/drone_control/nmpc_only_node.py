@@ -1,18 +1,7 @@
 import os
-import sys
 import shutil
 import threading
 import time
-
-'''
-Append nmpc_pkg directory using sys module
-'''
-dir_path = os.path.dirname(os.path.realpath(__file__))
-print(dir_path)
-
-pkg_dir = dir_path[:dir_path.rfind('/')]
-print(pkg_dir)
-sys.path.append(pkg_dir)
 
 import rclpy
 from rclpy.node import Node
