@@ -1,14 +1,17 @@
 import numpy as np
 
 class ControlAllocator:
-    def __init__(self, Param):
-        l = Param['arm_length']
-        self.C_T = Param['rotor_const']
-        k_m = Param['moment_const']
-        self.T_max = Param['T_max']
-        self.T_min = Param['T_min']
-        self.acc_max = Param['acc_max']
-        self.acc_min = Param['acc_min']
+    """
+    Control Allocator class
+    """
+    def __init__(self, DroneParam):
+        l = DroneParam['arm_length']
+        self.C_T = DroneParam['rotor_const']
+        k_m = DroneParam['moment_const']
+        self.T_max = DroneParam['T_max']
+        self.T_min = DroneParam['T_min']
+        self.acc_max = DroneParam['acc_max']
+        self.acc_min = DroneParam['acc_min']
 
         cos_pi_3 = np.cos(np.pi/3)
         sin_pi_3 = np.sin(np.pi/3)
@@ -29,14 +32,14 @@ class ControlAllocator:
         lx5 = 0
         lx6 = l*sin_pi_3
 
-        K_forward = np.array([
+        self.K_forward = np.array([
             [1, 1, 1, 1, 1, 1],
             [ly1, ly2, ly3, ly4, ly5, ly6],
             [-lx1, -lx2, -lx3, -lx4, -lx5, -lx6],
             [-k_m, k_m, -k_m, k_m, -k_m, k_m]
         ])
 
-        self.K_inv = np.linalg.pinv(K_forward)
+        self.K_inv = np.linalg.pinv(self.K_forward)
 
     def compute_des_rpm(self, f, M):
         u = np.hstack([f,M])
@@ -60,6 +63,14 @@ class ControlAllocator:
                 rotors_speed[i] = rotor_speed_prev[i] - dt*self.acc_min
 
         return rotors_speed
+
+    def compute_u_from_rotor_thrusts(self, rotor_thrust):
+        """
+        From rotor thrusts to collective force and moment
+        Returns: u [f, M]
+        """
+        u = self.K_forward @ rotor_thrust
+        return u
 
     def _clamp(self, rotors_thrust):
         for i in range(len(rotors_thrust)):

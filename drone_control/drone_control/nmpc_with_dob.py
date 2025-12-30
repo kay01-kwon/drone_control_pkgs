@@ -9,15 +9,13 @@ This implements NMPC with disturbance compensation from DOB:
 
 """
 
-import os
-import shutil
 import numpy as np
 import time
-from typing import Optional, Tuple
 
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, qos_profile_sensor_data
+from rclpy.executors import SingleThreadedExecutor
 
 from nav_msgs.msg import Odometry
 from drone_msgs.msg import Ref
@@ -25,11 +23,12 @@ from geometry_msgs.msg import WrenchStamped
 from ros2_libcanard_msgs.msg import HexaCmdRaw
 
 from drone_control.utils.circular_buffer import CircularBuffer
+from drone_control.utils.control_allocator import ControlAllocator
 from drone_control.utils.cmd_converter import HexaCmdConverter
 from drone_control.utils import MsgParser, math_tool, cleanup_acados_files
 from drone_control.nmpc.ocp.S550_simple_ocp import S550_Ocp
 
-class NmpcWithDOB(Node):
+class NmpcWithDOBNode(Node):
     """
     NMPC Node with DOB integration for ROS2
     This node implements Model Predictive control with disturbance compensation.
@@ -47,6 +46,9 @@ class NmpcWithDOB(Node):
         self.nmpc_solver = S550_Ocp(DynParam=dynamc_param,
                                     DroneParam=drone_param,
                                     MpcParam=nmpc_param)
+
+        # Create control allocator
+        self.control_allocator = ControlAllocator(DroneParam=drone_param)
 
         # Odometry buffer
         self.odom_buffer = CircularBuffer(capacity=30)
@@ -69,7 +71,9 @@ class NmpcWithDOB(Node):
 
         m = self.dynamic_param['m'] if hasattr(self, 'dynamic_param') else 2.9
         u_hover = m * 9.81 / 6.0
-        self.des_rotor_thrust = u_hover * np.ones((6,))
+        self.des_rotor_thrust_mpc = u_hover * np.ones((6,))
+        self.des_rotor_rpm_comp = np.zeros_like(self.des_rotor_thrust_mpc)
+        self.des_rotor_rpm_comp_prev = np.zeros_like(self.des_rotor_thrust_mpc)
         self.C_T = self.drone_param['rotor_const'] if hasattr(self, 'drone_param') else 1.465e-7
 
         # Create publisher
@@ -86,7 +90,7 @@ class NmpcWithDOB(Node):
         self.ref_sub = self.create_subscription(Ref,
                                                 '/nmpc/ref',
                                                 callback=self._ref_callback,
-                                                queue=10)
+                                                qos_profile=10)
 
         self.wrench_sub = self.create_subscription(WrenchStamped,
                                                    '/hgdo/wrench',
@@ -132,8 +136,8 @@ class NmpcWithDOB(Node):
         """
 
         # Position and linear velocity (Both -> World frame)
-        self.ref_state[0:3] = Ref.p
-        self.ref_state[3:6] = Ref.v
+        self.ref_state[0:3] = msg.p
+        self.ref_state[3:6] = msg.v
 
         # Quaternion from yaw angle
         self.ref_state[6] = np.cos(msg.psi/2.0)     # qw
@@ -157,7 +161,7 @@ class NmpcWithDOB(Node):
             return
 
         # Get current time
-        current_time = self.get_clock().now()
+        current_time = self._get_time_now()
 
         # Check odometry freshness
         odom_age = current_time - self.odom_buffer.get_latest()[0]
@@ -180,13 +184,49 @@ class NmpcWithDOB(Node):
 
         # Solve NMPC
         solve_start = time.time()
-        status, u = self.nmpc_solver.solve(
+        status, rotor_thrust_nmpc = self.nmpc_solver.solve(
             state = state_current,
             ref = self.ref_state,
-            u_prev = self.des_rotor_thrust
+            u_prev = self.des_rotor_thrust_mpc
         )
         solve_end = time.time()
         solve_time = (solve_end - solve_start)*1e3  # ms
+
+        # Update control input
+        self.des_rotor_thrust_mpc = rotor_thrust_nmpc
+
+        u_mpc = self.control_allocator.compute_u_from_rotor_thrusts(self.des_rotor_thrust_mpc)
+
+        # Log for MPC solver output (force and moment)
+        # self.get_logger().info('u_mpc = {}'.format(u_mpc))
+
+        # Check if we have DOB data
+        if self.wrench_buffer.is_empty():
+            # No DOB data available, just return
+            return
+
+        _, wrench_body = self.wrench_buffer.get_latest()
+        f_dist = wrench_body[0:3]       # [f_x, f_y, f_z]
+        tau_dist = wrench_body[3:6]     # [tau_x, tau_y, tau_z]
+
+        f_comp = u_mpc[0] - f_dist[2]
+        M_comp = u_mpc[1:4] - tau_dist
+
+        self.get_logger().info(f'f_comp: {f_comp:.3f} N, '
+                               f'tau_dist: {M_comp} Nm')
+
+
+        self.des_rotor_rpm_comp = (self.control_allocator
+                                   .compute_relaxed_des_rpm(f_comp, M_comp,
+                                    self.des_rotor_rpm_comp,
+                                    self.control_period))
+
+        # Convert to RPM and publish
+        cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
+                                                  self.des_rotor_rpm_comp)
+        self.cmd_pub.publish(cmd_msg)
+
+        self.des_rotor_rpm_comp_prev = self.des_rotor_rpm_comp
 
         # Update statistics
         self.solve_count += 1
@@ -201,6 +241,7 @@ class NmpcWithDOB(Node):
                 )
             return
 
+
         # Log statistics periodically (every 100 iterations = 1 second at 100 Hz)
         if self.solve_count % 100 == 0:
             avg_solve_time = self.total_solve_time / self.solve_count
@@ -208,8 +249,8 @@ class NmpcWithDOB(Node):
 
             self.get_logger().info(
                 f'Stats: solve = {avg_solve_time:.2f} ms, '
-                f'success = {success_rate:.1f} %',
-                f'odom_age = {odom_age*1000:.1f} ms',
+                f'success = {success_rate:.1f} %, '
+                f'odom_age = {odom_age*1000:.1f} ms'
             )
 
 
@@ -237,6 +278,8 @@ class NmpcWithDOB(Node):
         moment_const = self.get_parameter('drone_param.moment_const').value
         T_max = self.get_parameter('drone_param.T_max').value
         T_min = self.get_parameter('drone_param.T_min').value
+        acc_max = self.get_parameter('drone_param.acc_max').value
+        acc_min = self.get_parameter('drone_param.acc_min').value
 
         # NMPC parameters
         t_horizon = self.get_parameter('nmpc_param.t_horizon').value
@@ -263,7 +306,9 @@ class NmpcWithDOB(Node):
             'rotor_const': rotor_const,
             'moment_const': moment_const,
             'T_max': T_max,
-            'T_min': T_min
+            'T_min': T_min,
+            'acc_max': acc_max,
+            'acc_min': acc_min
         }
 
         nmpc_param = {
@@ -274,3 +319,41 @@ class NmpcWithDOB(Node):
         }
 
         return dynamic_param, drone_param, nmpc_param
+
+def main(args=None):
+    """Main entry point"""
+    rclpy.init(args=args)
+
+    node = None
+    try:
+        # Create node
+        node = NmpcWithDOBNode()
+
+        # Use SingleThreadedExecutor for predictable behavior
+        executor = SingleThreadedExecutor()
+        executor.add_node(node)
+
+        # Spin
+        print('\n[NMPC with DOB] Node running. Press Ctrl+C to stop.\n')
+        executor.spin()
+
+    except KeyboardInterrupt:
+        print('\n[NMPC with DOB] Keyboard interrupt received')
+    except Exception as e:
+        print(f'\n[NMPC with DOB] Exception: {e}')
+        import traceback
+        traceback.print_exc()
+    finally:
+        # Cleanup
+        if node is not None:
+            node.destroy_node()
+
+        if rclpy.ok():
+            rclpy.shutdown()
+
+        cleanup_acados_files()
+        print('[NMPC with DOB] Shutdown complete\n')
+
+
+if __name__ == '__main__':
+    main()
