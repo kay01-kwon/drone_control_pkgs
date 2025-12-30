@@ -94,26 +94,28 @@ ros2 launch drone_control rc_control.launch.py
 
 ## To do list
 
-<!-- 1. Configuration -->
-
-<!-- - [ ] Add LPF on/off configuration -->
-
-<!-- - [ ] Integrate launch file in drone_control pkg -->
-
 1. DOB Implementation
 
 - [x] HGDO
 
-- [x] L1 adaptation 
-
-- [ ] Inversion Dynamics (INDI)
+- [x] L1 adaptation &rarr; Debugging should be performed.
 
 - [ ] UKF/EKF for DOB
 
 2. Control Implementation
 
+- [x] Manual control (Velocity control mode for emergency)
+
 - [x] Simple NMPC
 
-- [ ] NMPC (Acados) with DOB
+- [x] NMPC (Acados) with DOB
+
+- [ ] NMPC (Acados - Rotor model) + RLS from DOB
+
+- [ ] PID controller
 
 - [ ] NMPC/RC control with DOB (Switching)
+
+3. Rotor state estimator
+
+- [ ] Kalman filter with constraint inequality
