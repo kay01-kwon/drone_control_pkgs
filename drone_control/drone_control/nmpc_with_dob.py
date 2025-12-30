@@ -76,6 +76,8 @@ class NmpcWithDOBNode(Node):
         self.des_rotor_rpm_comp_prev = np.zeros_like(self.des_rotor_thrust_mpc)
         self.C_T = self.drone_param['rotor_const'] if hasattr(self, 'drone_param') else 1.465e-7
 
+        self.dob_weight = 0.0
+
         # Create publisher
         self.cmd_pub = self.create_publisher(HexaCmdRaw,
                                              '/uav/cmd_raw',
@@ -101,6 +103,15 @@ class NmpcWithDOBNode(Node):
         self.control_period = 0.01
         self.control_timer = self.create_timer(self.control_period,
                                                self._control_callback)
+
+        self.get_logger().info('='*60)
+        self.get_logger().info('NMPC With DOB Node initialized successfully')
+        self.get_logger().info(f'Control rate: {1.0/self.control_period:.1f} Hz')
+        self.get_logger().info(f'Horizon: {nmpc_param["t_horizon"]:.2f}s')
+        self.get_logger().info(f'Nodes: {nmpc_param["n_nodes"]}')
+        self.get_logger().info(f'Q: {nmpc_param["QArray"]}')
+        self.get_logger().info(f'R: {nmpc_param["R"]}')
+        self.get_logger().info('='*60)
 
     def _odom_callback(self, msg: Odometry):
         """
@@ -209,11 +220,16 @@ class NmpcWithDOBNode(Node):
         f_dist = wrench_body[0:3]       # [f_x, f_y, f_z]
         tau_dist = wrench_body[3:6]     # [tau_x, tau_y, tau_z]
 
-        f_comp = u_mpc[0] - f_dist[2]
-        M_comp = u_mpc[1:4] - tau_dist
+        if self.ref_state[2] < 0.4 and state_current[2] <= 0.050:
+            f_comp = 0.5*6.0
+            M_comp = np.zeros_like(tau_dist)
+            self.dob_weight = 0.0
+        else:
+            f_comp = u_mpc[0] - f_dist[2]
+            M_comp = u_mpc[1:4] - tau_dist
 
-        self.get_logger().info(f'f_comp: {f_comp:.3f} N, '
-                               f'tau_dist: {M_comp} Nm')
+        # self.get_logger().info(f'f_comp: {f_comp:.3f} N, '
+        #                        f'tau_dist: {M_comp} Nm')
 
 
         self.des_rotor_rpm_comp = (self.control_allocator
@@ -243,15 +259,15 @@ class NmpcWithDOBNode(Node):
 
 
         # Log statistics periodically (every 100 iterations = 1 second at 100 Hz)
-        if self.solve_count % 100 == 0:
-            avg_solve_time = self.total_solve_time / self.solve_count
-            success_rate = (1.0 - self.failure_count / self.solve_count) * 100.0
-
-            self.get_logger().info(
-                f'Stats: solve = {avg_solve_time:.2f} ms, '
-                f'success = {success_rate:.1f} %, '
-                f'odom_age = {odom_age*1000:.1f} ms'
-            )
+        # if self.solve_count % 100 == 0:
+        #     avg_solve_time = self.total_solve_time / self.solve_count
+        #     success_rate = (1.0 - self.failure_count / self.solve_count) * 100.0
+        #
+        #     self.get_logger().info(
+        #         f'Stats: solve = {avg_solve_time:.2f} ms, '
+        #         f'success = {success_rate:.1f} %, '
+        #         f'odom_age = {odom_age*1000:.1f} ms'
+        #     )
 
 
     def _get_time_now(self) -> float:
