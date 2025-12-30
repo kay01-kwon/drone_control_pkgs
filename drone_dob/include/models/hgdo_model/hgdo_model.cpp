@@ -63,10 +63,15 @@ void HgdoModel::update(const double &t_prev,
 Vector6d HgdoModel::get_disturbance_estimate() const
 {
     Vector6d disturbance_estimate;
-    
+    // Compute disturbance estimate
+
+    Matrix3x3d R_wb = q_.toRotationMatrix();
+
+    // 1. Disturbance force estimate (Body frame)
     disturbance_estimate.head<3>()
-    = m_*(gamma_.head<3>() + 1.0/hgdo_param_.eps_f*v_);
+    = R_wb.transpose() * m_ *(gamma_.head<3>() + 1.0/hgdo_param_.eps_f*v_);
     
+    // 2. Disturbance torque estimate 
     disturbance_estimate.tail<3>()
     = J_*(gamma_.tail<3>() + 1.0/hgdo_param_.eps_tau*w_);
 
