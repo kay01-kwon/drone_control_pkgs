@@ -77,7 +77,8 @@ Vector6d StatePredictor::get_predicted_state() const{
 
 Vector6d StatePredictor::get_z_tilde() const{
     Vector6d z_tilde;
-    z_tilde.head<3>() = z_hat_.head<3>() - state_meas_.v;
+    Matrix3x3d R_B_I = state_meas_.q.toRotationMatrix();
+    z_tilde.head<3>() = z_hat_.head<3>() - R_B_I * state_meas_.v;
     z_tilde.tail<3>() = z_hat_.tail<3>() - state_meas_.w;
     return z_tilde;
 }
@@ -104,16 +105,16 @@ void StatePredictor::compute_dynamics(const Vector6d& z_hat,
     Quaterniond q_meas;
     Vector3d v_meas, w_meas;
     q_meas = state_meas_.q;
-    v_meas = state_meas_.v;
+
+    // Rotation matrix from Body to Inertial frame
+    Matrix3x3d R_B_I = q_meas.toRotationMatrix();
+    v_meas = R_B_I * state_meas_.v;
     w_meas = state_meas_.w;
 
     // Compute state prediction error
     Vector6d z_tilde;
     z_tilde.head<3>() = z_hat.head<3>() - v_meas;
     z_tilde.tail<3>() = z_hat.tail<3>() - w_meas;
-
-    // Rotation matrix from Body to Inertial frame
-    Matrix3x3d R_B_I = q_meas.toRotationMatrix();
 
     // Extract body frame unit vectors
     Vector3d e_x_B = R_B_I.col(0);
