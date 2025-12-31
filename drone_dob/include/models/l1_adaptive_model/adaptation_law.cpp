@@ -57,7 +57,7 @@ void AdaptationLaw::update(const double &t_prev,
     for(size_t i = 0; i < 6; ++i)
     {
         exp_As_dt = exp(dt*As_(i,i));
-        Phi_ii = 1/As_inv_(i,i)*(exp_As_dt - 1.0);
+        Phi_ii = As_inv_(i,i)*(exp_As_dt - 1.0);
         Phi_inv(i,i) = 1/Phi_ii;
         mu_(i) = exp_As_dt*z_tilde(i);
     }
