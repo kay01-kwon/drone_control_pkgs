@@ -1,7 +1,7 @@
 /**:
   ros__parameters:
     drone:
-      m: 3.0
+      m: 2.9
       l: 0.265
       MoiArray: [0.060, 0.060, 0.080]
       motor_const: 1.465e-7
@@ -12,5 +12,5 @@
       freq_cutoff_trans: 20.0
       freq_cutoff_rot: 60.0
     lpf:
-      lin_vel_cutoff: 20.0
+      lin_vel_cutoff: 60.0
       ang_vel_cutoff: 60.0

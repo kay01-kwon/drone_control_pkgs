@@ -116,6 +116,7 @@ void StatePredictor::compute_dynamics(const Vector6d& z_hat,
     z_tilde.head<3>() = z_hat.head<3>() - v_meas;
     z_tilde.tail<3>() = z_hat.tail<3>() - w_meas;
 
+
     // Extract body frame unit vectors
     Vector3d e_x_B = R_B_I.col(0);
     Vector3d e_y_B = R_B_I.col(1);
