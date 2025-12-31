@@ -143,7 +143,7 @@ void StatePredictor::compute_dynamics(const Vector6d& z_hat,
     // Compute z_hat_dot
     z_hat_dot = func_f
                 + func_g * (u_L1_ + sigma_.head<4>())
-                + func_g_perp * (sigma_.tail<2>())
+                + func_g_perp * sigma_.tail<2>()
                 + As_ * z_tilde;
 
 }

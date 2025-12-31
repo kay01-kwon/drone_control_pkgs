@@ -28,13 +28,13 @@ class StatePredictor{
 
     /**
      * @brief Updates the state predictor with the latest measurements and inputs
-     * 
+     *
      * @param t_prev : previous time
      * @param t_curr : current time
      * @param state_meas : measured state vector
      * @param u_BL : baseline control input
      * @param u_L1 : L1 adaptive control input
-     * @param sigma : Matched (Fx, Fy) and unmatched (Fz, Mx, My, Mz) uncertainties
+     * @param sigma : Matched (Fz, Mx, My, Mz) and unmatched (Fx, Fy) uncertainties
      */
     void update(const double &t_prev,
                 const double &t_curr,
