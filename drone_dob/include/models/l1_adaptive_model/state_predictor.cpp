@@ -43,12 +43,14 @@ void StatePredictor::update(const double &t_prev,
                             const double &t_curr,
                             const StateData &state_meas,
                             const Vector4d& u_BL,
+                            const Vector4d& u_L1,
                             const Vector6d &sigma)
 {
     t_prev_ = t_prev;
     t_curr_ = t_curr;
     state_meas_ = state_meas;
     u_BL_ = u_BL;
+    u_L1_ = u_L1;
     sigma_ = sigma;
 
     if(t_curr_ <= t_prev_)
@@ -92,6 +94,7 @@ void StatePredictor::initialize_state(){
 
     sigma_.setZero();
     u_BL_.setZero();
+    u_L1_.setZero();
 }
 
 void StatePredictor::compute_dynamics(const Vector6d& z_hat,
@@ -138,7 +141,7 @@ void StatePredictor::compute_dynamics(const Vector6d& z_hat,
 
     // Compute z_hat_dot
     z_hat_dot = func_f
-                + func_g * sigma_.head<4>()
+                + func_g * (u_L1_ + sigma_.head<4>())
                 + func_g_perp * sigma_.tail<2>()
                 + As_ * z_tilde;
 

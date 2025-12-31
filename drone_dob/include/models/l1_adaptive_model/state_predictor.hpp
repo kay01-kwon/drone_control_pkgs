@@ -33,12 +33,14 @@ class StatePredictor{
      * @param t_curr : current time
      * @param state_meas : measured state vector
      * @param u_BL : baseline control input
+     * @param u_L1 : L1 adaptive control input
      * @param sigma : Matched (Fz, Mx, My, Mz) and unmatched (Fx, Fy) uncertainties
      */
     void update(const double &t_prev,
                 const double &t_curr,
                 const StateData &state_meas,
                 const Vector4d& u_BL,
+                const Vector4d& u_L1,
                 const Vector6d &sigma);
 
 
@@ -72,6 +74,7 @@ class StatePredictor{
 
     Vector6d sigma_;
     Vector4d u_BL_;
+    Vector4d u_L1_;
 
     Matrix6x6d As_;
 
