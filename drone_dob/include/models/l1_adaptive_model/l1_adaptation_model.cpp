@@ -58,8 +58,8 @@ void L1AdaptationModel::update(const double &t_prev,
         return;
     else
     {
-        state_predictor_.update(t_prev, t_curr, 
-            state_meas, u_BL, u_L1_, sigma_hat_);
+        state_predictor_.update(t_prev, t_curr,
+            state_meas, u_BL, sigma_hat_);
         
         Vector6d z_tilde = state_predictor_.get_z_tilde();
 
