@@ -33,14 +33,19 @@ void L1AdaptationModel::configure(const DroneParam& drone_param,
     state_predictor_.configure(drone_param, l1_adaptive_param.As);
     adaptation_law_.configure(drone_param, l1_adaptive_param.As);
 
-    for(size_t i = 0; i < 3; ++i)
-    {
-        lpf_sigma_hat_[i]->setCutoffFrequency(l1_adaptive_param.freq_cutoff_trans);
-    }
+    // sigma(0): Fz (translational force)
+    lpf_sigma_hat_[0]->setCutoffFrequency(l1_adaptive_param.freq_cutoff_trans);
 
-    for(size_t i = 3; i < 6; ++i)
+    // sigma(1:3): Mx, My, Mz (rotational torques)
+    for(size_t i = 1; i < 4; ++i)
     {
         lpf_sigma_hat_[i]->setCutoffFrequency(l1_adaptive_param.freq_cutoff_rot);
+    }
+
+    // sigma(4:5): Fx, Fy (translational forces)
+    for(size_t i = 4; i < 6; ++i)
+    {
+        lpf_sigma_hat_[i]->setCutoffFrequency(l1_adaptive_param.freq_cutoff_trans);
     }
 }
 
