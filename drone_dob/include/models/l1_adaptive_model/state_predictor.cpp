@@ -137,7 +137,7 @@ void StatePredictor::compute_dynamics(const Vector6d& z_hat,
     func_g.block<3,3>(3,1) = J_inv_;
 
     func_g_perp.block<3,1>(0,0) = (1.0/m_)*e_x_B;
-    func_g_perp.block<3,1>(0,1) = (1.0/m_)*e_y_B;
+    func_g_perp.block<3,1>(0,1) = -(1.0/m_)*e_y_B;  // Negative sign per documentation!
 
     // Compute z_hat_dot
     z_hat_dot = func_f
