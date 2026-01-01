@@ -58,7 +58,7 @@ void AdaptationLaw::update(const double &t_prev,
     {
         exp_As_dt = exp(dt*As_(i,i));
         Phi_ii = As_inv_(i,i)*(exp_As_dt - 1.0);
-        Phi_inv(i,i) = 1/Phi_ii;
+        Phi_inv(i,i) = 1.0/Phi_ii;
         mu_(i) = exp_As_dt*z_tilde(i);
     }
     
@@ -78,6 +78,11 @@ void AdaptationLaw::update(const double &t_prev,
     G_inv.block<1,3>(5,0) = e_y_B.transpose() * m_;
 
     sigma_hat_ = -G_inv * Phi_inv * mu_;
+
+    // std::cout << "G_inv: \n" << G_inv << std::endl;
+    // std::cout << "Phi_inv: \n" << Phi_inv << std::endl;
+    // std::cout << "mu_: \n" << mu_ << std::endl;
+    // std::cout << "sigma_hat_: \n" << sigma_hat_ << std::endl;
 
 }
 

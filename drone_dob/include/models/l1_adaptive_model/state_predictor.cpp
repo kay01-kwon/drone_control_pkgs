@@ -66,6 +66,8 @@ void StatePredictor::update(const double &t_prev,
             },
             z_hat_, t_prev_, dt);
 
+        // std::cout << "Predicted state z_hat_: \n" << z_hat_ << std::endl;
+
     }
 }
 

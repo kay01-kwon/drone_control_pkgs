@@ -67,13 +67,14 @@ void L1AdaptationModel::update(const double &t_prev,
         sigma_hat_ = adaptation_law_.get_sigma_hat();
 
         double dt = t_curr - t_prev;
+        
         for(size_t i = 0; i < 6; ++i)
         {
             lpf_sigma_hat_[i]->update(sigma_hat_(i), dt);
 
             if (i < 4)
             {
-                u_L1_(i) = -lpf_sigma_hat_[i]->getOutput();
+                u_L1_(i) = lpf_sigma_hat_[i]->getOutput();
             }
         }
     }
