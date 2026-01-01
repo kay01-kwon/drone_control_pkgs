@@ -68,6 +68,8 @@ void StatePredictor::update(const double &t_prev,
             },
             z_hat_, t_prev_, dt);
 
+        // std::cout << "Predicted state z_hat_: \n" << z_hat_ << std::endl;
+
     }
 }
 
@@ -141,8 +143,12 @@ void StatePredictor::compute_dynamics(const Vector6d& z_hat,
     func_g_perp.block<3,1>(0,1) = (1.0/m_)*e_y_B;
 
     // Compute z_hat_dot
-    z_hat_dot = func_f
-                + func_g * (u_L1_ + sigma_.head<4>())
+    // z_hat_dot = func_f
+    //             + func_g * (u_L1_ + sigma_.head<4>())
+    //             + func_g_perp * sigma_.tail<2>()
+    //             + As_ * z_tilde;
+        z_hat_dot = func_f
+                + func_g * (sigma_.head<4>())
                 + func_g_perp * sigma_.tail<2>()
                 + As_ * z_tilde;
 
