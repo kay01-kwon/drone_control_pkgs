@@ -180,8 +180,8 @@ void L1AdaptiveNode::dob_estimate()
                                odom_recent.timestamp,
                                state_meas,
                                u_med);
-    
-    disturbance_estimate_.tail<4>() = l1_adaptive_model_->get_u_L1();
+
+    disturbance_estimate_.tail<4>() = l1_adaptive_model_->get_sigma_m_lpf();
 
     // Publish DOB estimate
     dob_msg_.header.stamp = this->now();
