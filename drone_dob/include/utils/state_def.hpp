@@ -19,7 +19,7 @@ typedef Eigen::Matrix<double, 6, 6> Matrix6x6d;
 
 typedef Eigen::Matrix<int16_t, 6, 1> Vector6int16;
 
-static Vector3d g_vec{0.0, 0.0, -9.81}; // Gravity vector
+static Vector3d g_vec{0.0, 0.0, -9.81}; // Gravity vector g_vec{0,0,-9.81}
 
 static Matrix3x3d Eye = Matrix3x3d::Identity(); // Identity matrix
 
