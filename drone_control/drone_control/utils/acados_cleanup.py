@@ -1,10 +1,10 @@
 import os
 import shutil
 
-def cleanup_acados_files():
+def cleanup_acados_files(json_file_name = 'acados_ocp.json'):
     """Remove generated Acados files"""
     curr_dir = os.getcwd()
-    target_list = ['c_generated_code', 'acados_ocp.json']
+    target_list = ['c_generated_code', json_file_name]
 
     for target in target_list:
         path = os.path.join(curr_dir, target)

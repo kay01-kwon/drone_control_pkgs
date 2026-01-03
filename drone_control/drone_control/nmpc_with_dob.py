@@ -367,7 +367,7 @@ def main(args=None):
         if rclpy.ok():
             rclpy.shutdown()
 
-        cleanup_acados_files()
+        cleanup_acados_files(node.nmpc_solver.get_json_file_name())
         print('[NMPC with DOB] Shutdown complete\n')
 
 

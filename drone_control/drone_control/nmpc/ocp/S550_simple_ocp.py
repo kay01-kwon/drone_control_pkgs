@@ -115,10 +115,10 @@ class S550_Ocp:
 
         # self.ocp_solver = AcadosOcpSolver(self.ocp)
         # generate json file and generate cython
-        solver_json = 'acados_ocp_' + self.ocp.model.name + '.json'
-        AcadosOcpSolver.generate(self.ocp, json_file = solver_json)
+        self.solver_json = 'acados_ocp_' + self.ocp.model.name + '.json'
+        AcadosOcpSolver.generate(self.ocp, json_file = self.solver_json)
         AcadosOcpSolver.build(self.ocp.code_export_directory, with_cython=True)
-        self.ocp_solver = AcadosOcpSolver.create_cython_solver(solver_json)
+        self.ocp_solver = AcadosOcpSolver.create_cython_solver(self.solver_json)
         # Store state trajectory for warm start
         self.previous_states = None
 
@@ -178,3 +178,6 @@ class S550_Ocp:
         u = self.ocp_solver.get(0, 'u')
 
         return status, u
+
+    def get_json_file_name(self):
+        return self.solver_json
