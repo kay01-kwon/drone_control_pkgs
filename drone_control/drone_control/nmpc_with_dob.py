@@ -2,11 +2,13 @@
 ROS2 NMPC Node with Disturbance Observer (DOB)
 
 This implements NMPC with disturbance compensation from DOB:
--
--
--
--
+- Receives disturbances wrench from DOB (HGDO, L1 adaptaiton, EKF/UKF)
+- Compensates control input for estimated disturbance
+- Timer-based control loop (no manual threading)
+- SingleThreadedExecutor for predictable behavior
 
+Author: Geonwoo Kwon
+Date: 2026-01-03
 """
 
 import numpy as np
