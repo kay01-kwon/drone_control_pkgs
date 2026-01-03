@@ -14,3 +14,8 @@
     lpf:
       lin_vel_cutoff: 20.0
       ang_vel_cutoff: 60.0
+    topic_names:
+      odom_in_topic: "/S550/ground_truth/odometry"
+      odom_filtered_topic: "/l1_adaptive/odom_filtered"
+      actual_rpm_topic: "/uav/actual_rpm"
+      dob_topic: "/l1_adaptive/dob"
