@@ -233,7 +233,6 @@ class NmpcWithDOBNode(Node):
         # self.get_logger().info(f'f_comp: {f_comp:.3f} N, '
         #                        f'tau_dist: {M_comp} Nm')
 
-
         self.des_rotor_rpm_comp = (self.control_allocator
                                    .compute_relaxed_des_rpm(f_comp, M_comp,
                                     self.des_rotor_rpm_comp,
