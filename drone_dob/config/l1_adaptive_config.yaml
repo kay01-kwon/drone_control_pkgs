@@ -16,6 +16,6 @@
       ang_vel_cutoff: 60.0
     topic_names:
       odom_in_topic: "/S550/ground_truth/odometry"
-      odom_filtered_topic: "/l1_adaptive/odom_filtered"
+      filtered_odom_topic: "/l1_adaptive/filtered_odom"
       actual_rpm_topic: "/uav/actual_rpm"
-      dob_topic: "/l1_adaptive/dob"
+      dob_topic: "/l1_adaptive/wrench"
