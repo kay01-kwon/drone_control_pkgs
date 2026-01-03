@@ -25,3 +25,7 @@
         rc: 0.10
         odom: 0.10
         do: 0.10
+    topic_names:
+      cmd_topic: '/uav/cmd_raw'
+      filtered_odom_topic: '/hgdo/filtered_odom'
+      ref_topic: '/nmpc/ref'
