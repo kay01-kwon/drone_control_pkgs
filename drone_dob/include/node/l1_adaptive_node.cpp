@@ -8,18 +8,31 @@ L1AdaptiveNode::L1AdaptiveNode()
     odom_buffer_.reserve(20);
     hexa_rpm_buffer_.reserve(20);
 
-    // Subscribers
+    // 1. Subscribers
+    // 1.1. Odom subscriber
+    this->declare_parameter("topic_names.odom_in", "/S550/ground_truth/odom");
+    std::string odom_topic_name = this->get_parameter("topic_names.odom_in").as_string();
     odom_subscriber_ = this->create_subscription<Odometry>(
-        "/S550/ground_truth/odom", rclcpp::SensorDataQoS(),
+        odom_topic_name, rclcpp::SensorDataQoS(),
         std::bind(&L1AdaptiveNode::odomCallback, this, std::placeholders::_1));
-
+    
+    // 1.2. Hexa Actual RPM subscriber
+    this->declare_parameter("topic_names.actual_rpm", "/uav/actual_rpm");
+    std::string hexa_actual_rpm_topic_name = this->get_parameter("topic_names.actual_rpm").as_string();
     hexa_rpm_subscriber_ = this->create_subscription<HexaActualRpm>(
-        "/uav/actual_rpm", rclcpp::SensorDataQoS(),
+        hexa_actual_rpm_topic_name, rclcpp::SensorDataQoS(),
         std::bind(&L1AdaptiveNode::hexaActualRpmCallback, this, std::placeholders::_1));
-    // Publishers
-    filtered_odom_publisher_ = this->create_publisher<Odometry>("/l1_filtered_odom", rclcpp::SensorDataQoS());
+    
+    // 2. Publishers
+    // 2.1. Filtered odom publisher
+    this->declare_parameter("topic_names.filtered_odom_topic", "/l1_filtered_odom");
+    std::string filtered_odom_topic_name = this->get_parameter("topic_names.filtered_odom_topic").as_string();
+    filtered_odom_publisher_ = this->create_publisher<Odometry>(filtered_odom_topic_name, rclcpp::SensorDataQoS());
 
-    dob_publisher_ = this->create_publisher<WrenchStamped>("/l1_adaptive/wrench", rclcpp::SensorDataQoS());
+    // 2.2. DOB wrench publisher
+    this->declare_parameter("topic_names.dob_wrench_topic", "/l1_adaptive/wrench");
+    std::string dob_wrench_topic_name = this->get_parameter("topic_names.dob_wrench_topic").as_string();
+    dob_publisher_ = this->create_publisher<WrenchStamped>(dob_wrench_topic_name, rclcpp::SensorDataQoS());
 
     // Control loop timer
     control_loop_timer_ = this->create_wall_timer(
