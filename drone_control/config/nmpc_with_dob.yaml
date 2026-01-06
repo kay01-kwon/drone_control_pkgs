@@ -26,4 +26,5 @@
       cmd_topic: '/uav/cmd_raw'
       filtered_odom_topic: '/hgdo/filtered_odom'
       ref_topic: '/nmpc/ref'
+      base_line_control_topic: '/nmpc/control'
       dob_wrench_topic: '/hgdo/wrench'
