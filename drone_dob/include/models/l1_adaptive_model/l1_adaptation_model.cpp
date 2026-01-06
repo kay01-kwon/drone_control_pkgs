@@ -74,7 +74,7 @@ void L1AdaptationModel::update(const double &t_prev,
 
             if (i < 4)
             {
-                u_L1_(i) = -lpf_sigma_hat_[i]->getOutput();
+                u_L1_(i) = lpf_sigma_hat_[i]->getOutput();
             }
         }
     }
