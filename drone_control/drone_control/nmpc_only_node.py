@@ -42,20 +42,25 @@ class NmpcOnlyNode(Node):
 
         self.group_sub = MutuallyExclusiveCallbackGroup()
 
+        # Topic name from ros param
+        cmd_topic = self.get_parameter('topic_names.cmd_topic').value
+        filtered_odom_topic = self.get_parameter('topic_names.filtered_odom_topic').value
+        ref_topic = self.get_parameter('topic_names.ref_topic').value
+
+        self.cmd_pub = self.create_publisher(HexaCmdRaw,
+                                             cmd_topic,
+                                            5)
+
         self.odom_sub = self.create_subscription(Odometry,
-                                                 '/filtered_odom',
+                                                 filtered_odom_topic,
                                                  self._odom_cb,
                                                  qos_profile=qos_profile_sensor_data,
                                                  callback_group=self.group_sub)
 
         self.ref_sub = self.create_subscription(Ref,
-                                                '/nmpc/ref',
+                                                ref_topic,
                                                 self._ref_cb,
                                                 1)
-
-        self.cmd_pub = self.create_publisher(HexaCmdRaw,
-                                             '/uav/cmd_raw',
-                                            5)
 
         # Control loop thread (ROS1-style)
         self.control_rate = 100.0  # Hz
@@ -66,7 +71,17 @@ class NmpcOnlyNode(Node):
         self.t_curr = time.time()
         self.t_prev = self.t_curr
 
-        self.get_logger().info('NMPC control thread started at 100 Hz')
+        self.get_logger().info('='*60)
+        self.get_logger().info(f'Command topic: {cmd_topic}')
+        self.get_logger().info(f'Filtered odom topic: {filtered_odom_topic}')
+        self.get_logger().info(f'Reference topic: {ref_topic}')
+        self.get_logger().info('NMPC With DOB Node initialized successfully')
+        self.get_logger().info(f'Control rate: {self.control_rate:.1f} Hz')
+        self.get_logger().info(f'Horizon: {nmpc_param["t_horizon"]:.2f}s')
+        self.get_logger().info(f'Nodes: {nmpc_param["n_nodes"]}')
+        self.get_logger().info(f'Q: {nmpc_param["QArray"]}')
+        self.get_logger().info(f'R: {nmpc_param["R"]}')
+        self.get_logger().info('='*60)
 
     def _odom_cb(self, msg):
 
