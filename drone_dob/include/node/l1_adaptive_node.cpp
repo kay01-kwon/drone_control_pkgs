@@ -66,6 +66,11 @@ void L1AdaptiveNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
         msg->twist.twist.linear.y,
         msg->twist.twist.linear.z;
 
+    odom_data.angular_velocity <<
+        msg->twist.twist.angular.x,
+        msg->twist.twist.angular.y,
+        msg->twist.twist.angular.z;
+
     odom_data.orientation.w()
     = msg->pose.pose.orientation.w;
 
