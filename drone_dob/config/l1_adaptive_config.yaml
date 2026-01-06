@@ -12,15 +12,15 @@
       dob_looptime: 0.010
       As_array: [-5.0, -5.0, -5.0,    # vx, vy, vz (Body frame)
                  -5.0, -5.0, -5.0]    # wx, wy ,wz (Body frame)
-      freq_cutoff_trans: 60.0
-      freq_cutoff_rot: 60.0
+      freq_cutoff_trans: 2.0
+      freq_cutoff_rot: 2.0
 
     lpf:
       lin_vel_cutoff: 20.0
       ang_vel_cutoff: 60.0
 
     topic_names:
-      odom_in_topic: "/S550/ground_truth/odometry"
+      odom_in_topic: "/S550/ground_truth/odom"
       filtered_odom_topic: "/l1_adaptive/filtered_odom"
       actual_rpm_topic: "/uav/actual_rpm"
       base_line_control_topic: "/nmpc/control"

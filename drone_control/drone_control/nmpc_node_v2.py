@@ -25,8 +25,10 @@ from rclpy.executors import SingleThreadedExecutor
 from nav_msgs.msg import Odometry
 from drone_msgs.msg import Ref
 from ros2_libcanard_msgs.msg import HexaCmdRaw
+from geometry_msgs.msg import WrenchStamped
 
 from drone_control.utils.circular_buffer import CircularBuffer
+from drone_control.utils.control_allocator import ControlAllocator
 from drone_control.utils.cmd_converter import HexaCmdConverter
 from drone_control.utils import MsgParser, math_tool, cleanup_acados_files
 from drone_control.nmpc.ocp.S550_simple_ocp import S550_Ocp
@@ -56,10 +58,14 @@ class NmpcNodeV2(Node):
             DroneParam=self.drone_param,
             MpcParam=self.nmpc_param
         )
+
+        self.control_allocator = ControlAllocator(self.drone_param)
+
         self.get_logger().info('NMPC solver created successfully')
 
         # Topic name from ros param
         cmd_topic = self.get_parameter('topic_names.cmd_topic').value
+        nmpc_topic = self.get_parameter('topic_names.base_line_control_topic').value
         filtered_odom_topic = self.get_parameter('topic_names.filtered_odom_topic').value
         ref_topic = self.get_parameter('topic_names.ref_topic').value
 
@@ -67,22 +73,26 @@ class NmpcNodeV2(Node):
         self.cmd_pub = self.create_publisher(
             HexaCmdRaw,
             cmd_topic,
-            10
+            5
         )
+
+        self.nmpc_pub = self.create_publisher(WrenchStamped,
+                                              nmpc_topic,
+                                              qos_profile=5)
 
         # Create subscribers
         self.odom_sub = self.create_subscription(
             Odometry,
             filtered_odom_topic,
             self._odom_callback,
-            qos_profile_sensor_data
+            5
         )
 
         self.ref_sub = self.create_subscription(
             Ref,
             ref_topic,
             self._ref_callback,
-            10
+            5
         )
 
         # Create control timer (100 Hz)
@@ -99,6 +109,7 @@ class NmpcNodeV2(Node):
 
         self.get_logger().info('='*60)
         self.get_logger().info(f'Command topic: {cmd_topic}')
+        self.get_logger().info(f'NMPC topic: {nmpc_topic}')
         self.get_logger().info(f'Filtered odom topic: {filtered_odom_topic}')
         self.get_logger().info(f'Reference topic: {ref_topic}')
         self.get_logger().info('NMPC Node V2 initialized successfully')
@@ -146,6 +157,8 @@ class NmpcNodeV2(Node):
         moment_const = self.get_parameter('drone_param.moment_const').value
         T_max = self.get_parameter('drone_param.T_max').value
         T_min = self.get_parameter('drone_param.T_min').value
+        acc_max = self.get_parameter('drone_param.acc_max').value
+        acc_min = self.get_parameter('drone_param.acc_min').value
 
         # NMPC parameters
         t_horizon = self.get_parameter('nmpc_param.t_horizon').value
@@ -172,7 +185,9 @@ class NmpcNodeV2(Node):
             'rotor_const': rotor_const,
             'moment_const': moment_const,
             'T_max': T_max,
-            'T_min': T_min
+            'T_min': T_min,
+            'acc_max': acc_max,
+            'acc_min': acc_min
         }
 
         nmpc_param = {
@@ -258,13 +273,15 @@ class NmpcNodeV2(Node):
 
         # Solve NMPC
         solve_start = time.time()
-        status, u = self.nmpc_solver.solve(
+        status, T_rotor = self.nmpc_solver.solve(
             state=state_current,
             ref=self.ref_state,
             u_prev=self.des_rotor_thrust
         )
         solve_end = time.time()
         solve_time = (solve_end - solve_start)*1e3  # ms
+
+        u_mpc = self.control_allocator.compute_u_from_rotor_thrusts(T_rotor)
 
         # Update statistics
         self.solve_count += 1
@@ -280,7 +297,7 @@ class NmpcNodeV2(Node):
             return
 
         # Update control input
-        self.des_rotor_thrust = u
+        self.des_rotor_thrust = T_rotor
 
         # Convert to RPM and publish
         des_rpm = np.sqrt(self.des_rotor_thrust / self.C_T)
@@ -288,7 +305,19 @@ class NmpcNodeV2(Node):
             self.get_clock().now(),
             des_rpm
         )
+
+        nmpc_msg = WrenchStamped()
+        nmpc_msg.header.stamp = self.get_clock().now().to_msg()
+        nmpc_msg.header.frame_id = 'nmpc'
+        nmpc_msg.wrench.force.x = 0.0
+        nmpc_msg.wrench.force.y = 0.0
+        nmpc_msg.wrench.force.z = u_mpc[0]
+        nmpc_msg.wrench.torque.x = u_mpc[1]
+        nmpc_msg.wrench.torque.y = u_mpc[2]
+        nmpc_msg.wrench.torque.z = u_mpc[3]
+
         self.cmd_pub.publish(cmd_msg)
+        self.nmpc_pub.publish(nmpc_msg)
 
         # Log statistics periodically (every 100 iterations = 1 second at 100Hz)
         if self.solve_count % 100 == 0:
