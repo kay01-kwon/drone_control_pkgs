@@ -48,10 +48,15 @@ void L1AdaptiveNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
         msg->pose.pose.position.y,
         msg->pose.pose.position.z;
 
-    odom_data.linear_velocity << 
+    odom_data.linear_velocity <<
         msg->twist.twist.linear.x,
         msg->twist.twist.linear.y,
         msg->twist.twist.linear.z;
+
+    odom_data.angular_velocity <<
+        msg->twist.twist.angular.x,
+        msg->twist.twist.angular.y,
+        msg->twist.twist.angular.z;
 
     odom_data.orientation.w()
     = msg->pose.pose.orientation.w;
@@ -74,6 +79,8 @@ void L1AdaptiveNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
 
     if(odom_buffer_.size() >= 2)
     {
+        odom_filter();
+
         if(odom_buffer_.size() >= 2 && !hexa_rpm_buffer_.is_empty())
         {
             dob_estimate();
