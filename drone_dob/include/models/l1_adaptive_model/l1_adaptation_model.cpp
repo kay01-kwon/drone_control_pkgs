@@ -74,20 +74,20 @@ void L1AdaptationModel::update(const double &t_prev,
 
             if (i < 4)
             {
-                sigma_m_lpf_(i) = lpf_sigma_hat_[i]->getOutput();
+                u_L1_(i) = lpf_sigma_hat_[i]->getOutput();
             }
         }
     }
     
 }
 
-Vector4d L1AdaptationModel::get_sigma_m_lpf() const
+Vector4d L1AdaptationModel::get_u_L1() const
 {
-    return sigma_m_lpf_;
+    return u_L1_;
 }
 
 void L1AdaptationModel::initialize_state()
 {
-    sigma_m_lpf_.setZero();
+    u_L1_.setZero();
     sigma_hat_.setZero();
 }
