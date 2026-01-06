@@ -50,22 +50,37 @@ class RcControlNode(Node):
 
         self.des_rpm = np.zeros((6,))
 
+        # Topic name from ros param
+        cmd_topic = self.get_parameter('topic_names.cmd_topic').value
+        rc_topic = self.get_parameter('topic_names.rc_topic').value
+        filtered_odom_topic = self.get_parameter('topic_names.filtered_odom_topic').value
+        ref_topic = self.get_parameter('topic_names.ref_topic').value
+        dob_wrench_topic = self.get_parameter('topic_names.dob_wrench_topic').value
+
+        # Create publisher
+        self.cmd_pub = self.create_publisher(HexaCmdRaw, cmd_topic, 5)
+
+        # Create subscriber
         self.rc_in_sub = self.create_subscription(RCIn,
-                                                 '/mavros/rc/in',
+                                                 rc_topic,
                                                  self._rc_in_cb,
                                                  qos_profile_sensor_data)
 
         self.odom_sub = self.create_subscription(Odometry,
-                                                 '/filtered_odom',
+                                                 filtered_odom_topic,
                                                  self._odom_cb,
                                                  qos_profile_sensor_data)
 
         self.do_sub = self.create_subscription(WrenchStamped,
-                                                '/hgdo/wrench',
+                                                dob_wrench_topic,
                                                 self._do_cb,
                                                 qos_profile_sensor_data)
 
-        self.cmd_pub = self.create_publisher(HexaCmdRaw, '/uav/cmd_raw', 1)
+        # Log designated topic names, respectively
+        self.get_logger().info(f'Command topic: {cmd_topic}')
+        self.get_logger().info(f'Filtered odom topic: {filtered_odom_topic}')
+        self.get_logger().info(f'Reference topic: {ref_topic}')
+        self.get_logger().info(f'DoB wrench topic: {dob_wrench_topic}')
 
         # Takeoff condition
         self.z_takeoff = ConstrainParam['z_takeoff']

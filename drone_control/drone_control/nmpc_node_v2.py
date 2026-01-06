@@ -58,24 +58,29 @@ class NmpcNodeV2(Node):
         )
         self.get_logger().info('NMPC solver created successfully')
 
+        # Topic name from ros param
+        cmd_topic = self.get_parameter('topic_names.cmd_topic').value
+        filtered_odom_topic = self.get_parameter('topic_names.filtered_odom_topic').value
+        ref_topic = self.get_parameter('topic_names.ref_topic').value
+
         # Create publishers
         self.cmd_pub = self.create_publisher(
             HexaCmdRaw,
-            '/uav/cmd_raw',
+            cmd_topic,
             10
         )
 
         # Create subscribers
         self.odom_sub = self.create_subscription(
             Odometry,
-            '/filtered_odom',
+            filtered_odom_topic,
             self._odom_callback,
             qos_profile_sensor_data
         )
 
         self.ref_sub = self.create_subscription(
             Ref,
-            '/nmpc/ref',
+            ref_topic,
             self._ref_callback,
             10
         )
@@ -93,6 +98,9 @@ class NmpcNodeV2(Node):
         self.total_solve_time = 0.0
 
         self.get_logger().info('='*60)
+        self.get_logger().info(f'Command topic: {cmd_topic}')
+        self.get_logger().info(f'Filtered odom topic: {filtered_odom_topic}')
+        self.get_logger().info(f'Reference topic: {ref_topic}')
         self.get_logger().info('NMPC Node V2 initialized successfully')
         self.get_logger().info(f'Control rate: {1.0/self.control_dt:.1f} Hz')
         self.get_logger().info(f'Horizon: {self.nmpc_param["t_horizon"]:.2f}s')
