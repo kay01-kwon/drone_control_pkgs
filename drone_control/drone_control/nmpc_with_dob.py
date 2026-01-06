@@ -270,15 +270,15 @@ class NmpcWithDOBNode(Node):
 
 
         # Log statistics periodically (every 100 iterations = 1 second at 100 Hz)
-        # if self.solve_count % 100 == 0:
-        #     avg_solve_time = self.total_solve_time / self.solve_count
-        #     success_rate = (1.0 - self.failure_count / self.solve_count) * 100.0
-        #
-        #     self.get_logger().info(
-        #         f'Stats: solve = {avg_solve_time:.2f} ms, '
-        #         f'success = {success_rate:.1f} %, '
-        #         f'odom_age = {odom_age*1000:.1f} ms'
-        #     )
+        if self.solve_count % 100 == 0:
+            avg_solve_time = self.total_solve_time / self.solve_count
+            success_rate = (1.0 - self.failure_count / self.solve_count) * 100.0
+
+            self.get_logger().info(
+                f'Stats: solve = {avg_solve_time:.2f} ms, '
+                f'success = {success_rate:.1f} %, '
+                f'odom_age = {odom_age*1000:.1f} ms'
+            )
 
 
     def _get_time_now(self) -> float:

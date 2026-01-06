@@ -86,10 +86,12 @@ void L1AdaptiveNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
     odom_buffer_.push_back(odom_data);
 
     if(odom_buffer_.size() >= 2)
+        odom_filter();
+
+    if(!odom_buffer_.is_empty() && !hexa_rpm_buffer_.is_empty())
     {
-        if(odom_buffer_.size() >= 2 && !hexa_rpm_buffer_.is_empty())
+        if(odom_buffer_.size() >= 2 && hexa_rpm_buffer_.size() >= 2)
         {
-            odom_filter();
             dob_estimate();
         }
     }
