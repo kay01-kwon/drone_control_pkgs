@@ -2,11 +2,13 @@
 ROS2 NMPC Node with Disturbance Observer (DOB)
 
 This implements NMPC with disturbance compensation from DOB:
--
--
--
--
+- Receives disturbances wrench from DOB (HGDO, L1 adaptaiton, EKF/UKF)
+- Compensates control input for estimated disturbance
+- Timer-based control loop (no manual threading)
+- SingleThreadedExecutor for predictable behavior
 
+Author: Geonwoo Kwon
+Date: 2026-01-03
 """
 
 import numpy as np
@@ -78,24 +80,35 @@ class NmpcWithDOBNode(Node):
 
         self.dob_weight = 0.0
 
+        # Topic name from ros param
+        cmd_topic = self.get_parameter('topic_names.cmd_topic').value
+        nmpc_topic = self.get_parameter('topic_names.base_line_control_topic').value
+        filtered_odom_topic = self.get_parameter('topic_names.filtered_odom_topic').value
+        ref_topic = self.get_parameter('topic_names.ref_topic').value
+        dob_wrench_topic = self.get_parameter('topic_names.dob_wrench_topic').value
+
         # Create publisher
         self.cmd_pub = self.create_publisher(HexaCmdRaw,
-                                             '/uav/cmd_raw',
+                                             cmd_topic,
                                              5)
+
+        self.nmpc_pub = self.create_publisher(WrenchStamped,
+                                              nmpc_topic,
+                                              qos_profile=5)
 
         # Create subscribers
         self.odom_sub = self.create_subscription(Odometry,
-                                                 '/filtered_odom',
+                                                 filtered_odom_topic,
                                                  callback=self._odom_callback,
                                                  qos_profile=qos_profile_sensor_data)
 
         self.ref_sub = self.create_subscription(Ref,
-                                                '/nmpc/ref',
+                                                ref_topic,
                                                 callback=self._ref_callback,
                                                 qos_profile=10)
 
         self.wrench_sub = self.create_subscription(WrenchStamped,
-                                                   '/hgdo/wrench',
+                                                   dob_wrench_topic,
                                                    callback=self._wrench_dob_callback,
                                                    qos_profile=qos_profile_sensor_data)
 
@@ -105,6 +118,11 @@ class NmpcWithDOBNode(Node):
                                                self._control_callback)
 
         self.get_logger().info('='*60)
+        self.get_logger().info(f'Command topic: {cmd_topic}')
+        self.get_logger().info(f'NMPC topic: {nmpc_topic}')
+        self.get_logger().info(f'Filtered odom topic: {filtered_odom_topic}')
+        self.get_logger().info(f'Reference topic: {ref_topic}')
+        self.get_logger().info(f'DoB wrench topic: {dob_wrench_topic}')
         self.get_logger().info('NMPC With DOB Node initialized successfully')
         self.get_logger().info(f'Control rate: {1.0/self.control_period:.1f} Hz')
         self.get_logger().info(f'Horizon: {nmpc_param["t_horizon"]:.2f}s')
@@ -231,7 +249,6 @@ class NmpcWithDOBNode(Node):
         # self.get_logger().info(f'f_comp: {f_comp:.3f} N, '
         #                        f'tau_dist: {M_comp} Nm')
 
-
         self.des_rotor_rpm_comp = (self.control_allocator
                                    .compute_relaxed_des_rpm(f_comp, M_comp,
                                     self.des_rotor_rpm_comp,
@@ -240,7 +257,19 @@ class NmpcWithDOBNode(Node):
         # Convert to RPM and publish
         cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
                                                   self.des_rotor_rpm_comp)
+
+        nmpc_msg = WrenchStamped()
+        nmpc_msg.header.stamp = self.get_clock().now().to_msg()
+        nmpc_msg.header.frame_id = 'nmpc'
+        nmpc_msg.wrench.force.x = 0.0
+        nmpc_msg.wrench.force.y = 0.0
+        nmpc_msg.wrench.force.z = u_mpc[0]
+        nmpc_msg.wrench.torque.x = u_mpc[1]
+        nmpc_msg.wrench.torque.y = u_mpc[2]
+        nmpc_msg.wrench.torque.z = u_mpc[3]
+
         self.cmd_pub.publish(cmd_msg)
+        self.nmpc_pub.publish(nmpc_msg)
 
         self.des_rotor_rpm_comp_prev = self.des_rotor_rpm_comp
 
@@ -259,15 +288,15 @@ class NmpcWithDOBNode(Node):
 
 
         # Log statistics periodically (every 100 iterations = 1 second at 100 Hz)
-        # if self.solve_count % 100 == 0:
-        #     avg_solve_time = self.total_solve_time / self.solve_count
-        #     success_rate = (1.0 - self.failure_count / self.solve_count) * 100.0
-        #
-        #     self.get_logger().info(
-        #         f'Stats: solve = {avg_solve_time:.2f} ms, '
-        #         f'success = {success_rate:.1f} %, '
-        #         f'odom_age = {odom_age*1000:.1f} ms'
-        #     )
+        if self.solve_count % 100 == 0:
+            avg_solve_time = self.total_solve_time / self.solve_count
+            success_rate = (1.0 - self.failure_count / self.solve_count) * 100.0
+
+            self.get_logger().info(
+                f'Stats: solve = {avg_solve_time:.2f} ms, '
+                f'success = {success_rate:.1f} %, '
+                f'odom_age = {odom_age*1000:.1f} ms'
+            )
 
 
     def _get_time_now(self) -> float:
@@ -367,7 +396,7 @@ def main(args=None):
         if rclpy.ok():
             rclpy.shutdown()
 
-        cleanup_acados_files()
+        cleanup_acados_files(node.nmpc_solver.get_json_file_name())
         print('[NMPC with DOB] Shutdown complete\n')
 
 

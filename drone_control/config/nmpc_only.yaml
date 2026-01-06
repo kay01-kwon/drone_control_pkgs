@@ -10,6 +10,8 @@
       moment_const: 0.01569
       T_max: 8.0
       T_min: 0.586
+      acc_max: 15000.0    # Rotor Acc 15 krpm/s
+      acc_min: 15000.0    # Rotor Dec 15 krpm/s
 
     nmpc_param:
       t_horizon: 1.0
@@ -25,3 +27,8 @@
         rc: 0.10
         odom: 0.10
         do: 0.10
+    topic_names:
+      cmd_topic: '/uav/cmd_raw'
+      base_line_control_topic: '/nmpc/control'
+      filtered_odom_topic: '/S550/ground_truth/odom'
+      ref_topic: '/nmpc/ref'
