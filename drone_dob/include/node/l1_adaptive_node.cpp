@@ -25,7 +25,7 @@ L1AdaptiveNode::L1AdaptiveNode()
     
     // 2. Publishers
     // 2.1. Filtered odom publisher
-    this->declare_parameter("topic_names.filtered_odom_topic", "/l1_filtered_odom");
+    this->declare_parameter("topic_names.filtered_odom_topic", "/l1_adaptive/filtered_odom");
     std::string filtered_odom_topic_name = this->get_parameter("topic_names.filtered_odom_topic").as_string();
     filtered_odom_publisher_ = this->create_publisher<Odometry>(filtered_odom_topic_name, rclcpp::SensorDataQoS());
 
@@ -89,6 +89,7 @@ void L1AdaptiveNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
     {
         if(odom_buffer_.size() >= 2 && !hexa_rpm_buffer_.is_empty())
         {
+            odom_filter();
             dob_estimate();
         }
     }
