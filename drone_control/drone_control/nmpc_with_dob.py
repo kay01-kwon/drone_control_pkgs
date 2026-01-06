@@ -82,15 +82,19 @@ class NmpcWithDOBNode(Node):
 
         # Topic name from ros param
         cmd_topic = self.get_parameter('topic_names.cmd_topic').value
+        nmpc_topic = self.get_parameter('topic_names.base_line_control_topic').value
         filtered_odom_topic = self.get_parameter('topic_names.filtered_odom_topic').value
         ref_topic = self.get_parameter('topic_names.ref_topic').value
-        nmpc_topic = self.get_parameter('topic_names.base_line_control_topic').value
         dob_wrench_topic = self.get_parameter('topic_names.dob_wrench_topic').value
 
         # Create publisher
         self.cmd_pub = self.create_publisher(HexaCmdRaw,
                                              cmd_topic,
                                              5)
+
+        self.nmpc_pub = self.create_publisher(WrenchStamped,
+                                              nmpc_topic,
+                                              qos_profile=5)
 
         # Create subscribers
         self.odom_sub = self.create_subscription(Odometry,
@@ -102,10 +106,6 @@ class NmpcWithDOBNode(Node):
                                                 ref_topic,
                                                 callback=self._ref_callback,
                                                 qos_profile=10)
-
-        self.nmpc_pub = self.create_publisher(WrenchStamped,
-                                              nmpc_topic,
-                                              qos_profile=5)
 
         self.wrench_sub = self.create_subscription(WrenchStamped,
                                                    dob_wrench_topic,
@@ -119,9 +119,9 @@ class NmpcWithDOBNode(Node):
 
         self.get_logger().info('='*60)
         self.get_logger().info(f'Command topic: {cmd_topic}')
+        self.get_logger().info(f'NMPC topic: {nmpc_topic}')
         self.get_logger().info(f'Filtered odom topic: {filtered_odom_topic}')
         self.get_logger().info(f'Reference topic: {ref_topic}')
-        self.get_logger().info(f'NMPC topic: {nmpc_topic}')
         self.get_logger().info(f'DoB wrench topic: {dob_wrench_topic}')
         self.get_logger().info('NMPC With DOB Node initialized successfully')
         self.get_logger().info(f'Control rate: {1.0/self.control_period:.1f} Hz')

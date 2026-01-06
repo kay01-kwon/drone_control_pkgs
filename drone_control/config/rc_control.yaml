@@ -34,6 +34,7 @@
 
     topic_names:
       cmd_topic: '/uav/cmd_raw'
+      base_line_control_topic: '/nmpc/control'
       rc_topic: '/mavros/rc/in'
       filtered_odom_topic: '/hgdo/filtered_odom'
       ref_topic: '/nmpc/ref'
