@@ -17,5 +17,6 @@
         "/opt/ros/humble/lib/python3.10/site-packages",
         "/opt/ros/humble/local/lib/python3.10/dist-packages"
     ],
-    "cmake.sourceDirectory": "/home/kay/rotors_sim_ws/src/drone_control_pkgs/drone_dob"
+    "cmake.sourceDirectory": "/home/kay/rotors_sim_ws/src/drone_control_pkgs/drone_dob",
+    "ROS2.distro": "humble"
 }
