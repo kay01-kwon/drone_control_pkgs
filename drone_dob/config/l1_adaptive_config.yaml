@@ -20,7 +20,7 @@
       ang_vel_cutoff: 60.0
 
     topic_names:
-      odom_in_topic: "/S550/ground_truth/odom"
+      odom_in_topic: "/mavros/local_position/odom"
       filtered_odom_topic: "/l1_adaptive/filtered_odom"
       actual_rpm_topic: "/uav/actual_rpm"
       base_line_control_topic: "/nmpc/control"
