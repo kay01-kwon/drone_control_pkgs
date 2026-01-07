@@ -30,5 +30,5 @@
     topic_names:
       cmd_topic: '/uav/cmd_raw'
       base_line_control_topic: '/nmpc/control'
-      filtered_odom_topic: '/S550/ground_truth/odom'
+      filtered_odom_topic: '/mavros/local_position/odom'
       ref_topic: '/nmpc/ref'
