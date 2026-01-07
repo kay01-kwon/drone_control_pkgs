@@ -37,13 +37,13 @@ class L1AdaptationModel {
                 const StateData& state_meas,
                 const Vector4d& u_BL);
 
-    Vector4d get_sigma_m_lpf() const;
+    Vector4d get_u_L1() const;
 
     private:
 
     void initialize_state();
 
-    Vector4d sigma_m_lpf_;
+    Vector4d u_L1_;
     Vector6d sigma_hat_;
 
     StatePredictor state_predictor_;
