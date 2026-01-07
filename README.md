@@ -98,7 +98,7 @@ ros2 launch drone_control rc_control.launch.py
 
 - [x] HGDO
 
-- [x] L1 adaptation &rarr; Debugging should be performed.
+- [x] L1 adaptation
 
 - [ ] UKF/EKF for DOB
 
@@ -110,11 +110,11 @@ ros2 launch drone_control rc_control.launch.py
 
 - [x] NMPC (Acados) with DOB
 
-- [ ] NMPC (Acados - Rotor model) + RLS from DOB
+- [ ] Control reallocation
 
 - [ ] PID controller
 
-- [ ] NMPC/RC control with DOB (Switching)
+- [ ] NMPC/RC control with DOB (Integration)
 
 3. Rotor state estimator
 
