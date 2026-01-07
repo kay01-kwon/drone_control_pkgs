@@ -56,21 +56,21 @@ void L1AdaptiveNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
     odom_data.timestamp = msg->header.stamp.sec + 
                         msg->header.stamp.nanosec * 1e-9;
 
+    // Fill odom_data (4 parts)
+
+    // 1. Position
     odom_data.position <<
         msg->pose.pose.position.x,
         msg->pose.pose.position.y,
         msg->pose.pose.position.z;
 
-    odom_data.linear_velocity <<
+    // 2. Linear velocities
+    odom_data.linear_velocity << 
         msg->twist.twist.linear.x,
         msg->twist.twist.linear.y,
         msg->twist.twist.linear.z;
 
-    odom_data.angular_velocity <<
-        msg->twist.twist.angular.x,
-        msg->twist.twist.angular.y,
-        msg->twist.twist.angular.z;
-
+    // 3. Orientation (quaternion)
     odom_data.orientation.w()
     = msg->pose.pose.orientation.w;
 
@@ -82,6 +82,12 @@ void L1AdaptiveNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
 
     odom_data.orientation.z()
     = msg->pose.pose.orientation.z;
+
+    // 4. Angular velocities
+    odom_data.angular_velocity <<
+        msg->twist.twist.angular.x,
+        msg->twist.twist.angular.y,
+        msg->twist.twist.angular.z;
 
     if(odom_buffer_.is_full())
     {
