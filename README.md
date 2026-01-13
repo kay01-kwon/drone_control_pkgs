@@ -88,9 +88,8 @@ ros2 launch drone_control rc_control.launch.py
 
 4. To move up, increase throttle.
 
-<img src="drone_control/figures/Boxer1.png">
+<img src="drone_control/figures/Boxer_explanation.png">
 
-<img src="drone_control/figures/Boxer2.png">
 
 ## To do list
 
