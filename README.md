@@ -100,6 +100,8 @@ ros2 launch drone_control rc_control.launch.py
 
 - [x] L1 adaptation
 
+- [ ] Recursive Least Sqaure Method (Coefficient)
+
 - [ ] UKF/EKF for DOB
 
 2. Control Implementation
@@ -110,12 +112,12 @@ ros2 launch drone_control rc_control.launch.py
 
 - [x] NMPC (Acados) with DOB
 
-- [ ] Control reallocation
+- [ ] NMPC (Acados + Actuator model) with DOB (RLS)
 
-- [ ] PID controller
+- [ ] PD controller + RLS
 
-- [ ] NMPC/RC control with DOB (Integration)
+- [ ] NMPC/RC integration with DOB (Integration)
 
 3. Rotor state estimator
 
-- [ ] Kalman filter with constraint inequality
+- [x] Kalman filter with constraint inequality
