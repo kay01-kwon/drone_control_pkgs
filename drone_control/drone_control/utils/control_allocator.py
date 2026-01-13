@@ -6,7 +6,7 @@ class ControlAllocator:
     """
     def __init__(self, DroneParam):
         l = DroneParam['arm_length']
-        self.C_T = DroneParam['rotor_const']
+        self.C_T = DroneParam['motor_const']
         k_m = DroneParam['moment_const']
         self.T_max = DroneParam['T_max']
         self.T_min = DroneParam['T_min']
