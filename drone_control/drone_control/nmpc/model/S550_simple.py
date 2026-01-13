@@ -17,7 +17,7 @@ class S550_model:
         self.m = DynParam['m']
         self.J = DynParam['MoiArray']
         self.l = DroneParam['arm_length']
-        self.C_T = DroneParam['rotor_const']
+        self.C_T = DroneParam['motor_const']
         self.k_m = DroneParam['moment_const']
 
         # State x (p, v, q, w) (dim: 13)

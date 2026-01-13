@@ -134,7 +134,7 @@ class NmpcNodeV2(Node):
         self.des_rotor_thrust = self.u_hover * np.ones(6)
 
         # Rotor constant
-        self.C_T = self.drone_param['rotor_const'] if hasattr(self, 'drone_param') else 1.465e-7
+        self.C_T = self.drone_param['motor_const'] if hasattr(self, 'drone_param') else 1.465e-7
 
         # Flags
         self.solver_ready = False
@@ -153,7 +153,7 @@ class NmpcNodeV2(Node):
 
         # Drone parameters
         arm_length = self.get_parameter('drone_param.arm_length').value
-        rotor_const = self.get_parameter('drone_param.rotor_const').value
+        motor_const = self.get_parameter('drone_param.motor_const').value
         moment_const = self.get_parameter('drone_param.moment_const').value
         T_max = self.get_parameter('drone_param.T_max').value
         T_min = self.get_parameter('drone_param.T_min').value
@@ -171,7 +171,7 @@ class NmpcNodeV2(Node):
         self.get_logger().info(f'  Mass: {m:.2f} kg')
         self.get_logger().info(f'  Inertia: {MoiArray}')
         self.get_logger().info(f'  Arm length: {arm_length:.3f} m')
-        self.get_logger().info(f'  Rotor const: {rotor_const:.2e}')
+        self.get_logger().info(f'  Rotor const: {motor_const:.2e}')
         self.get_logger().info(f'  Thrust limits: [{T_min:.2f}, {T_max:.2f}] N')
         self.get_logger().info(f'  Horizon: {t_horizon:.2f} s, Nodes: {n_nodes}')
 
@@ -182,7 +182,7 @@ class NmpcNodeV2(Node):
 
         drone_param = {
             'arm_length': arm_length,
-            'rotor_const': rotor_const,
+            'motor_const': motor_const,
             'moment_const': moment_const,
             'T_max': T_max,
             'T_min': T_min,

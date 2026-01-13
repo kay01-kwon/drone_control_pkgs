@@ -6,7 +6,7 @@
 
     drone_param:
       arm_length: 0.265
-      rotor_const: 1.465e-07
+      motor_const: 1.465e-07
       moment_const: 0.01569
       T_max: 8.0
       T_min: 0.586
@@ -25,6 +25,6 @@
     topic_names:
       cmd_topic: '/uav/cmd_raw'
       base_line_control_topic: '/nmpc/control'
-      filtered_odom_topic: '/l1_adaptive/filtered_odom'
+      filtered_odom_topic: '/hgdo/filtered_odom'
       ref_topic: '/nmpc/ref'
-      dob_wrench_topic: '/l1_adaptive/wrench'
+      dob_wrench_topic: '/hgdo/wrench'

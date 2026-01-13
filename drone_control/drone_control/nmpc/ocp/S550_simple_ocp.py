@@ -24,7 +24,7 @@ class S550_Ocp:
             C_T = 1.465e-7
             k_m = 0.01569
             DroneParam = {'arm_length':l,
-                          'rotor_const':C_T,
+                          'motor_const':C_T,
                           'moment_const':k_m}
         else:
             u_max = DroneParam['T_max']
@@ -43,8 +43,7 @@ class S550_Ocp:
             t_horizon = MpcParam['t_horizon']
             n_nodes = MpcParam['n_nodes']
             Q = 2*np.diag(MpcParam['QArray'])
-            R = 2*np.diag(MpcParam['R']*6)
-
+            R = 2*MpcParam['R'][0]*np.eye(6)
 
         self.ocp = AcadosOcp()
 
