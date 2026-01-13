@@ -342,11 +342,11 @@ void L1AdaptiveNode::configure_parameters()
     l1_adaptive_model_ = new L1AdaptationModel(drone_param, l1_adaptive_param);
 
     // 3. Other parameters
-    this->declare_parameter("lpf.lin_vel_lpf_cutoff_freq", 20.0);
-    double lin_cutoff_freq = this->get_parameter("lpf.lin_vel_lpf_cutoff_freq").get_value<double>();
-    
-    this->declare_parameter("lpf.ang_vel_lpf_cutoff_freq", 60.0);
-    double ang_cutoff_freq = this->get_parameter("lpf.ang_vel_lpf_cutoff_freq").get_value<double>();
+    this->declare_parameter("lpf.lin_vel_cutoff", 20.0);
+    double lin_cutoff_freq = this->get_parameter("lpf.lin_vel_cutoff").get_value<double>();
+
+    this->declare_parameter("lpf.ang_vel_cutoff", 60.0);
+    double ang_cutoff_freq = this->get_parameter("lpf.ang_vel_cutoff").get_value<double>();
 
     for(int i = 0; i < 3; ++i){
         linear_velocity_lpf_[i] = new LowPassFilter(lin_cutoff_freq);
