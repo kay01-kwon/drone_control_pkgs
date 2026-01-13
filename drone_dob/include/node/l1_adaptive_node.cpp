@@ -25,13 +25,13 @@ L1AdaptiveNode::L1AdaptiveNode()
     
     // 2. Publishers
     // 2.1. Filtered odom publisher
-    this->declare_parameter("topic_names.filtered_odom_topic", "/l1_adaptive/filtered_odom");
-    std::string filtered_odom_topic_name = this->get_parameter("topic_names.filtered_odom_topic").as_string();
+    this->declare_parameter("topic_names.filtered_odom", "/l1_adaptive/filtered_odom");
+    std::string filtered_odom_topic_name = this->get_parameter("topic_names.filtered_odom").as_string();
     filtered_odom_publisher_ = this->create_publisher<Odometry>(filtered_odom_topic_name, rclcpp::SensorDataQoS());
 
     // 2.2. DOB wrench publisher
-    this->declare_parameter("topic_names.dob_wrench_topic", "/l1_adaptive/wrench");
-    std::string dob_wrench_topic_name = this->get_parameter("topic_names.dob_wrench_topic").as_string();
+    this->declare_parameter("topic_names.dob_wrench", "/l1_adaptive/wrench");
+    std::string dob_wrench_topic_name = this->get_parameter("topic_names.dob_wrench").as_string();
     dob_publisher_ = this->create_publisher<WrenchStamped>(dob_wrench_topic_name, rclcpp::SensorDataQoS());
 
     // Control loop timer
@@ -202,8 +202,9 @@ void L1AdaptiveNode::dob_estimate()
     StateData state_meas;
     state_meas.p = odom_recent.position;
     state_meas.v = lin_vel_filtered_;
-    state_meas.w = ang_vel_filtered_;
     state_meas.q = odom_recent.orientation;
+    state_meas.w = ang_vel_filtered_;
+    
     // Update L1 adaptive model
     l1_adaptive_model_->update(odom_prev.timestamp,
                                odom_recent.timestamp,
