@@ -23,5 +23,5 @@
       odom_in: "/mavros/local_position/odom"
       filtered_odom: "/l1_adaptive/filtered_odom"
       actual_rpm: "/uav/rotor_state"
-      # base_line_control: "/nmpc/control"
+      base_line_control: "/nmpc/control"
       dob_wrench: "/l1_adaptive/wrench"
