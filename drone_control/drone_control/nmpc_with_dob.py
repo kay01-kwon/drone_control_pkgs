@@ -238,10 +238,9 @@ class NmpcWithDOBNode(Node):
         f_dist = wrench_body[0:3]       # [f_x, f_y, f_z]
         tau_dist = wrench_body[3:6]     # [tau_x, tau_y, tau_z]
 
-        if self.ref_state[2] < 0.4 and state_current[5] < 0.1 and state_current[2] < 0.01:
+        if self.ref_state[2] < 0.4 and state_current[5] < 0.1 and state_current[2] < 0.010:
             f_comp = 0.5*6.0
             M_comp = np.zeros_like(tau_dist)
-            self.dob_weight = 0.0
         else:
             f_comp = u_mpc[0] - f_dist[2]
             M_comp = u_mpc[1:4] - tau_dist

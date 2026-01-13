@@ -17,21 +17,21 @@ HgdoNode::HgdoNode()
         std::bind(&HgdoNode::odomCallback, this, std::placeholders::_1));
     
     // 1.2 Hexa actual RPM subscriber
-    this->declare_parameter("topic_names.actual_rpm_topic", "/uav/actual_rpm");
-    std::string hexa_actual_rpm_topic_name = this->get_parameter("topic_names.actual_rpm_topic").as_string();
+    this->declare_parameter("topic_names.actual_rpm", "/uav/actual_rpm");
+    std::string hexa_actual_rpm_topic_name = this->get_parameter("topic_names.actual_rpm").as_string();
     hexa_actual_rpm_subscriber_ = this->create_subscription<HexaActualRpm>(
         hexa_actual_rpm_topic_name, rclcpp::SensorDataQoS(),
         std::bind(&HgdoNode::hexaActualRpmCallback, this, std::placeholders::_1));
 
     // 2. Publishers
     // 2.1 Filtered odom publisher
-    this->declare_parameter("topic_names.filtered_odom_topic", "/filtered_odom");
-    std::string filtered_odom_topic_name = this->get_parameter("topic_names.filtered_odom_topic").as_string();
+    this->declare_parameter("topic_names.filtered_odom", "/filtered_odom");
+    std::string filtered_odom_topic_name = this->get_parameter("topic_names.filtered_odom").as_string();
     filtered_odom_publisher_ = this->create_publisher<Odometry>(filtered_odom_topic_name, rclcpp::SensorDataQoS());
 
     // 2.2 DOB wrench publisher
-    this->declare_parameter("topic_names.dob_wrench_topic", "/hgdo/wrench");
-    std::string dob_wrench_topic_name = this->get_parameter("topic_names.dob_wrench_topic").as_string();
+    this->declare_parameter("topic_names.dob_wrench", "/hgdo/wrench");
+    std::string dob_wrench_topic_name = this->get_parameter("topic_names.dob_wrench").as_string();
     dob_publisher_ = this->create_publisher<WrenchStamped>(dob_wrench_topic_name, rclcpp::SensorDataQoS());
 
     // Control loop timer
