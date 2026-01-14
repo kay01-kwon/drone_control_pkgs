@@ -90,6 +90,27 @@ ros2 launch drone_control rc_control.launch.py
 
 <img src="drone_control/figures/Boxer_explanation.png">
 
+## NMPC with DOB tunning guide
+
+1. L1 adaptation
+
+```
+    dob:
+      dob_looptime: 0.010
+      eps_f: 0.05
+      eps_tau: 0.05
+```
+
+2. HGDO
+
+```
+    l1_adaptive:
+      dob_looptime: 0.010
+      As_array: [-5.0, -5.0, -5.0,    # vx, vy, vz (Body frame)
+                 -5.0, -5.0, -5.0]    # wx, wy ,wz (Body frame)
+      freq_cutoff_trans: 60.0
+      freq_cutoff_rot: 60.0
+```
 
 ## To do list
 
