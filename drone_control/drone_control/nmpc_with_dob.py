@@ -43,6 +43,11 @@ class NmpcWithDOBNode(Node):
         # Load parameters
         dynamc_param, drone_param, nmpc_param = self._load_parameters()
 
+        # Store parameters as instance variables
+        self.dynamic_param = dynamc_param
+        self.drone_param = drone_param
+        self.nmpc_param = nmpc_param
+
         # Create NMPC solver
         self.get_logger().info('Creating NMPC solver...')
         self.nmpc_solver = S550_Ocp(DynParam=dynamc_param,
