@@ -129,12 +129,12 @@ class NmpcNodeV2(Node):
         self.ref_state[6] = 1.0  # qw = 1 (identity quaternion)
 
         # Control input (rotor thrusts)
-        m = self.dynamic_param['m'] if hasattr(self, 'dynamic_param') else 2.9
+        m = self.dynamic_param['m']
         self.u_hover = m * 9.81 / 6.0
         self.des_rotor_thrust = self.u_hover * np.ones(6)
 
         # Rotor constant
-        self.C_T = self.drone_param['motor_const'] if hasattr(self, 'drone_param') else 1.465e-7
+        self.C_T = self.drone_param['motor_const']
 
         # Flags
         self.solver_ready = False
