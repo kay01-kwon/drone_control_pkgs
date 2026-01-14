@@ -202,19 +202,11 @@ class NmpcWithDOBNode(Node):
                 )
         # Get the latest state
         _, state_body = self.odom_buffer.get_latest()
-        state_current = state_body.copy()
-
-        # Transform linear velocity from body to world frame
-        v_body = state_current[3:6]
-        q = state_current[6:10]
-        R_world_body = math_tool.quaternion_to_rotm(q)
-        v_world = R_world_body @ v_body
-        state_current[3:6] = v_world
 
         # Solve NMPC
         solve_start = time.time()
         status, rotor_thrust_nmpc = self.nmpc_solver.solve(
-            state = state_current,
+            state = state_body,
             ref = self.ref_state,
             u_prev = self.des_rotor_thrust_mpc
         )
@@ -238,7 +230,7 @@ class NmpcWithDOBNode(Node):
         f_dist = wrench_body[0:3]       # [f_x, f_y, f_z]
         tau_dist = wrench_body[3:6]     # [tau_x, tau_y, tau_z]
 
-        if self.ref_state[2] < 0.4 and state_current[5] < 0.1 and state_current[2] < 0.010:
+        if self.ref_state[2] < 0.4 and state_body[5] < 0.1 and state_body[2] < 0.010:
             f_comp = 0.5*6.0
             M_comp = np.zeros_like(tau_dist)
         else:

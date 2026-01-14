@@ -262,19 +262,11 @@ class NmpcNodeV2(Node):
 
         # Get latest state
         _, state_body = self.odom_buffer.get_latest()
-        state_current = state_body.copy()
-
-        # Transform velocity from body to world frame
-        v_body = state_current[3:6]
-        q = state_current[6:10]
-        R_world_body = math_tool.quaternion_to_rotm(q)
-        v_world = R_world_body @ v_body
-        state_current[3:6] = v_world
 
         # Solve NMPC
         solve_start = time.time()
         status, T_rotor = self.nmpc_solver.solve(
-            state=state_current,
+            state=state_body,
             ref=self.ref_state,
             u_prev=self.des_rotor_thrust
         )

@@ -1,5 +1,6 @@
 from acados_template import AcadosOcp, AcadosOcpSolver
 from drone_control.nmpc.model.S550_simple import S550_model
+from drone_control.utils.math_tool import quaternion_to_rotm
 from scipy.linalg import block_diag
 import numpy as np
 
@@ -124,11 +125,18 @@ class S550_Ocp:
     def solve(self, state, ref, u_prev=None):
         '''
         Solve OCP problem with warm start
-        :param state: p (World), v (World), q, w (Body)
+        :param state: p (World), v (Body), q, w (Body)
         :param ref: p (World), v (World), q, w (Body)
         :param u_prev: u1...u6 (Rotor thrust)
         :return: status, u(u1...u6)
         '''
+        
+        # Transform velocity from body frame to world frame
+        v_body = state[3:6]
+        q = state[6:10]
+        R_b_w = quaternion_to_rotm(q)
+        v_world = R_b_w @ v_body
+        state[3:6] = v_world
 
         if u_prev is None:
             u_prev = np.zeros((6,))
