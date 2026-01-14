@@ -10,8 +10,8 @@
 
     dob:
       dob_looptime: 0.010
-      eps_f: 0.01
-      eps_tau: 0.01
+      eps_f: 0.05
+      eps_tau: 0.05
 
     lpf:
       lin_vel_cutoff: 20.0
