@@ -120,7 +120,7 @@ ros2 launch drone_control rc_control.launch.py
 
 - [x] L1 adaptation
 
-- [ ] Recursive Least Sqaure Method (Coefficient)
+- [ ] Recursive Least Sqaure Method (Dynamic parameter estimation)
 
 - [ ] UKF/EKF for DOB
 
@@ -132,7 +132,7 @@ ros2 launch drone_control rc_control.launch.py
 
 - [x] NMPC (Acados) with DOB
 
-- [ ] NMPC (Acados + Actuator model) with DOB (RLS)
+- [ ] Control reallocation
 
 - [ ] PD controller + RLS
 
