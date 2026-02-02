@@ -228,7 +228,7 @@ class RcControlNode(Node):
 
         # Get drone parameter
         arm_length = self.get_parameter('drone_param.arm_length').value
-        rotor_const = self.get_parameter('drone_param.rotor_const').value
+        motor_const = self.get_parameter('drone_param.motor_const').value
         moment_const = self.get_parameter('drone_param.moment_const').value
         T_max = self.get_parameter('drone_param.T_max').value
         T_min = self.get_parameter('drone_param.T_min').value
@@ -244,7 +244,7 @@ class RcControlNode(Node):
                     'MoiArray': MoiArray}
 
         droneParam = {'arm_length': arm_length,
-                      'rotor_const': rotor_const,
+                      'motor_const': motor_const,
                       'moment_const': moment_const,
                       'T_max': T_max,
                       'T_min': T_min,
