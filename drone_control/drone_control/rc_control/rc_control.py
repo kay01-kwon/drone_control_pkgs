@@ -5,15 +5,19 @@ class RcControl():
 
     def __init__(self, GainParam, DynParam):
 
-        KpPosArray = GainParam['KpPosArray']
         KpTransArray = GainParam['KpTransArray']
+        KiTransArray = GainParam['KiTransArray']
+        KdTransArray = GainParam['KdTransArray']
+        IntegralMaxArray = GainParam['IntegralMaxArray']
 
         KpOriArray = GainParam['KpOriArray']
         KdOriArray = GainParam['KdOriArray']
         AccelMaxArray = GainParam['AccelMaxArray']
 
-        self.KpPosDiag = np.diag(KpPosArray)
         self.KpTransDiag = np.diag(KpTransArray)
+        self.KiTransDiag = np.diag(KiTransArray)
+        self.KdTransDiag = np.diag(KdTransArray)
+        self.IntegralMaxArray = np.array(IntegralMaxArray)
         self.KpOriDiag = np.diag(KpOriArray)
         self.KdOriDiag = np.diag(KdOriArray)
 
@@ -27,6 +31,7 @@ class RcControl():
 
         self.psi_des = 0.0
         self.p_des = np.zeros((3,))
+        self.p_err_integral = np.zeros((3,))
         self.initialized = False
         self.axis_des = np.zeros((3,))
 
@@ -39,6 +44,7 @@ class RcControl():
         Call this when entering MANUAL_STAB or after landing.
         '''
         self.p_des = state[0:3].copy()
+        self.p_err_integral = np.zeros((3,))
         q = state[6:10]
         R = math_tool.quaternion_to_rotm(q)
         self.psi_des = np.arctan2(R[1, 0], R[0, 0])
@@ -67,6 +73,7 @@ class RcControl():
         # Initialize p_des from current state on first call
         if not self.initialized:
             self.p_des = p.copy()
+            self.p_err_integral = np.zeros((3,))
             self.psi_des = np.arctan2(R[1, 0], R[0, 0])
             self.initialized = True
 
@@ -79,12 +86,25 @@ class RcControl():
         # Position error in world frame
         p_err = p - self.p_des
 
+        # Accumulate integral of position error
+        self.p_err_integral += p_err * dt
+
+        # Anti-windup: clamp integral term
+        for i in range(3):
+            self.p_err_integral[i] = np.clip(
+                self.p_err_integral[i],
+                -self.IntegralMaxArray[i],
+                self.IntegralMaxArray[i]
+            )
+
         # Velocity error in world frame (for damping)
         v_err_body = v - cmd_vel
         v_err = R @ v_err_body
 
-        # PD position control: position gain + velocity damping
-        accelCommand = -(self.KpPosDiag @ p_err + self.KpTransDiag @ v_err) / self.m
+        # PID position control
+        accelCommand = -(self.KpTransDiag @ p_err
+                         + self.KiTransDiag @ self.p_err_integral
+                         + self.KdTransDiag @ v_err) / self.m
         accelCommand = self._accel_command_clamp(accelCommand)
 
         accelCommand = accelCommand - self.g_vec

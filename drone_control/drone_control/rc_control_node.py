@@ -221,8 +221,10 @@ class RcControlNode(Node):
 
 
         # Get gain parameters
-        KpPosArray = self.get_parameter('gain_param.KpPosArray').value
         KpTransArray = self.get_parameter('gain_param.KpTransArray').value
+        KiTransArray = self.get_parameter('gain_param.KiTransArray').value
+        KdTransArray = self.get_parameter('gain_param.KdTransArray').value
+        IntegralMaxArray = self.get_parameter('gain_param.IntegralMaxArray').value
         KpOriArray = self.get_parameter('gain_param.KpOriArray').value
         KdOriArray = self.get_parameter('gain_param.KdOriArray').value
         AccelMaxArray = self.get_parameter('gain_param.AccelMaxArray').value
@@ -240,8 +242,10 @@ class RcControlNode(Node):
         acc_max = self.get_parameter('drone_param.acc_max').value
         acc_min = self.get_parameter('drone_param.acc_min').value
 
-        gainParam = {'KpPosArray': KpPosArray,
-                     'KpTransArray': KpTransArray,
+        gainParam = {'KpTransArray': KpTransArray,
+                     'KiTransArray': KiTransArray,
+                     'KdTransArray': KdTransArray,
+                     'IntegralMaxArray': IntegralMaxArray,
                      'KpOriArray': KpOriArray,
                      'KdOriArray': KdOriArray,
                      'AccelMaxArray': AccelMaxArray}
@@ -261,8 +265,10 @@ class RcControlNode(Node):
         self.get_logger().info(f'vz_max: {vz_max}')
         self.get_logger().info(f'dpsi_dt_max: {dpsi_dt_max}')
 
-        self.get_logger().info(f'KpPosArray: {KpPosArray}')
         self.get_logger().info(f'KpTransArray: {KpTransArray}')
+        self.get_logger().info(f'KiTransArray: {KiTransArray}')
+        self.get_logger().info(f'KdTransArray: {KdTransArray}')
+        self.get_logger().info(f'IntegralMaxArray: {IntegralMaxArray}')
         self.get_logger().info(f'KpOriArray: {KpOriArray}')
         self.get_logger().info(f'KdOriArray: {KdOriArray}')
         self.get_logger().info(f'AccelMaxArray: {AccelMaxArray}')
