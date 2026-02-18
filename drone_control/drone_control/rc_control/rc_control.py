@@ -5,12 +5,14 @@ class RcControl():
 
     def __init__(self, GainParam, DynParam):
 
+        KpPosArray = GainParam['KpPosArray']
         KpTransArray = GainParam['KpTransArray']
 
         KpOriArray = GainParam['KpOriArray']
         KdOriArray = GainParam['KdOriArray']
         AccelMaxArray = GainParam['AccelMaxArray']
 
+        self.KpPosDiag = np.diag(KpPosArray)
         self.KpTransDiag = np.diag(KpTransArray)
         self.KpOriDiag = np.diag(KpOriArray)
         self.KdOriDiag = np.diag(KdOriArray)
@@ -24,11 +26,23 @@ class RcControl():
         self.g_vec = np.array([0, 0, -9.81])
 
         self.psi_des = 0.0
+        self.p_des = np.zeros((3,))
+        self.initialized = False
         self.axis_des = np.zeros((3,))
 
         # Force and moment
         self.u = np.zeros((4,))
 
+    def reset(self, state):
+        '''
+        Reset desired position and yaw from current state.
+        Call this when entering MANUAL_STAB or after landing.
+        '''
+        self.p_des = state[0:3].copy()
+        q = state[6:10]
+        R = math_tool.quaternion_to_rotm(q)
+        self.psi_des = np.arctan2(R[1, 0], R[0, 0])
+        self.initialized = True
 
     def set_ref(self, ref, state, dt ,tau):
         '''
@@ -40,20 +54,37 @@ class RcControl():
         '''
         vx_des, vy_des, vz_des = ref[0], ref[1], ref[2]
         dpsi_dt_des = ref[3]
-        self.psi_des += dpsi_dt_des * dt
         cmd_vel = np.array([vx_des, vy_des, vz_des])
         w_des = np.array([0, 0, dpsi_dt_des])
 
+        p = state[0:3]
         v = state[3:6]
         q = state[6:10]
         w = state[10:13]
 
         R = math_tool.quaternion_to_rotm(q)
+
+        # Initialize p_des from current state on first call
+        if not self.initialized:
+            self.p_des = p.copy()
+            self.psi_des = np.arctan2(R[1, 0], R[0, 0])
+            self.initialized = True
+
+        # Integrate velocity command to get desired position
+        # cmd_vel is in body frame, convert to world frame for integration
+        v_cmd_world = R @ cmd_vel
+        self.p_des += v_cmd_world * dt
+        self.psi_des += dpsi_dt_des * dt
+
+        # Position error in world frame
+        p_err = p - self.p_des
+
+        # Velocity error in world frame (for damping)
         v_err_body = v - cmd_vel
         v_err = R @ v_err_body
 
-        # P gain for velocity control
-        accelCommand = -self.KpTransDiag @ v_err / self.m
+        # PD position control: position gain + velocity damping
+        accelCommand = -(self.KpPosDiag @ p_err + self.KpTransDiag @ v_err) / self.m
         accelCommand = self._accel_command_clamp(accelCommand)
 
         accelCommand = accelCommand - self.g_vec
@@ -64,26 +95,11 @@ class RcControl():
         # b1, b2, b3 : desired frame
         b3 = accelCommand/np.linalg.norm(accelCommand)
 
-        # Lee et al. 2010 approach to compute b1, b2
-        # b1 = R[:,0]
-
-        # tol = 1e-3
-        # if np.linalg.norm(np.cross(b1, b3)) < tol:
-        #     b1 = R[:,1]
-            
-        #     if(np.linalg.norm(np.cross(b1, b3)) < tol):
-        #         b1 = R[:,2]
-
-        # b2 = np.cross(b3,b1)
-        # b2 = b2 / np.linalg.norm(b2)
-        
-        
-        
         c1 = np.array([np.cos(self.psi_des), np.sin(self.psi_des), 0])
-        
+
         if np.linalg.norm(np.cross(c1, b3)) < 1e-3:
             c1 = np.array([1, 0, 0])
-        
+
         b2 = np.cross(b3, c1)
         b2 = b2 / np.linalg.norm(b2)
         b1 = np.cross(b2, b3)
@@ -94,13 +110,13 @@ class RcControl():
         angle_error_matrix = 0.5*(R_des.transpose()@R - R.transpose()@R_des)
         e_R = math_tool.skew_symm_to_vec(angle_error_matrix)
         e_w = w - R.transpose() @ R_des @ w_des
-        
+
         accel_ang = -(self.KpOriDiag @ e_R + self.KdOriDiag @ e_w)
 
         M_control = self.J @ accel_ang - tau
 
         self.u[1:] = M_control
-        
+
     def get_control_input(self):
         return self.u
 
