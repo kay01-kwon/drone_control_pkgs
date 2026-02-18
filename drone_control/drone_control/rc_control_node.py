@@ -146,12 +146,15 @@ class RcControlNode(Node):
             self.mode = FlightMode.KILL
 
         if self.mode == FlightMode.KILL:
+            self.rc_control.initialized = False
             for i in range(len(self.des_rpm)):
                 self.des_rpm[i] = 0
         elif self.mode == FlightMode.DISARMED:
+            self.rc_control.initialized = False
             for i in range(len(self.des_rpm)):
                 self.des_rpm[i] = 0
         elif self.mode == FlightMode.ARMED:
+            self.rc_control.initialized = False
             for i in range(len(self.des_rpm)):
                 self.des_rpm[i] = 2000
         elif self.mode == FlightMode.MANUAL_STAB:
@@ -164,6 +167,7 @@ class RcControlNode(Node):
 
             # Landing state
             if cmd_vel[2] < self.vz_cmd_takeoff and state_recent[2] < self.z_takeoff:
+                self.rc_control.initialized = False
                 self._set_idle_rpm()
 
             # Takeoff state
@@ -174,7 +178,7 @@ class RcControlNode(Node):
                                     state_recent,
                                     dt,
                                     wrench_recent[3:])
-                
+
                 u = self.rc_control.get_control_input()
                 self.des_rpm = self.control_allocator.compute_relaxed_des_rpm(u[0],
                                                                               u[1:],
@@ -217,6 +221,7 @@ class RcControlNode(Node):
 
 
         # Get gain parameters
+        KpPosArray = self.get_parameter('gain_param.KpPosArray').value
         KpTransArray = self.get_parameter('gain_param.KpTransArray').value
         KpOriArray = self.get_parameter('gain_param.KpOriArray').value
         KdOriArray = self.get_parameter('gain_param.KdOriArray').value
@@ -235,7 +240,8 @@ class RcControlNode(Node):
         acc_max = self.get_parameter('drone_param.acc_max').value
         acc_min = self.get_parameter('drone_param.acc_min').value
 
-        gainParam = {'KpTransArray': KpTransArray,
+        gainParam = {'KpPosArray': KpPosArray,
+                     'KpTransArray': KpTransArray,
                      'KpOriArray': KpOriArray,
                      'KdOriArray': KdOriArray,
                      'AccelMaxArray': AccelMaxArray}
@@ -255,6 +261,7 @@ class RcControlNode(Node):
         self.get_logger().info(f'vz_max: {vz_max}')
         self.get_logger().info(f'dpsi_dt_max: {dpsi_dt_max}')
 
+        self.get_logger().info(f'KpPosArray: {KpPosArray}')
         self.get_logger().info(f'KpTransArray: {KpTransArray}')
         self.get_logger().info(f'KpOriArray: {KpOriArray}')
         self.get_logger().info(f'KdOriArray: {KdOriArray}')

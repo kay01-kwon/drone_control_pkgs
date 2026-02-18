@@ -8,6 +8,7 @@
       vz_cmd_takeoff: 0.1        # 0.1 m/s
 
     gain_param:
+      KpPosArray: [3.0, 3.0, 3.0]
       KpTransArray: [10.0, 10.0, 10.0]
       KpOriArray: [10.5, 10.5, 1.0]
       KdOriArray: [5.5, 5.5, 0.5]
