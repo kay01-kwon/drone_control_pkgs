@@ -83,6 +83,11 @@ class RcControl():
         self.p_des += v_cmd_world * dt
         self.psi_des += dpsi_dt_des * dt
 
+        # Clamp desired altitude to prevent going underground
+        if self.p_des[2] < 0.0:
+            self.p_des[2] = 0.0
+            self.p_err_integral[2] = 0.0
+
         # Position error in world frame
         p_err = p - self.p_des
 
