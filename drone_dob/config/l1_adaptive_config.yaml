@@ -20,7 +20,7 @@
       ang_vel_cutoff: 60.0
 
     topic_names:
-      odom_in: "/mavros/local_position/odom"
+      odom_in: "/mavros/local_position/odom_sim"
       filtered_odom: "/l1_adaptive/filtered_odom"
       actual_rpm: "/uav/rotor_state"
       base_line_control: "/nmpc/control"
