@@ -101,6 +101,7 @@ class S550_att_ocp:
         # 2.1 Initial state
         self.ocp.constraints.x0 = x0
 
+
         # 2.2 Control input bound
         self.ocp.constraints.lbu = np.array([u_min]*nu)
         self.ocp.constraints.ubu = np.array([u_max]*nu)
@@ -131,6 +132,8 @@ class S550_att_ocp:
         self.ocp_solver = AcadosOcpSolver.create_cython_solver(self.solver_json)
         # Store state trajectory for warm start
         self.previous_states = None
+
+        self.ocp.parameter_values = p0
 
     def solve(self, state, ref, u_prev = None, f_col = None):
         '''

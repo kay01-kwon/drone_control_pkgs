@@ -55,8 +55,8 @@ class S550_att_model:
 
         print('Exporting acados model...')
 
-        f_expl = cs.vertcat(self._q_dynamics,
-                            self._w_dynamics)
+        f_expl = cs.vertcat(self._q_dynamics(),
+                            self._w_dynamics())
 
         f_impl = self.xdot - f_expl
 
