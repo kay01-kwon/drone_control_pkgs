@@ -108,7 +108,8 @@ class NMPCAttitudeWithDOB(Node):
 
         # Thrust ramp state
         self.f_col = 0.0
-        self.f_min = 0.0
+        rotor_min = drone_param['rotor_min']
+        self.f_min = 6.0*self.C_T*(rotor_min)**2
         self.mg = m * 9.81
         self.thrust_locked = False
 
