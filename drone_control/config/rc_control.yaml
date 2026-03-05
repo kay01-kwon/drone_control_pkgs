@@ -17,12 +17,12 @@
       AccelMaxArray: [1.0, 1.0, 2.0]
 
     dynamic_param:
-      m: 3.0
+      m: 2.9
       MoiArray: [0.06, 0.06, 0.08]
 
     drone_param:
       arm_length: 0.265
-      motor_const: 1.465e-07
+      motor_const: 1.386e-07
       moment_const: 0.01569
       rotor_max: 7300.0     # Maximum RPM
       rotor_min: 2000.0     # Minimum RPM

@@ -5,7 +5,7 @@
       m: 2.9
       l: 0.265
       MoiArray: [0.060, 0.060, 0.080]
-      motor_const: 1.465e-7
+      motor_const: 1.386e-7
       moment_const: 0.01569
 
     l1_adaptive:
