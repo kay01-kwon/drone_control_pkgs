@@ -304,9 +304,9 @@ class NMPCAttitudeWithDOB(Node):
             self.cmd_pub.publish(cmd_msg)
             return
 
-        # --- ARMED mode: thrust ramp + NMPC attitude ---
-        if self.mode != FlightMode.ARMED:
-            return
+        # # --- ARMED mode: thrust ramp + NMPC attitude ---
+        # if self.mode != FlightMode.ARMED:
+        #     return
 
         # Get the latest state (full 13-dim odom)
         _, state_full = self.odom_buffer.get_latest()
