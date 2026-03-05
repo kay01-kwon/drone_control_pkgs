@@ -8,8 +8,8 @@
       arm_length: 0.265
       motor_const: 1.465e-07
       moment_const: 0.01569
-      T_max: 7.806985     # 7300 RPM
-      T_min: 0.586
+      rotor_max: 7300.0     # Maximum RPM
+      rotor_min: 2000.0     # Minimum RPM
       acc_max: 15000.0    # Acc 15 krpm/s
       acc_min: 15000.0    # Dec 15 krpm/s
 

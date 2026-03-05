@@ -235,7 +235,7 @@ class NmpcWithDOBNode(Node):
         f_dist = wrench_body[0:3]       # [f_x, f_y, f_z]
         tau_dist = wrench_body[3:6]     # [tau_x, tau_y, tau_z]
 
-        if self.ref_state[2] < 0.4 and state_body[5] < 0.1 and state_body[2] < 0.010:
+        if self.ref_state[2] < 0.1 and state_body[5] < 0.1 and state_body[2] < 0.010:
             f_comp = 0.5*6.0
             M_comp = np.zeros_like(tau_dist)
         else:
@@ -317,8 +317,8 @@ class NmpcWithDOBNode(Node):
         arm_length = self.get_parameter('drone_param.arm_length').value
         motor_const = self.get_parameter('drone_param.motor_const').value
         moment_const = self.get_parameter('drone_param.moment_const').value
-        T_max = self.get_parameter('drone_param.T_max').value
-        T_min = self.get_parameter('drone_param.T_min').value
+        rotor_max = self.get_parameter('drone_param.rotor_max').value
+        rotor_min = self.get_parameter('drone_param.rotor_min').value
         acc_max = self.get_parameter('drone_param.acc_max').value
         acc_min = self.get_parameter('drone_param.acc_min').value
 
@@ -334,7 +334,7 @@ class NmpcWithDOBNode(Node):
         self.get_logger().info(f'  Inertia: {MoiArray}')
         self.get_logger().info(f'  Arm length: {arm_length:.3f} m')
         self.get_logger().info(f'  Rotor const: {motor_const:.2e}')
-        self.get_logger().info(f'  Thrust limits: [{T_min:.2f}, {T_max:.2f}] N')
+        self.get_logger().info(f'  Rotor RPM limits: [{rotor_min:.2f}, {rotor_max:.2f}] N')
         self.get_logger().info(f'  Horizon: {t_horizon:.2f} s, Nodes: {n_nodes}')
 
         dynamic_param = {
@@ -346,8 +346,8 @@ class NmpcWithDOBNode(Node):
             'arm_length': arm_length,
             'motor_const': motor_const,
             'moment_const': moment_const,
-            'T_max': T_max,
-            'T_min': T_min,
+            'rotor_max': rotor_max,
+            'rotor_min': rotor_min,
             'acc_max': acc_max,
             'acc_min': acc_min
         }
