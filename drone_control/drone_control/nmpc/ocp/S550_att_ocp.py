@@ -164,7 +164,7 @@ class S550_att_ocp:
 
                 if stage < N-1:
                     prev_state = self.previous_states[stage + 1]
-                    y_ref_warm = np.concatenate((y_ref, prev_state))
+                    y_ref_warm = np.concatenate((prev_state, u_prev))
                     self.ocp_solver.set(stage, 'y_ref', y_ref_warm)
                 else:
                     self.ocp_solver.set(stage, 'y_ref', y_ref)
