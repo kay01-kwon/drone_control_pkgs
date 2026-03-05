@@ -2,7 +2,7 @@
 ROS2 NMPC ATTITUDE Node with Disturbance Observer (DOB)
 
 This implements NMPC with disturbance compensation from DOB:
-- Get total thrust from PointStamped
+- Get total thrust from WrenchStamped
 - Receives rotational disturbances from DOB (HGDO, L1 adaptaiton, EKF/UKF)
 - Compensates control input for estimated disturbance (moment only)
 - Timer-based control loop (no manual threading)
@@ -21,7 +21,6 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, qos_profile_
 from rclpy.executors import SingleThreadedExecutor
 
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import PointStamped
 from geometry_msgs.msg import WrenchStamped
 from ros2_libcanard_msgs.msg import HexaCmdRaw
 
@@ -113,7 +112,7 @@ class NMPCAttitudeWithDOB(Node):
                                                  callback=self._odom_callback,
                                                  qos_profile=qos_profile_sensor_data)
 
-        self.thrust_sub = self.create_subscription(PointStamped,
+        self.thrust_sub = self.create_subscription(WrenchStamped,
                                                    thrust_topic,
                                                    callback=self._thrust_callback,
                                                    qos_profile=10)
@@ -156,13 +155,13 @@ class NMPCAttitudeWithDOB(Node):
             self.odom_buffer.pop()
         self.odom_buffer.push((odom_time, odom_data))
 
-    def _thrust_callback(self, msg: PointStamped):
+    def _thrust_callback(self, msg: WrenchStamped):
         """
         Total thrust callback - stores latest collective thrust
 
-        PointStamped.point.z = total thrust (N)
+        WrenchStamped.wrench.force.z = total thrust (N)
         """
-        self.f_col = msg.point.z
+        self.f_col = msg.wrench.force.z
 
         thrust_time = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         if self.thrust_buffer.is_full():
