@@ -238,8 +238,8 @@ class RcControlNode(Node):
         arm_length = self.get_parameter('drone_param.arm_length').value
         motor_const = self.get_parameter('drone_param.motor_const').value
         moment_const = self.get_parameter('drone_param.moment_const').value
-        T_max = self.get_parameter('drone_param.T_max').value
-        T_min = self.get_parameter('drone_param.T_min').value
+        rotor_max = self.get_parameter('drone_param.rotor_max').value
+        rotor_min = self.get_parameter('drone_param.rotor_min').value
         acc_max = self.get_parameter('drone_param.acc_max').value
         acc_min = self.get_parameter('drone_param.acc_min').value
 
@@ -257,8 +257,8 @@ class RcControlNode(Node):
         droneParam = {'arm_length': arm_length,
                       'motor_const': motor_const,
                       'moment_const': moment_const,
-                      'T_max': T_max,
-                      'T_min': T_min,
+                      'rotor_max': rotor_max,
+                      'rotor_min': rotor_min,
                       'acc_max': acc_max,
                       'acc_min': acc_min}
 

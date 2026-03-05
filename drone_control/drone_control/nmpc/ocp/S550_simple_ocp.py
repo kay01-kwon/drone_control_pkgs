@@ -17,19 +17,24 @@ class S550_Ocp:
             J = np.array([0.06, 0.06, 0.08])
             DynParam = {'m': m, 'MoiArray': J}
 
-        u_max = 8.0
-        u_min = 0.5
-
         if DroneParam is None:
             l = 0.265
             C_T = 1.465e-7
             k_m = 0.01569
+
+            rotor_max = 7300.0
+            rotor_min = 2000.0
+
             DroneParam = {'arm_length':l,
                           'motor_const':C_T,
                           'moment_const':k_m}
         else:
-            u_max = DroneParam['T_max']
-            u_min = DroneParam['T_min']
+            C_T = DroneParam['motor_const']
+            rotor_max = DroneParam['rotor_max']
+            rotor_min = DroneParam['rotor_min']
+
+        u_max = C_T * (rotor_max)**2
+        u_min = C_T * (rotor_min)**2
 
         if MpcParam is None:
             t_horizon = 0.20                # Time horizon

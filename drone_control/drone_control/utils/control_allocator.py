@@ -8,8 +8,10 @@ class ControlAllocator:
         l = DroneParam['arm_length']
         self.C_T = DroneParam['motor_const']
         k_m = DroneParam['moment_const']
-        self.T_max = DroneParam['T_max']
-        self.T_min = DroneParam['T_min']
+        rotor_max = DroneParam['rotor_max']
+        rotor_min = DroneParam['rotor_min']
+        self.T_max = self.C_T * (rotor_max)**2
+        self.T_min = self.C_T * (rotor_min)**2
         self.acc_max = DroneParam['acc_max']
         self.acc_min = DroneParam['acc_min']
 

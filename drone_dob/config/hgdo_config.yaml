@@ -16,11 +16,11 @@
     lpf:
       lin_vel_cutoff: 20.0
       ang_vel_cutoff: 60.0
-      disturbance_force_cutoff: 60.0
-      disturbance_torque_cutoff: 60.0
+      disturbance_force_cutoff: 20.0
+      disturbance_torque_cutoff: 20.0
 
     topic_names:
-      odom_in: "/mavros/local_position/odom"
+      odom_in: "/mavros/local_position/odom_sim"
       filtered_odom: "/hgdo/filtered_odom"
       actual_rpm: "/uav/rotor_state"
       dob_wrench: "/hgdo/wrench"

@@ -3,32 +3,31 @@ import casadi as cs
 import numpy as np
 from drone_control.nmpc.cs_utils import cs_math_tool
 
-class S550_model:
+class S550_att_model:
     def __init__(self, DynParam, DroneParam):
         '''
-        DroneParam: m, arm_length, motor_const, moment_const
+        DynParam: m, MOI
+        DroneParam: arm_length, motor_const, moment_const
         '''
 
-        self.model_name = 'S550_simple'
+        self.model_name = 'S550_att_model'
         self.model = AcadosModel()
 
-        # drone parameter
-        # mass, MOI, arm length, motor const, moment const
-        self.m = DynParam['m']
+        # Pass Dynamic parameter
         self.J = DynParam['MoiArray']
+
+        # Pass Drone parameter
         self.l = DroneParam['arm_length']
         self.C_T = DroneParam['motor_const']
         self.k_m = DroneParam['moment_const']
 
-        # State x (p, v, q, w) (dim: 13)
-        self.p = cs.MX.sym('p', 3)      # Position (World)
-        self.v = cs.MX.sym('v', 3)      # Velocity (World)
-        self.q = cs.MX.sym('q', 4)      # Quaternion (Body to World) qw, qx, qy, qz
-        self.w = cs.MX.sym('w', 3)      # Angular velocity (Body)
-        self.x = cs.vertcat(self.p, self.v, self.q, self.w)
-        self.x_dim = 13
+        # State x (q, w)
+        self.q = cs.MX.sym('q',4)
+        self.w = cs.MX.sym('w',3)
+        self.x = cs.vertcat(self.q, self.w)
+        self.x_dim = 7
 
-        # Desired rotor thrusts (dim: 6)
+        # Control input (Rotor thrust vector)
         self.u1 = cs.MX.sym('u1')
         self.u2 = cs.MX.sym('u2')
         self.u3 = cs.MX.sym('u3')
@@ -39,41 +38,25 @@ class S550_model:
                             self.u4, self.u5, self.u6)
         self.u_dim = 6
 
-        # The time derivative of state
-        self.dpdt = cs.MX.sym('dpdt', 3)
-        self.dvdt = cs.MX.sym('dvdt', 3)
+        # Set collective thrust parameter variable
+        self.f_col_param = cs.MX.sym('f_col')
+        self.f_col_param_dim = 1
+
+        # Time derivative of state
         self.dqdt = cs.MX.sym('dqdt', 4)
         self.dwdt = cs.MX.sym('dwdt', 3)
-        self.xdot = cs.vertcat(self.dpdt, self.dvdt,
-                               self.dqdt, self.dwdt)
+        self.xdot = cs.vertcat(self.dqdt, self.dwdt)
 
     def export_acados_model(self) -> AcadosModel:
         '''
         Export acados model
-        :return: acados model
+        :return: acados_model
         '''
-        f_expl = cs.vertcat(self._p_dynamics(), self._v_dynamics(),
-                            self._q_dynamics(), self._w_dynamics())
-        # print('dpdt')
-        # print(f_expl[0])
-        # print(f_expl[1])
-        # print(f_expl[2])
-        #
-        # print('dvdt')
-        # print(f_expl[3])
-        # print(f_expl[4])
-        # print(f_expl[5])
-        #
-        # print('dqdt')
-        # print(f_expl[6])
-        # print(f_expl[7])
-        # print(f_expl[8])
-        # print(f_expl[9])
-        #
-        # print('dwdt')
-        # print(f_expl[10])
-        # print(f_expl[11])
-        # print(f_expl[12])
+
+        print('Exporting acados model...')
+
+        f_expl = cs.vertcat(self._q_dynamics,
+                            self._w_dynamics)
 
         f_impl = self.xdot - f_expl
 
@@ -82,48 +65,16 @@ class S550_model:
         self.model.x = self.x
         self.model.xdot = self.xdot
         self.model.u = self.u
+        self.model.p = self.f_col_param
         self.model.name = self.model_name
-
-        return self.model
-
-    def _p_dynamics(self):
-        '''
-        dpdt = v
-        :return: linear velocity ( World frame )
-        '''
-        return self.v
-
-    def _v_dynamics(self):
-        '''
-        dvdt = R @ f/m + g_vec
-        :return: dvdt ( World frame )
-        '''
-
-        # Collective thrust
-        f_col = (self.u1 + self.u2 + self.u3
-                 + self.u4 + self.u5 + self.u6)
-
-        # Force in 3 dim ( Body frame )
-        f = cs.vertcat(0.0, 0.0, f_col)
-
-        acc_input = f/self.m
-
-        g_vec = cs.vertcat(0.0, 0.0, -9.81)
-
-        R = cs_math_tool.quaternion_to_rotm(self.q)
-
-        dvdt = cs.mtimes(R, acc_input) + g_vec
-        return dvdt
 
     def _q_dynamics(self):
         '''
-        dqdt = 0.5*otimes(q,w_quat)
-        :return:
+        dqdt = 0.5 * otimes(q, w_quat)
         '''
-
         w_quat = cs.vertcat(0.0, self.w)
 
-        dqdt = 0.5*cs_math_tool.otimes(self.q, w_quat)
+        dqdt = 0.5 * cs_math_tool.otimes(self.q, w_quat)
         return dqdt
 
     def _w_dynamics(self):
@@ -139,7 +90,6 @@ class S550_model:
         Mx, My, Mz = self._control_alloc_moment()
 
         m_vec = cs.vertcat(Mx/Jxx, My/Jyy, Mz/Jzz)
-
 
         # Get angular velocity
         w_x = self.w[0]
@@ -178,3 +128,12 @@ class S550_model:
         )
 
         return Mx, My, Mz
+
+    def _col_thrust_constraint(self):
+        '''
+
+        '''
+        f_col = (self.u1 + self.u2 + self.u3
+                 + self.u4 + self.u5 + self.u6)
+        h = f_col - self.f_col_param
+        return h
