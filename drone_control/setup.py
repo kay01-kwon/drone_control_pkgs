@@ -28,7 +28,8 @@ setup(
             'rc_control_node = drone_control.rc_control_node:main',
             'nmpc_node_v2 = drone_control.nmpc_node_v2:main',
             'nmpc_with_dob = drone_control.nmpc_with_dob:main',
-            'msg_parser_node = drone_control.msg_parser_node:main'
+            'msg_parser_node = drone_control.msg_parser_node:main',
+            'nmpc_att_with_dob = drone_control.nmpc_attitude_with_dob:main'
         ],
     },
 )
