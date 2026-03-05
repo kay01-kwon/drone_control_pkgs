@@ -87,8 +87,9 @@ class NMPCAttitudeWithDOB(Node):
         self.des_rotor_rpm_comp_prev = np.zeros_like(self.des_rotor_thrust_mpc)
         self.C_T = self.drone_param['motor_const']
 
-        # Total thrust (default: hover)
-        self.f_col = m * 9.81
+        # Total thrust (default: no thrust)
+        rotor_min = drone_param['rotor_min']
+        self.f_col = 6.0 * self.C_T*(rotor_min)**2
 
         # Topic name from ros param
         cmd_topic = self.get_parameter('topic_names.cmd_topic').value
