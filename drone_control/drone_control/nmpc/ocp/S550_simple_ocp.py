@@ -37,13 +37,13 @@ class S550_Ocp:
         u_min = C_T * (rotor_min)**2
 
         if MpcParam is None:
-            t_horizon = 0.20                # Time horizon
+            t_horizon = 1.0                # Time horizon
             n_nodes = 20                    # Number of nodes
-            Q = np.diag([1, 1, 1,           # px, py, pz
-                        0.5, 0.5, 0.5,      # vx, vy, vz
-                        0, 0.5, 0.5, 0.5,   # qw, qx, qy, qz
-                        0.05, 0.05, 0.05])  #wx, wy ,wz
-            R = np.diag([0.01]*6)           # u1...u6
+            Q = np.diag([2.0, 2.0, 10.0,           # px, py, pz
+                        1.0, 1.0, 7.0,      # vx, vy, vz
+                        8.0, 8.0, 8.0, 8.0,   # qw, qx, qy, qz
+                        5.0, 5.0, 5.0])  #wx, wy ,wz
+            R = np.diag([5.0]*6)           # u1...u6
 
         else:
             t_horizon = MpcParam['t_horizon']
