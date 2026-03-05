@@ -147,7 +147,7 @@ class S550_att_ocp:
             u_prev = np.zeros((6,))
 
         param = np.array([f_col])
-        N = self.ocp.solver_options.N
+        N = self.ocp.solver_options.N_horizon
 
         y_ref = np.concatenate((ref, u_prev))
         y_ref_N = ref
