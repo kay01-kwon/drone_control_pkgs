@@ -9,7 +9,7 @@ def generate_launch_description():
 
     pkg_prj_drone_control = get_package_share_directory('drone_control')
 
-    config_file = os.path.join(pkg_prj_drone_control, 'config', 'nmpc_with_hgdo.yaml')
+    config_file = os.path.join(pkg_prj_drone_control, 'config', 'nmpc_att_with_hgdo.yaml')
 
     nmpc_with_hgdo_node = Node(
         package='drone_control',
