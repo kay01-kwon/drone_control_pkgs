@@ -378,12 +378,12 @@ def main(args=None):
     finally:
         # Cleanup
         if node is not None:
+            cleanup_acados_files(node.nmpc_solver.get_json_file_name())
             node.destroy_node()
 
         if rclpy.ok():
             rclpy.shutdown()
 
-        cleanup_acados_files(node.nmpc_solver.get_json_file_name())
         print('[NMPC Att with DOB] Shutdown complete\n')
 
 

@@ -68,6 +68,11 @@ class S550_att_model:
         self.model.p = self.f_col_param
         self.model.name = self.model_name
 
+        # Set collective thrust equality constraint expression
+        self.model.con_h_expr = self._col_thrust_constraint()
+
+        return self.model
+
     def _q_dynamics(self):
         '''
         dqdt = 0.5 * otimes(q, w_quat)
