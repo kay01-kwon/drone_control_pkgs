@@ -58,9 +58,27 @@ class NMPCAttitudeWithDOB(Node):
         self.drone_param = drone_param
         self.nmpc_param = nmpc_param
 
+        m = self.dynamic_param['m']
+        self.mg = m * 9.81
+
+        self.first_trial = self.dynamic_param['first_trial']
+
         # Store com offset
         self.x_off = self.dynamic_param['com_offset'][0]
         self.y_off = self.dynamic_param['com_offset'][1]
+        self.tau_feedforward = np.array([self.mg*self.y_off,
+                                         -self.mg*self.x_off,
+                                         0.0])
+        # Get critical force
+        if np.abs(self.x_off) > np.abs(self.y_off):
+            lg = 0.255
+            alpha = np.abs(self.x_off)/lg
+        else:
+            lg = 0.288
+            alpha = np.abs(self.y_off)/lg
+
+        self.f_crit = self.mg * (1.0 - alpha)
+
 
         # Thrust ramp parameters
         self.threshold_angle = thrust_ramp_param['threshold_angle']
@@ -101,7 +119,7 @@ class NMPCAttitudeWithDOB(Node):
         self.solver_ready = False
         self.first_solve = True
 
-        m = self.dynamic_param['m']
+
         u_hover = m * 9.81 / 6.0
         self.des_rotor_thrust_mpc = u_hover * np.ones((6,))
         self.des_rotor_rpm_comp = np.zeros_like(self.des_rotor_thrust_mpc)
@@ -112,7 +130,6 @@ class NMPCAttitudeWithDOB(Node):
         self.f_col = 0.0
         rotor_min = drone_param['rotor_min']
         self.f_min = 6.0*self.C_T*(rotor_min)**2
-        self.mg = m * 9.81
         self.thrust_locked = False
 
         # Flight mode
@@ -336,26 +353,16 @@ class NMPCAttitudeWithDOB(Node):
         _, wrench_body = self.wrench_buffer.get_latest()
         tau_dist = wrench_body[3:6]     # [tau_x, tau_y, tau_z]
 
-        tau_feedforward = np.array([self.mg*self.y_off,
-                                    -self.mg*self.x_off,
-                                    0.0])
-
         # Compensate: total thrust from ramp, moments from NMPC minus DOB
         f_comp = self.f_col
 
-        if np.abs(self.x_off) > np.abs(self.y_off):
-            lg = 0.255
-            alpha = np.abs(self.x_off)/lg
-        else:
-            lg = 0.288
-            alpha = np.abs(self.y_off)/lg
-
-        f_crit = self.mg * (1.0 - alpha)
-
-        if f_comp <= f_crit:
-            M_comp = u_mpc[1:4] + tau_feedforward
-        else:
+        if self.first_trial == True:
             M_comp = u_mpc[1:4] - tau_dist
+        else:
+            if f_comp <= self.f_crit:
+                M_comp = u_mpc[1:4] + self.tau_feedforward
+            else:
+                M_comp = u_mpc[1:4] - tau_dist
 
         self.des_rotor_rpm_comp = (self.control_allocator
                                    .compute_des_rpm(f_comp, M_comp))
@@ -420,6 +427,7 @@ class NMPCAttitudeWithDOB(Node):
         # Dynamic parameters
         m = self.get_parameter('dynamic_param.m').value
         MoiArray = self.get_parameter('dynamic_param.MoiArray').value
+        first_trial = self.get_parameter('dynamic_param.first_trial').value
         com_offset = self.get_parameter('dynamic_param.com_offset').value
 
         # Drone parameters
@@ -459,6 +467,7 @@ class NMPCAttitudeWithDOB(Node):
         dynamic_param = {
             'm': m,
             'MoiArray': MoiArray,
+            'first_trial': first_trial,
             'com_offset':com_offset
         }
 
