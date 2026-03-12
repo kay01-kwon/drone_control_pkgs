@@ -58,6 +58,10 @@ class NMPCAttitudeWithDOB(Node):
         self.drone_param = drone_param
         self.nmpc_param = nmpc_param
 
+        # Store com offset
+        self.x_off = self.dynamic_param['com_offset'][0]
+        self.y_off = self.dynamic_param['com_offset'][1]
+
         # Thrust ramp parameters
         self.threshold_angle = thrust_ramp_param['threshold_angle']
         self.f_dot_ramp_up = thrust_ramp_param['f_dot_ramp_up']
@@ -332,9 +336,26 @@ class NMPCAttitudeWithDOB(Node):
         _, wrench_body = self.wrench_buffer.get_latest()
         tau_dist = wrench_body[3:6]     # [tau_x, tau_y, tau_z]
 
+        tau_feedforward = np.array([self.mg*self.y_off,
+                                    -self.mg*self.x_off,
+                                    0.0])
+
         # Compensate: total thrust from ramp, moments from NMPC minus DOB
         f_comp = self.f_col
-        M_comp = u_mpc[1:4] - tau_dist
+
+        if np.abs(self.x_off) > np.abs(self.y_off):
+            lg = 0.255
+            alpha = np.abs(self.x_off)/lg
+        else:
+            lg = 0.288
+            alpha = np.abs(self.y_off)/lg
+
+        f_crit = self.mg * (1.0 - alpha)
+
+        if f_comp <= f_crit:
+            M_comp = u_mpc[1:4] + tau_feedforward
+        else:
+            M_comp = u_mpc[1:4] - tau_dist
 
         self.des_rotor_rpm_comp = (self.control_allocator
                                    .compute_des_rpm(f_comp, M_comp))
@@ -355,8 +376,6 @@ class NMPCAttitudeWithDOB(Node):
 
         self.cmd_pub.publish(cmd_msg)
         self.nmpc_pub.publish(nmpc_msg)
-
-        self.des_rotor_rpm_comp_prev = self.des_rotor_rpm_comp
 
         # Update statistics
         self.solve_count += 1
@@ -401,6 +420,7 @@ class NMPCAttitudeWithDOB(Node):
         # Dynamic parameters
         m = self.get_parameter('dynamic_param.m').value
         MoiArray = self.get_parameter('dynamic_param.MoiArray').value
+        com_offset = self.get_parameter('dynamic_param.com_offset').value
 
         # Drone parameters
         arm_length = self.get_parameter('drone_param.arm_length').value
@@ -430,6 +450,7 @@ class NMPCAttitudeWithDOB(Node):
         self.get_logger().info('Parameters loaded:')
         self.get_logger().info(f'  Mass: {m:.2f} kg')
         self.get_logger().info(f'  Inertia: {MoiArray}')
+        self.get_logger().info(f'  COM offset: {com_offset}')
         self.get_logger().info(f'  Arm length: {arm_length:.3f} m')
         self.get_logger().info(f'  Rotor const: {motor_const:.2e}')
         self.get_logger().info(f'  Rotor RPM limits: [{rotor_min:.2f}, {rotor_max:.2f}] N')
@@ -437,7 +458,8 @@ class NMPCAttitudeWithDOB(Node):
 
         dynamic_param = {
             'm': m,
-            'MoiArray': MoiArray
+            'MoiArray': MoiArray,
+            'com_offset':com_offset
         }
 
         drone_param = {
