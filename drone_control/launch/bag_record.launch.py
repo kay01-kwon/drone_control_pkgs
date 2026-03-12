@@ -18,14 +18,17 @@ def _launch_bag_record(context):
 
     if dob_type == 'hgdo':
         dob_wrench_topic = '/hgdo/wrench'
+        filtered_odom_topic = '/hgdo/filtered_odom'
     else:
         dob_wrench_topic = '/l1_adaptive/wrench'
+        filtered_odom_topic = '/l1_adaptive/filtered_odom'
 
     topics = [
         '/uav/cmd',
         '/uav/actual_vel',
         '/uav/rotor_state',
-        '/mavros/local_position/odom',
+        '/mavros/local_position/odom_sim',
+        filtered_odom_topic,
         dob_wrench_topic,
     ]
 
