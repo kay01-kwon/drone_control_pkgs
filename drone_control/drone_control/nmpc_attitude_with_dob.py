@@ -359,7 +359,7 @@ class NMPCAttitudeWithDOB(Node):
         if self.first_trial == True:
             M_comp = u_mpc[1:4] - tau_dist
         else:
-            if f_comp <= self.f_crit:
+            if f_comp <= self.mg:
                 M_comp = u_mpc[1:4] + self.tau_feedforward
             else:
                 M_comp = u_mpc[1:4] - tau_dist
