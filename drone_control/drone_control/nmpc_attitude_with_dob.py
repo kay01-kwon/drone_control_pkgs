@@ -226,8 +226,6 @@ class NMPCAttitudeWithDOB(Node):
         Compute thrust ramp based on roll/pitch angles.
 
         Uses max(|roll|, |pitch|) as the representative angle phi.
-
-
         """
         if self.thrust_locked:
             self.f_col = self.f_min

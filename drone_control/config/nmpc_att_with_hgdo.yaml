@@ -26,10 +26,8 @@
       dpsi_dt_max: 0.2
 
     thrust_ramp_param:
-      threshold_angle: 0.08973     # rad (~5 deg)
-      max_angle: 0.2618           # rad (~15 deg)
-      f_dot_ramp_up: 2.0        # N/s
-      f_dot_ramp_down: 2.0      # N/s
+      threshold_angle: 0.05     # rad (~5 deg)
+      f_dot_ramp_up: 1.0        # N/s
 
     topic_names:
       cmd_topic: '/uav/cmd_raw'
