@@ -1,7 +1,7 @@
 /**:
   ros__parameters:
     dynamic_param:
-      m: 2.9
+      m: 3.1880
       MoiArray: [0.06, 0.06, 0.08]
 
     drone_param:
@@ -27,9 +27,9 @@
 
     thrust_ramp_param:
       threshold_angle: 0.05     # rad (~2.9 deg)
-      max_angle: 0.15           # rad (~8.6 deg)
-      f_dot_ramp_up: 5.0        # N/s
-      f_dot_ramp_down: 5.0      # N/s
+      max_angle: 0.2618           # rad (~15 deg)
+      f_dot_ramp_up: 1.0        # N/s
+      f_dot_ramp_down: 1.0      # N/s
 
     topic_names:
       cmd_topic: '/uav/cmd_raw'

@@ -60,9 +60,7 @@ class NMPCAttitudeWithDOB(Node):
 
         # Thrust ramp parameters
         self.threshold_angle = thrust_ramp_param['threshold_angle']
-        self.max_angle = thrust_ramp_param['max_angle']
         self.f_dot_ramp_up = thrust_ramp_param['f_dot_ramp_up']
-        self.f_dot_ramp_down = thrust_ramp_param['f_dot_ramp_down']
 
         # Create RC converter
         self.rc_converter = RcConverter(rc_converter_param)
@@ -168,9 +166,7 @@ class NMPCAttitudeWithDOB(Node):
         self.get_logger().info(f'R: {nmpc_param["R"]}')
         self.get_logger().info(
             f'Thrust ramp: threshold={np.degrees(self.threshold_angle):.1f} deg, '
-            f'max={np.degrees(self.max_angle):.1f} deg, '
-            f'up={self.f_dot_ramp_up:.1f} N/s, '
-            f'down={self.f_dot_ramp_down:.1f} N/s')
+            f'up={self.f_dot_ramp_up:.1f} N/s, ')
         self.get_logger().info('='*60)
 
     def _odom_callback(self, msg: Odometry):
@@ -247,14 +243,15 @@ class NMPCAttitudeWithDOB(Node):
         if phi < self.threshold_angle:
             f_dot = self.f_dot_ramp_up
         elif phi < self.max_angle:
-            f_dot = self.f_dot_ramp_up * (
-                (self.max_angle - phi) / (self.max_angle - self.threshold_angle))
+            self.get_logger().info(f'phi: {phi}')
+            # f_dot = self.f_dot_ramp_up * (
+            #     (self.max_angle - phi) / (self.max_angle - self.threshold_angle))
         else:
             f_dot = -self.f_dot_ramp_down
 
         f_next = self.f_col + f_dot * dt
 
-        if self.f_col >= self.mg:
+        if self.f_col >= self.mg or phi >= self.threshold_angle:
             self.f_col = self.f_min
             self.thrust_locked = True
         else:
@@ -304,9 +301,9 @@ class NMPCAttitudeWithDOB(Node):
             self.cmd_pub.publish(cmd_msg)
             return
 
-        # # --- ARMED mode: thrust ramp + NMPC attitude ---
-        # if self.mode != FlightMode.ARMED:
-        #     return
+        # --- ARMED mode: thrust ramp + NMPC attitude ---
+        if self.mode != FlightMode.ARMED:
+            return
 
         # Get the latest state (full 13-dim odom)
         _, state_full = self.odom_buffer.get_latest()
@@ -351,9 +348,7 @@ class NMPCAttitudeWithDOB(Node):
         M_comp = u_mpc[1:4] - tau_dist
 
         self.des_rotor_rpm_comp = (self.control_allocator
-                                   .compute_relaxed_des_rpm(f_comp, M_comp,
-                                    self.des_rotor_rpm_comp,
-                                    self.control_period))
+                                   .compute_des_rpm(f_comp, M_comp))
 
         # Convert to RPM and publish
         cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
@@ -483,9 +478,7 @@ class NMPCAttitudeWithDOB(Node):
 
         thrust_ramp_param = {
             'threshold_angle': threshold_angle,
-            'max_angle': max_angle,
             'f_dot_ramp_up': f_dot_ramp_up,
-            'f_dot_ramp_down': f_dot_ramp_down
         }
 
         return dynamic_param, drone_param, nmpc_param, rc_converter_param, thrust_ramp_param
