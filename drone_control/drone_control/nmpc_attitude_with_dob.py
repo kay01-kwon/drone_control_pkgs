@@ -69,15 +69,6 @@ class NMPCAttitudeWithDOB(Node):
         self.tau_feedforward = np.array([self.mg*self.y_off,
                                          -self.mg*self.x_off,
                                          0.0])
-        # Get critical force
-        if np.abs(self.x_off) > np.abs(self.y_off):
-            lg = 0.255
-            alpha = np.abs(self.x_off)/lg
-        else:
-            lg = 0.288
-            alpha = np.abs(self.y_off)/lg
-
-        self.f_crit = self.mg * (1.0 - alpha)
 
 
         # Thrust ramp parameters
