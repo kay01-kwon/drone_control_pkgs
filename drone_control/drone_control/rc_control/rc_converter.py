@@ -28,18 +28,25 @@ class RcModeStr:
 
 
 class RcConverter:
-    def __init__(self, ConverterParam):
+    def __init__(self, ConverterParam = None):
         # Set flight mode
         self.mode = FlightMode.AUTO
 
-        # Set maximum acceleration and altitude
-        self.vxy_max = ConverterParam['vxy_max']
-        self.vz_max = ConverterParam['vz_max']
+        if ConverterParam is not None:
+            # Set maximum acceleration and altitude
+            self.vxy_max = ConverterParam['vxy_max']
+            self.vz_max = ConverterParam['vz_max']
+            self.dpsi_dt_max = ConverterParam['dpsi_dt_max']
 
-        self.R_max = np.sqrt(2*self.vxy_max**2)
+        else:
+            # Not in use
+            self.vxy_max = 0
+            self.vz_max = 0
+            self.dpsi_dt_max = 0
 
-        self.dpsi_dt_max = ConverterParam['dpsi_dt_max']
+        self.R_max = np.sqrt(2 * self.vxy_max ** 2)
 
+        # Position information
         self.rc_in_mid = 1500
         self.rc_in_delta = 512
         self.rc_in_min = self.rc_in_mid - self.rc_in_delta
@@ -69,20 +76,20 @@ class RcConverter:
         self.dpsi_dt_des = (- self.dpsi_dt_max
                              * self._constrain(rc_in[3]))
 
-
-        if self._two_pos(rc_in[7]) == "HIGH":
-            self.mode = FlightMode.ARMED
-            if self._three_pos(rc_in[8]) == "LOW":
-                self.mode = FlightMode.KILL
-            else:
-                if self._three_pos(rc_in[5]) == "LOW":
-                    self.mode = FlightMode.ARMED
+        # SE two position
+        if self._two_pos(rc_in[8]) == "LOW":
+            self.mode = FlightMode.KILL
+        else:
+            # SD two position
+            if self._two_pos(rc_in[7]) == "HIGH":
+                if self._three_pos(rc_in[5]) == "HIGH":
+                    self.mode = FlightMode.AUTO
                 elif self._three_pos(rc_in[5]) == "MID":
                     self.mode = FlightMode.MANUAL_STAB
-                elif self._three_pos(rc_in[5]) == "HIGH":
-                    self.mode = FlightMode.AUTO
-        elif self._two_pos(rc_in[7]) == "LOW":
-            self.mode = FlightMode.DISARMED
+                else:
+                    self.mode = FlightMode.ARMED
+            elif self._two_pos(rc_in[7]) == "LOW":
+                self.mode = FlightMode.DISARMED
 
     def get_rc_state(self):
         return self.mode, self.v_des, self.dpsi_dt_des
