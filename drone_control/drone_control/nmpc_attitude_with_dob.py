@@ -227,12 +227,7 @@ class NMPCAttitudeWithDOB(Node):
 
         Uses max(|roll|, |pitch|) as the representative angle phi.
 
-        f_dot = f_ramp_up,                                              |phi| < phi_thres
-        f_dot = f_ramp_up * (phi_max - |phi|) / (phi_max - phi_thres), phi_thres <= |phi| < phi_max
-        f_dot = -f_ramp_down,                                           |phi| >= phi_max
 
-        f_{k+1} = f_k + f_dot * dt,   if f_k < mg
-        f_{k+1} = f_min,              if f_k >= mg  (locked permanently)
         """
         if self.thrust_locked:
             self.f_col = self.f_min
@@ -242,12 +237,8 @@ class NMPCAttitudeWithDOB(Node):
 
         if phi < self.threshold_angle:
             f_dot = self.f_dot_ramp_up
-        elif phi < self.max_angle:
-            self.get_logger().info(f'phi: {phi}')
-            # f_dot = self.f_dot_ramp_up * (
-            #     (self.max_angle - phi) / (self.max_angle - self.threshold_angle))
         else:
-            f_dot = -self.f_dot_ramp_down
+            f_dot = 0.0
 
         f_next = self.f_col + f_dot * dt
 
@@ -301,8 +292,8 @@ class NMPCAttitudeWithDOB(Node):
             self.cmd_pub.publish(cmd_msg)
             return
 
-        # --- ARMED mode: thrust ramp + NMPC attitude ---
-        if self.mode != FlightMode.ARMED:
+        # --- AUTO mode: thrust ramp + NMPC attitude ---
+        if self.mode != FlightMode.AUTO:
             return
 
         # Get the latest state (full 13-dim odom)
@@ -435,9 +426,7 @@ class NMPCAttitudeWithDOB(Node):
 
         # Thrust ramp parameters
         threshold_angle = self.get_parameter('thrust_ramp_param.threshold_angle').value
-        max_angle = self.get_parameter('thrust_ramp_param.max_angle').value
         f_dot_ramp_up = self.get_parameter('thrust_ramp_param.f_dot_ramp_up').value
-        f_dot_ramp_down = self.get_parameter('thrust_ramp_param.f_dot_ramp_down').value
 
         # Log parameters
         self.get_logger().info('Parameters loaded:')
