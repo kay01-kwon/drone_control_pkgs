@@ -164,6 +164,8 @@ class MomentExcitation(Node):
 
         if self.control_input_locked:
             self.f_fix = self.f_min
+            self.M = np.zeros((3,))
+            return
 
         if self.xy_direction == 'x':
             self.M[0] += self.M_dot * dt
@@ -172,6 +174,7 @@ class MomentExcitation(Node):
 
         if phi > self.threshold_angle:
             self.f_fix = self.f_min
+            self.M = np.zeros((3,))
             self.control_input_locked = True
 
     def _excitation_callback(self):
