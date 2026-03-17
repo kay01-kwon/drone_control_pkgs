@@ -4,7 +4,8 @@ import yaml
 from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
-from launch.actions import ExecuteProcess, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction
+from launch.substitutions import LaunchConfiguration
 
 
 def _launch_bag_record(context):
@@ -32,8 +33,15 @@ def _launch_bag_record(context):
         dob_wrench_topic,
     ]
 
+    bag_name = LaunchConfiguration('bag_name').perform(context)
+
+    cmd = ['ros2', 'bag', 'record']
+    if bag_name:
+        cmd += ['-o', bag_name]
+    cmd += topics
+
     bag_record = ExecuteProcess(
-        cmd=['ros2', 'bag', 'record'] + topics,
+        cmd=cmd,
         output='screen',
     )
 
@@ -42,5 +50,10 @@ def _launch_bag_record(context):
 
 def generate_launch_description():
     return LaunchDescription([
+        DeclareLaunchArgument(
+            'bag_name',
+            default_value='',
+            description='Output bag file name',
+        ),
         OpaqueFunction(function=_launch_bag_record),
     ])
