@@ -1,8 +1,10 @@
 /**:
   ros__parameters:
     dynamic_param:
-      m: 2.9
+      m: 3.188
       MoiArray: [0.06, 0.06, 0.08]
+      moment_ff: true
+      com_offset: [-0.010020,0.004467]
 
     drone_param:
       arm_length: 0.265

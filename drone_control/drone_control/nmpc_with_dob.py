@@ -41,16 +41,16 @@ class NmpcWithDOBNode(Node):
                          automatically_declare_parameters_from_overrides=True)
 
         # Load parameters
-        dynamc_param, drone_param, nmpc_param = self._load_parameters()
+        dynamic_param, drone_param, nmpc_param = self._load_parameters()
 
         # Store parameters as instance variables
-        self.dynamic_param = dynamc_param
+        self.dynamic_param = dynamic_param
         self.drone_param = drone_param
         self.nmpc_param = nmpc_param
 
         # Create NMPC solver
         self.get_logger().info('Creating NMPC solver...')
-        self.nmpc_solver = S550_Ocp(DynParam=dynamc_param,
+        self.nmpc_solver = S550_Ocp(DynParam=dynamic_param,
                                     DroneParam=drone_param,
                                     MpcParam=nmpc_param)
 
@@ -73,11 +73,23 @@ class NmpcWithDOBNode(Node):
         self.total_solve_time = 0.0
 
         # Flags
+        self.moment_ff_flag = dynamic_param['moment_ff']
         self.solver_ready = False
         self.first_solve = True
 
         m = self.dynamic_param['m'] if hasattr(self, 'dynamic_param') else 2.9
-        u_hover = m * 9.81 / 6.0
+        g = 9.81
+        self.W = m * g
+        u_hover = m * g / 6.0
+        com_offset = dynamic_param['com_offset']
+        x_off = com_offset[0]
+        y_off = com_offset[1]
+        self.M_ff = np.array([
+            self.W*y_off,
+            -self.W*x_off,
+            0.0
+        ])
+
         self.des_rotor_thrust_mpc = u_hover * np.ones((6,))
         self.des_rotor_rpm_comp = np.zeros_like(self.des_rotor_thrust_mpc)
         self.des_rotor_rpm_comp_prev = np.zeros_like(self.des_rotor_thrust_mpc)
@@ -235,12 +247,35 @@ class NmpcWithDOBNode(Node):
         f_dist = wrench_body[0:3]       # [f_x, f_y, f_z]
         tau_dist = wrench_body[3:6]     # [tau_x, tau_y, tau_z]
 
-        if self.ref_state[2] < 0.1 and state_body[5] < 0.1 and state_body[2] < 0.010:
-            f_comp = 0.5*6.0
-            M_comp = np.zeros_like(tau_dist)
+        if self.moment_ff_flag is True:
+            if u_mpc[0] < self.W and state_body[2] < 0.010:
+                if self.ref_state[2] < 0.01:
+                    f_comp = 1*6.0
+                    M_comp = self.M_ff
+                else:
+                    f_comp = u_mpc[0] - f_dist[2]
+                    M_comp = u_mpc[1:4] + self.M_ff
+            else:
+                f_comp = u_mpc[0] - f_dist[2]
+                M_comp = u_mpc[1:4] - tau_dist
         else:
-            f_comp = u_mpc[0] - f_dist[2]
-            M_comp = u_mpc[1:4] - tau_dist
+            if u_mpc[0] < self.W and state_body[2] < 0.010:
+                if self.ref_state[2] < 0.01:
+                    f_comp = 1*6.0
+                    M_comp = np.zeros_like(tau_dist)
+                else:
+                    f_comp = u_mpc[0] - f_dist[2]
+                    M_comp = u_mpc[1:4] - tau_dist
+            else:
+                f_comp = u_mpc[0] - f_dist[2]
+                M_comp = u_mpc[1:4] - tau_dist
+
+        # if self.ref_state[2] < 0.1 and state_body[5] < 0.1 and state_body[2] < 0.010:
+        #     f_comp = 0.5*6.0
+        #     M_comp = np.zeros_like(tau_dist)
+        # else:
+        #     f_comp = u_mpc[0] - f_dist[2]
+        #     M_comp = u_mpc[1:4] - tau_dist
 
         # self.get_logger().info(f'f_comp: {f_comp:.3f} N, '
         #                        f'tau_dist: {M_comp} Nm')
@@ -312,6 +347,8 @@ class NmpcWithDOBNode(Node):
         # Dynamic parameters
         m = self.get_parameter('dynamic_param.m').value
         MoiArray = self.get_parameter('dynamic_param.MoiArray').value
+        moment_ff = self.get_parameter('dynamic_param.moment_ff').value
+        com_offset = self.get_parameter('dynamic_param.com_offset').value
 
         # Drone parameters
         arm_length = self.get_parameter('drone_param.arm_length').value
@@ -332,6 +369,8 @@ class NmpcWithDOBNode(Node):
         self.get_logger().info('Parameters loaded:')
         self.get_logger().info(f'  Mass: {m:.2f} kg')
         self.get_logger().info(f'  Inertia: {MoiArray}')
+        self.get_logger().info(f'  Moment FF: {moment_ff}')
+        self.get_logger().info(f'  Com offset: {com_offset}')
         self.get_logger().info(f'  Arm length: {arm_length:.3f} m')
         self.get_logger().info(f'  Rotor const: {motor_const:.2e}')
         self.get_logger().info(f'  Rotor RPM limits: [{rotor_min:.2f}, {rotor_max:.2f}] N')
@@ -339,7 +378,9 @@ class NmpcWithDOBNode(Node):
 
         dynamic_param = {
             'm': m,
-            'MoiArray': MoiArray
+            'MoiArray': MoiArray,
+            'moment_ff': moment_ff,
+            'com_offset': com_offset
         }
 
         drone_param = {
