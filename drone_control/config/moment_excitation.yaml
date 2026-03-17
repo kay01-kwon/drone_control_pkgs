@@ -1,0 +1,24 @@
+/**:
+  ros__parameters:
+    dynamic_param:
+      m: 3.0
+      MoiArray: [0.06, 0.06, 0.08]
+
+    drone_param:
+      arm_length: 0.265
+      motor_const: 1.386e-7
+      moment_const: 0.0156
+      rotor_max: 2000.0
+      rotor_min: 7300.0
+      acc_max: 15000
+      acc_min: 15000
+
+    moment_ramp_param:
+      threshold_angle: 0.05   # (~2.86 deg)
+      moment_dot: 0.05        # (0.05 Nm/s)
+      xy_direction: 'x'       # (Mx or My)
+
+    topic_names:
+      cmd_topic: '/uav/cmd_raw'
+      filtered_odom_topic: '/l1_adpative/filtered_odom'
+      rc_topic: '/mavros/rc/in'
