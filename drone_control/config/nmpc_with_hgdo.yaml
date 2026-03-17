@@ -3,7 +3,7 @@
     dynamic_param:
       m: 3.188
       MoiArray: [0.06, 0.06, 0.08]
-      moment_ff: false
+      moment_ff: true
       com_offset: [-0.010020,0.004467]
 
     drone_param:

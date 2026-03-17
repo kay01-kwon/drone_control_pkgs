@@ -262,23 +262,13 @@ class NmpcWithDOBNode(Node):
             if u_mpc[0] < self.W and state_body[2] < 0.010:
                 if self.ref_state[2] < 0.01:
                     f_comp = 1*6.0
-                    M_comp = np.zeros_like(tau_dist)
+                    M_comp = -tau_dist
                 else:
                     f_comp = u_mpc[0] - f_dist[2]
                     M_comp = u_mpc[1:4] - tau_dist
             else:
                 f_comp = u_mpc[0] - f_dist[2]
                 M_comp = u_mpc[1:4] - tau_dist
-
-        # if self.ref_state[2] < 0.1 and state_body[5] < 0.1 and state_body[2] < 0.010:
-        #     f_comp = 0.5*6.0
-        #     M_comp = np.zeros_like(tau_dist)
-        # else:
-        #     f_comp = u_mpc[0] - f_dist[2]
-        #     M_comp = u_mpc[1:4] - tau_dist
-
-        # self.get_logger().info(f'f_comp: {f_comp:.3f} N, '
-        #                        f'tau_dist: {M_comp} Nm')
 
         self.des_rotor_rpm_comp = (self.control_allocator
                                    .compute_relaxed_des_rpm(f_comp, M_comp,
