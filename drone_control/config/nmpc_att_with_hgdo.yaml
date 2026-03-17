@@ -3,6 +3,7 @@
     dynamic_param:
       m: 3.188
       MoiArray: [0.06, 0.06, 0.08]
+      first_trial: false
       com_offset: [-0.008998, 0.0]    # x,y offset
 
     drone_param:

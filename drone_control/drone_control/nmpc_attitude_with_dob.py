@@ -41,7 +41,7 @@ class NMPCAttitudeWithDOB(Node):
     FlightMode behavior:
     - KILL: All rotors stop (0 RPM)
     - DISARMED: Idle speed (2000 RPM)
-    - ARMED: Thrust ramp with NMPC attitude control for ground calibration
+    - AUTO: Thrust ramp with NMPC attitude control for ground calibration
 
     Control loop runs at 100 Hz using ROS2 timer callback.
     """
