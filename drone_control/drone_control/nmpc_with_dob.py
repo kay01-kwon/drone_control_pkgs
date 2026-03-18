@@ -132,6 +132,11 @@ class NmpcWithDOBNode(Node):
                                                  callback=self._odom_callback,
                                                  qos_profile=qos_profile_sensor_data)
 
+        self.rc_sub = self.create_subscription(RCIn,
+                                               rc_topic,
+                                               callback=self._rc_callback,
+                                               qos_profile=qos_profile_sensor_data)
+
         self.ref_sub = self.create_subscription(Ref,
                                                 ref_topic,
                                                 callback=self._ref_callback,
@@ -184,7 +189,7 @@ class NmpcWithDOBNode(Node):
 
         # Get RC mode
         self.rc_converter.set_rc(rc_state)
-        self.mode, _ = self.rc_converter.get_rc_state()
+        self.mode, _, _ = self.rc_converter.get_rc_state()
 
         # When mode is switched, print out the mode
         if self.mode is not self.prev_mode:
