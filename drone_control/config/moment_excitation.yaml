@@ -15,8 +15,8 @@
 
     moment_ramp_param:
       threshold_angle: 0.05   # (~2.86 deg)
-      moment_dot: -0.5        # (0.5 Nm/s)
-      xy_direction: 'y'       # (Mx or My)
+      moment_dot: -0.3         # (0.1 ~ 0.3 Nm/s)
+      xy_direction: 'x'       # (Mx or My)
 
     topic_names:
       cmd_topic: '/uav/cmd_raw'

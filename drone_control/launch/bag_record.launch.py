@@ -25,8 +25,8 @@ def _launch_bag_record(context):
         filtered_odom_topic = '/l1_adaptive/filtered_odom'
 
     topics = [
-        '/uav/cmd',
-        '/uav/actual_vel',
+        '/uav/cmd_raw',
+        '/uav/actual_rpm',
         '/uav/rotor_state',
         '/mavros/local_position/odom_sim',
         filtered_odom_topic,

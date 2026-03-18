@@ -6,9 +6,10 @@ This implements NMPC with disturbance compensation from DOB:
 - Compensates control input for estimated disturbance
 - Timer-based control loop (no manual threading)
 - SingleThreadedExecutor for predictable behavior
+- RC --> Manual STAB is replaced by LANDING state
 
 Author: Geonwoo Kwon
-Date: 2026-01-03
+Date: 2026-03-18
 """
 
 import numpy as np
@@ -21,13 +22,17 @@ from rclpy.executors import SingleThreadedExecutor
 
 from nav_msgs.msg import Odometry
 from drone_msgs.msg import Ref
+from mavros_msgs.msg import RCIn
 from geometry_msgs.msg import WrenchStamped
 from ros2_libcanard_msgs.msg import HexaCmdRaw
+
+from drone_control.rc_control import RcConverter
+from drone_control.rc_control import FlightMode, RcModeStr
 
 from drone_control.utils.circular_buffer import CircularBuffer
 from drone_control.utils.control_allocator import ControlAllocator
 from drone_control.utils.cmd_converter import HexaCmdConverter
-from drone_control.utils import MsgParser, math_tool, cleanup_acados_files
+from drone_control.utils import MsgParser, cleanup_acados_files
 from drone_control.nmpc.ocp.S550_simple_ocp import S550_Ocp
 
 class NmpcWithDOBNode(Node):
@@ -40,13 +45,16 @@ class NmpcWithDOBNode(Node):
         super().__init__('nmpc_with_dob',
                          automatically_declare_parameters_from_overrides=True)
 
-        # Load parameters
+        # Load parameters for nmpc
         dynamic_param, drone_param, nmpc_param = self._load_parameters()
 
         # Store parameters as instance variables
         self.dynamic_param = dynamic_param
         self.drone_param = drone_param
         self.nmpc_param = nmpc_param
+
+        # Create RC converter
+        self.rc_converter = RcConverter()
 
         # Create NMPC solver
         self.get_logger().info('Creating NMPC solver...')
@@ -57,10 +65,12 @@ class NmpcWithDOBNode(Node):
         # Create control allocator
         self.control_allocator = ControlAllocator(DroneParam=drone_param)
 
-        # Odometry buffer
-        self.odom_buffer = CircularBuffer(capacity=30)
+        # Flight mode
+        self.mode = FlightMode.DISARMED
+        self.prev_mode = self.mode
 
-        # Wrench buffer (f_x, f_y, f_z, tau_x, tau_y, tau_z)
+        # Buffers
+        self.odom_buffer = CircularBuffer(capacity=30)
         self.wrench_buffer = CircularBuffer(capacity=30)
 
         # Reference state (p, v, q, w) in 13 dim
@@ -77,13 +87,17 @@ class NmpcWithDOBNode(Node):
         self.solver_ready = False
         self.first_solve = True
 
-        m = self.dynamic_param['m'] if hasattr(self, 'dynamic_param') else 2.9
+        m = self.dynamic_param['m'] if hasattr(self, 'dynamic_param') else 3.0
         g = 9.81
         self.W = m * g
         u_hover = m * g / 6.0
+
+        # Feedforward moment
         com_offset = dynamic_param['com_offset']
+
         x_off = com_offset[0]
         y_off = com_offset[1]
+
         self.M_ff = np.array([
             self.W*y_off,
             -self.W*x_off,
@@ -93,12 +107,11 @@ class NmpcWithDOBNode(Node):
         self.des_rotor_thrust_mpc = u_hover * np.ones((6,))
         self.des_rotor_rpm_comp = np.zeros_like(self.des_rotor_thrust_mpc)
         self.des_rotor_rpm_comp_prev = np.zeros_like(self.des_rotor_thrust_mpc)
-        self.C_T = self.drone_param['motor_const'] if hasattr(self, 'drone_param') else 1.465e-7
-
-        self.dob_weight = 0.0
+        self.C_T = self.drone_param['motor_const'] if hasattr(self, 'drone_param') else 1.386e-7
 
         # Topic name from ros param
         cmd_topic = self.get_parameter('topic_names.cmd_topic').value
+        rc_topic = self.get_parameter('topic_names.rc_topic').value
         nmpc_topic = self.get_parameter('topic_names.base_line_control_topic').value
         filtered_odom_topic = self.get_parameter('topic_names.filtered_odom_topic').value
         ref_topic = self.get_parameter('topic_names.ref_topic').value
@@ -148,6 +161,9 @@ class NmpcWithDOBNode(Node):
         self.get_logger().info(f'R: {nmpc_param["R"]}')
         self.get_logger().info('='*60)
 
+        # Print out flight mode
+        self.get_logger().info(f'mode: {self.mode}')
+
     def _odom_callback(self, msg: Odometry):
         """
         Odometry callback - stores latest state in buffer
@@ -162,17 +178,18 @@ class NmpcWithDOBNode(Node):
             self.odom_buffer.pop()
         self.odom_buffer.push((odom_time, odom_data))
 
-    def _wrench_dob_callback(self, msg:WrenchStamped):
-        """
-        DOB wrench callback - stores latest disturbance estimate in buffer
+    def _rc_callback(self, msg: RCIn):
+        rc_tuple = MsgParser.parse_rc_msg(msg)
+        rc_time, rc_state = rc_tuple
 
-        Wrench format: [f_x, f_y, f_z, tau_x, tau_y, tau_z]
-        """
-        wrench_time, wrench_data = MsgParser.parse_wrench_msg(msg)
+        # Get RC mode
+        self.rc_converter.set_rc(rc_state)
+        self.mode, _ = self.rc_converter.get_rc_state()
 
-        if self.wrench_buffer.is_full():
-            self.wrench_buffer.pop()
-        self.wrench_buffer.push((wrench_time, wrench_data))
+        # When mode is switched, print out the mode
+        if self.mode is not self.prev_mode:
+            self.get_logger().info(f'Mode: {self.mode}')
+        self.prev_mode = self.mode
 
     def _ref_callback(self, msg: Ref):
         """
@@ -195,6 +212,18 @@ class NmpcWithDOBNode(Node):
         self.ref_state[11] = 0.0                    # wy
         self.ref_state[12] = msg.psi_dot            # wz
 
+    def _wrench_dob_callback(self, msg:WrenchStamped):
+        """
+        DOB wrench callback - stores latest disturbance estimate in buffer
+
+        Wrench format: [f_x, f_y, f_z, tau_x, tau_y, tau_z]
+        """
+        wrench_time, wrench_data = MsgParser.parse_wrench_msg(msg)
+
+        if self.wrench_buffer.is_full():
+            self.wrench_buffer.pop()
+        self.wrench_buffer.push((wrench_time, wrench_data))
+
     def _control_callback(self):
         """
         Main control loop callback - runs at 100 Hz
@@ -205,6 +234,19 @@ class NmpcWithDOBNode(Node):
         # Check if we have odomemtry data
         if self.odom_buffer.is_empty():
             return
+
+        if self.mode == FlightMode.KILL:
+            self._set_rpm_zero()
+            return
+        elif self.mode == FlightMode.DISARMED:
+            self._set_rpm_zero()
+            return
+        elif self.mode == FlightMode.ARMED:
+            self._set_idle_rpm()
+            return
+        elif self.mode == FlightMode.MANUAL_STAB:
+            # Landing (Altitude set to zero)
+            self.ref_state[2] = 0.0
 
         # Get current time
         current_time = self._get_time_now()
@@ -234,9 +276,6 @@ class NmpcWithDOBNode(Node):
         self.des_rotor_thrust_mpc = rotor_thrust_nmpc
 
         u_mpc = self.control_allocator.compute_u_from_rotor_thrusts(self.des_rotor_thrust_mpc)
-
-        # Log for MPC solver output (force and moment)
-        # self.get_logger().info('u_mpc = {}'.format(u_mpc))
 
         # Check if we have DOB data
         if self.wrench_buffer.is_empty():
@@ -325,6 +364,22 @@ class NmpcWithDOBNode(Node):
         clock_now = self.get_clock().now()
         sec, nsec = clock_now.seconds_nanoseconds()
         return sec + nsec * 1e-9
+
+    def _set_rpm_zero(self):
+        """Set the cmd rpm to zero"""
+        for i in range(6):
+            self.des_rotor_rpm_comp_prev[i] = 0
+        cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
+                                                  self.des_rotor_rpm_comp)
+        self.cmd_pub.publish(cmd_msg)
+
+    def _set_idle_rpm(self):
+        """Set the idle rpm to zero"""
+        for i in range(6):
+            self.des_rotor_rpm_comp_prev[i] = 2000
+        cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
+                                                  self.des_rotor_rpm_comp)
+        self.cmd_pub.publish(cmd_msg)
 
     def _load_parameters(self):
         """
