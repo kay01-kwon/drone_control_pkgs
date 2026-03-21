@@ -247,9 +247,10 @@ class NmpcWithDOBNode(Node):
             self._set_rpm_zero()
             return
         elif self.mode == FlightMode.ARMED:
-            self._set_idle_rpm()
-            return
+            self.get_logger().info(f'LANDING state')
+            self.ref_state[2] = 0.0
         elif self.mode == FlightMode.MANUAL_STAB:
+            self.get_logger().info(f'LANDING state')
             # Landing (Altitude set to zero)
             self.ref_state[2] = 0.0
 
