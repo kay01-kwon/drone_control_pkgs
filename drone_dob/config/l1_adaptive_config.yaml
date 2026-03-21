@@ -1,6 +1,5 @@
 /**:
   ros__parameters:
-
     drone:
       m: 3.146
       l: 0.265
