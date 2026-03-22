@@ -124,7 +124,7 @@ void StatePredictor::compute_dynamics(const Vector6d& z_hat,
     // Compute function f (Base line control input effects)
     Vector6d func_f;
     func_f.head<3>() = g_vec + u_BL_(0)/m_*e_z_B;
-    func_f.tail<3>() = J_inv_ * (u_BL_.tail<3>());
+    func_f.tail<3>() = J_inv_ * (u_BL_.tail<3>() - w_meas.cross(J_ * w_meas));
 
     // Compute function g (L1 adaptive control input effects)
     Matrix6x4d func_g;
