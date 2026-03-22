@@ -302,7 +302,7 @@ class NmpcWithDOBNode(Node):
             if u_mpc[0] < self.W and state_body[2] < 0.010:
                 if self.ref_state[2] < 0.01:
                     f_comp = 1*6.0
-                    M_comp = np.zeros((3,))
+                    M_comp = self.M_ff
                 else:
                     f_comp = u_mpc[0] - f_dist[2]
                     M_comp = u_mpc[1:4] + self.M_ff
@@ -313,7 +313,7 @@ class NmpcWithDOBNode(Node):
             if u_mpc[0] < self.W and state_body[2] < 0.010:
                 if self.ref_state[2] < 0.01:
                     f_comp = 1*6.0
-                    M_comp = -tau_dist
+                    M_comp = np.zeros((3,))
                 else:
                     f_comp = u_mpc[0] - f_dist[2]
                     M_comp = u_mpc[1:4] - tau_dist
