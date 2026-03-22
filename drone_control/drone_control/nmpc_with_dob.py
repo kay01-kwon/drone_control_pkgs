@@ -33,6 +33,7 @@ from drone_control.utils.circular_buffer import CircularBuffer
 from drone_control.utils.control_allocator import ControlAllocator
 from drone_control.utils.cmd_converter import HexaCmdConverter
 from drone_control.utils import MsgParser, cleanup_acados_files
+from drone_control.utils.low_pass_filter import LowPassFilter
 from drone_control.nmpc.ocp.S550_simple_ocp import S550_Ocp
 
 class NmpcWithDOBNode(Node):
@@ -108,6 +109,11 @@ class NmpcWithDOBNode(Node):
         self.des_rotor_rpm_comp = np.zeros_like(self.des_rotor_thrust_mpc)
         self.des_rotor_rpm_comp_prev = np.zeros_like(self.des_rotor_thrust_mpc)
         self.C_T = self.drone_param['motor_const'] if hasattr(self, 'drone_param') else 1.386e-7
+
+        # LPF for cmd output
+        cmd_lpf_cutoff = self.get_parameter('drone_param.cmd_lpf_cutoff').value
+        self.cmd_lpf = LowPassFilter(cutoff_freq=cmd_lpf_cutoff)
+        self.get_logger().info(f'CMD LPF cutoff: {cmd_lpf_cutoff} Hz')
 
         # Topic name from ros param
         cmd_topic = self.get_parameter('topic_names.cmd_topic').value
@@ -320,9 +326,11 @@ class NmpcWithDOBNode(Node):
                                                             self.des_rotor_rpm_comp_prev,
                                                             self.control_period))
 
-        # Convert to RPM and publish
+        # Apply LPF and convert to CMD
+        filtered_rpm = self.cmd_lpf.filter(self.des_rotor_rpm_comp,
+                                           self.control_period)
         cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
-                                                  self.des_rotor_rpm_comp)
+                                                  filtered_rpm)
 
         nmpc_msg = WrenchStamped()
         nmpc_msg.header.stamp = self.get_clock().now().to_msg()
@@ -375,16 +383,20 @@ class NmpcWithDOBNode(Node):
         """Set the cmd rpm to zero"""
         for i in range(6):
             self.des_rotor_rpm_comp_prev[i] = 0
+        filtered_rpm = self.cmd_lpf.filter(self.des_rotor_rpm_comp,
+                                           self.control_period)
         cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
-                                                  self.des_rotor_rpm_comp)
+                                                  filtered_rpm)
         self.cmd_pub.publish(cmd_msg)
 
     def _set_idle_rpm(self):
         """Set the idle rpm to zero"""
         for i in range(6):
             self.des_rotor_rpm_comp_prev[i] = 2000
+        filtered_rpm = self.cmd_lpf.filter(self.des_rotor_rpm_comp,
+                                           self.control_period)
         cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
-                                                  self.des_rotor_rpm_comp)
+                                                  filtered_rpm)
         self.cmd_pub.publish(cmd_msg)
 
     def _load_parameters(self):

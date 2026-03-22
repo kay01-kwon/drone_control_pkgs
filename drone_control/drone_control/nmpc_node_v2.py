@@ -31,6 +31,7 @@ from drone_control.utils.circular_buffer import CircularBuffer
 from drone_control.utils.control_allocator import ControlAllocator
 from drone_control.utils.cmd_converter import HexaCmdConverter
 from drone_control.utils import MsgParser, math_tool, cleanup_acados_files
+from drone_control.utils.low_pass_filter import LowPassFilter
 from drone_control.nmpc.ocp.S550_simple_ocp import S550_Ocp
 
 class NmpcNodeV2(Node):
@@ -139,6 +140,11 @@ class NmpcNodeV2(Node):
         # Flags
         self.solver_ready = False
         self.first_solve = True
+
+        # LPF for cmd output
+        cmd_lpf_cutoff = self.get_parameter('drone_param.cmd_lpf_cutoff').value
+        self.cmd_lpf = LowPassFilter(cutoff_freq=cmd_lpf_cutoff)
+        self.get_logger().info(f'CMD LPF cutoff: {cmd_lpf_cutoff} Hz')
 
     def _load_parameters(self) -> Tuple[dict, dict, dict]:
         """
@@ -291,11 +297,12 @@ class NmpcNodeV2(Node):
         # Update control input
         self.des_rotor_thrust = T_rotor
 
-        # Convert to RPM and publish
+        # Convert to RPM, apply LPF, and publish
         des_rpm = np.sqrt(self.des_rotor_thrust / self.C_T)
+        filtered_rpm = self.cmd_lpf.filter(des_rpm, self.control_dt)
         cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(
             self.get_clock().now(),
-            des_rpm
+            filtered_rpm
         )
 
         nmpc_msg = WrenchStamped()

@@ -12,6 +12,7 @@
       rotor_max: 7300.0
       acc_max: 15000
       acc_min: 15000
+      cmd_lpf_cutoff: 10.0  # LPF cutoff frequency [Hz] for cmd output
 
     moment_ramp_param:
       threshold_angle: 0.05   # (~2.86 deg)

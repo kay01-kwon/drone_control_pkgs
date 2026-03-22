@@ -50,6 +50,11 @@ class RcControlNode(Node):
 
         self.des_rpm = np.zeros((6,))
 
+        # LPF for cmd output
+        cmd_lpf_cutoff = self.get_parameter('drone_param.cmd_lpf_cutoff').value
+        self.cmd_lpf = LowPassFilter(cutoff_freq=cmd_lpf_cutoff)
+        self.get_logger().info(f'CMD LPF cutoff: {cmd_lpf_cutoff} Hz')
+
         # Topic name from ros param
         cmd_topic = self.get_parameter('topic_names.cmd_topic').value
         rc_topic = self.get_parameter('topic_names.rc_topic').value
@@ -186,7 +191,9 @@ class RcControlNode(Node):
                                                                               self.des_rpm,
                                                                               dt)
 
-        self.cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(), self.des_rpm)
+        dt = self.t_curr - self.t_prev
+        filtered_rpm = self.cmd_lpf.filter(self.des_rpm, dt) if dt > 0 else self.des_rpm
+        self.cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(), filtered_rpm)
 
         self.t_prev = self.t_curr
 
