@@ -303,12 +303,14 @@ class NmpcWithDOBNode(Node):
 
         if on_ground:
             if self.ref_state[2] < 0.01:
-                # Stay on ground / landing: minimal thrust
+                # Stay on ground / landing: minimal thrust, no DOB
                 f_comp = 1*6.0
                 if self.moment_ff_flag is True:
-                    M_comp = self.M_ff
+                    M_comp = self.M_ff.copy()
                 else:
                     M_comp = np.zeros((3,))
+                # No Mz compensation on ground
+                M_comp[2] = 0.0
             else:
                 # Takeoff phase: use NMPC output directly, no DOB compensation
                 # DOB estimates are unreliable on the ground (ground effect, friction)
@@ -317,10 +319,15 @@ class NmpcWithDOBNode(Node):
                     M_comp = u_mpc[1:4] + self.M_ff
                 else:
                     M_comp = u_mpc[1:4]
+                # No Mz compensation on ground
+                M_comp[2] = u_mpc[3]
         else:
-            # In flight (u_mpc[0] >= W): full DOB compensation
+            # In flight (u_mpc[0] >= W): DOB compensation for force and roll/pitch moment
             f_comp = u_mpc[0] - f_dist[2]
             M_comp = u_mpc[1:4] - tau_dist
+            # No Mz DOB compensation: tau_dist_z has systematic bias
+            # from C_T mismatch, causing positive feedback on yaw
+            M_comp[2] = u_mpc[3]
 
         self.des_rotor_rpm_comp = (self.control_allocator
                                    .compute_relaxed_des_rpm(f_comp, M_comp,
