@@ -322,12 +322,9 @@ class NmpcWithDOBNode(Node):
                 # No Mz compensation on ground
                 M_comp[2] = u_mpc[3]
         else:
-            # In flight (u_mpc[0] >= W): DOB compensation for force and roll/pitch moment
+            # In flight (u_mpc[0] >= W): full DOB compensation
             f_comp = u_mpc[0] - f_dist[2]
             M_comp = u_mpc[1:4] - tau_dist
-            # No Mz DOB compensation: tau_dist_z has systematic bias
-            # from C_T mismatch, causing positive feedback on yaw
-            M_comp[2] = u_mpc[3]
 
         self.des_rotor_rpm_comp = (self.control_allocator
                                    .compute_relaxed_des_rpm(f_comp, M_comp,
