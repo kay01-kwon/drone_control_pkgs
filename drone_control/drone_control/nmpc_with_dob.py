@@ -316,7 +316,9 @@ class NmpcWithDOBNode(Node):
                 M_comp = u_mpc[1:4] - tau_dist
 
         self.des_rotor_rpm_comp = (self.control_allocator
-                                   .compute_des_rpm(f_comp, M_comp))
+                                   .compute_relaxed_des_rpm(f_comp, M_comp,
+                                                            self.des_rotor_rpm_comp_prev,
+                                                            self.control_period))
 
         # Convert to RPM and publish
         cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
