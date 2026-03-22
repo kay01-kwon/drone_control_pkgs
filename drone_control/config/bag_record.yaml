@@ -1,4 +1,4 @@
 bag_record:
   # DOB type: "l1_adaptive" or "hgdo"
   # Determines which wrench topic to record
-  dob_type: "l1"
+  dob_type: "hgdo"
