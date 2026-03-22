@@ -298,8 +298,8 @@ class NmpcWithDOBNode(Node):
         f_dist = wrench_body[0:3]       # [f_x, f_y, f_z]
         tau_dist = wrench_body[3:6]     # [tau_x, tau_y, tau_z]
 
-        # Ground contact detection: if NMPC thrust < hover weight, drone is on ground
-        on_ground = u_mpc[0] < self.W
+        # Ground contact detection: thrust < hover weight AND altitude < 2cm
+        on_ground = (u_mpc[0] < self.W) and (state_body[2] < 0.02)
 
         if on_ground:
             if self.ref_state[2] < 0.01:
