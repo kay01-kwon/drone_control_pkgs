@@ -28,7 +28,7 @@ def _launch_bag_record(context):
         '/uav/cmd_raw',
         '/uav/actual_rpm',
         '/uav/rotor_state',
-        '/mavros/local_position/odom_sim',
+        '/mavros/local_position/odom',
         '/nmpc/ref',
         filtered_odom_topic,
         dob_wrench_topic,
