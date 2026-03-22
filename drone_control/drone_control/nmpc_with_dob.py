@@ -298,28 +298,29 @@ class NmpcWithDOBNode(Node):
         f_dist = wrench_body[0:3]       # [f_x, f_y, f_z]
         tau_dist = wrench_body[3:6]     # [tau_x, tau_y, tau_z]
 
-        if self.moment_ff_flag is True:
-            if u_mpc[0] < self.W and state_body[2] < 0.010:
-                if self.ref_state[2] < 0.01:
-                    f_comp = 1*6.0
+        # Ground contact detection: if NMPC thrust < hover weight, drone is on ground
+        on_ground = u_mpc[0] < self.W
+
+        if on_ground:
+            if self.ref_state[2] < 0.01:
+                # Stay on ground / landing: minimal thrust
+                f_comp = 1*6.0
+                if self.moment_ff_flag is True:
                     M_comp = self.M_ff
                 else:
-                    f_comp = u_mpc[0] - f_dist[2]
-                    M_comp = u_mpc[1:4] + self.M_ff
-            else:
-                f_comp = u_mpc[0] - f_dist[2]
-                M_comp = u_mpc[1:4] - tau_dist
-        else:
-            if u_mpc[0] < self.W and state_body[2] < 0.010:
-                if self.ref_state[2] < 0.01:
-                    f_comp = 1*6.0
                     M_comp = np.zeros((3,))
-                else:
-                    f_comp = u_mpc[0] - f_dist[2]
-                    M_comp = u_mpc[1:4] - tau_dist
             else:
-                f_comp = u_mpc[0] - f_dist[2]
-                M_comp = u_mpc[1:4] - tau_dist
+                # Takeoff phase: use NMPC output directly, no DOB compensation
+                # DOB estimates are unreliable on the ground (ground effect, friction)
+                f_comp = u_mpc[0]
+                if self.moment_ff_flag is True:
+                    M_comp = u_mpc[1:4] + self.M_ff
+                else:
+                    M_comp = u_mpc[1:4]
+        else:
+            # In flight (u_mpc[0] >= W): full DOB compensation
+            f_comp = u_mpc[0] - f_dist[2]
+            M_comp = u_mpc[1:4] - tau_dist
 
         self.des_rotor_rpm_comp = (self.control_allocator
                                    .compute_relaxed_des_rpm(f_comp, M_comp,
@@ -381,22 +382,20 @@ class NmpcWithDOBNode(Node):
 
     def _set_rpm_zero(self):
         """Set the cmd rpm to zero"""
-        for i in range(6):
-            self.des_rotor_rpm_comp_prev[i] = 0
-        filtered_rpm = self.cmd_lpf.filter(self.des_rotor_rpm_comp,
-                                           self.control_period)
+        zero_rpm = np.zeros((6,))
+        self.des_rotor_rpm_comp_prev[:] = 0
+        self.cmd_lpf.reset(zero_rpm)
         cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
-                                                  filtered_rpm)
+                                                  zero_rpm)
         self.cmd_pub.publish(cmd_msg)
 
     def _set_idle_rpm(self):
-        """Set the idle rpm to zero"""
-        for i in range(6):
-            self.des_rotor_rpm_comp_prev[i] = 2000
-        filtered_rpm = self.cmd_lpf.filter(self.des_rotor_rpm_comp,
-                                           self.control_period)
+        """Set the idle rpm"""
+        idle_rpm = 2000.0 * np.ones((6,))
+        self.des_rotor_rpm_comp_prev[:] = 2000
+        self.cmd_lpf.reset(idle_rpm)
         cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
-                                                  filtered_rpm)
+                                                  idle_rpm)
         self.cmd_pub.publish(cmd_msg)
 
     def _load_parameters(self):
