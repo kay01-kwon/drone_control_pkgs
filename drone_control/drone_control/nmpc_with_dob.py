@@ -296,7 +296,7 @@ class NmpcWithDOBNode(Node):
             if u_mpc[0] < self.W and state_body[2] < 0.010:
                 if self.ref_state[2] < 0.01:
                     f_comp = 1*6.0
-                    M_comp = self.M_ff
+                    M_comp = np.zeros((3,))
                 else:
                     f_comp = u_mpc[0] - f_dist[2]
                     M_comp = u_mpc[1:4] + self.M_ff
@@ -316,9 +316,7 @@ class NmpcWithDOBNode(Node):
                 M_comp = u_mpc[1:4] - tau_dist
 
         self.des_rotor_rpm_comp = (self.control_allocator
-                                   .compute_relaxed_des_rpm(f_comp, M_comp,
-                                    self.des_rotor_rpm_comp,
-                                    self.control_period))
+                                   .compute_des_rpm(f_comp, M_comp))
 
         # Convert to RPM and publish
         cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
