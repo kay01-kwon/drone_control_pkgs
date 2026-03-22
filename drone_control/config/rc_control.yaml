@@ -28,6 +28,7 @@
       rotor_min: 2000.0     # Minimum RPM
       acc_max: 15000.0    # Acc 15 krpm/s
       acc_min: 15000.0    # Dec 15 krpm/s
+      cmd_lpf_cutoff: 10.0  # LPF cutoff frequency [Hz] for cmd output
 
     sensor_time_param:
       timeout:
