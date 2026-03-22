@@ -136,6 +136,9 @@ class S550_Ocp:
         :return: status, u(u1...u6)
         '''
         
+        # Copy state to avoid mutating the caller's buffer
+        state = state.copy()
+
         # Transform velocity from body frame to world frame
         v_body = state[3:6]
         q = state[6:10]

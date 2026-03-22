@@ -6,6 +6,9 @@ class LowPassFilter(object):
         self.cutoff_freq = cutoff_freq
         self.output = np.zeros((6,))
 
+    def reset(self, value):
+        self.output = value.copy()
+
     def filter(self, input, dt):
         beta = np.exp(-2.0*np.pi*self.cutoff_freq * dt)
         self.output = beta*self.output + (1-beta)*input

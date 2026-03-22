@@ -152,16 +152,16 @@ class RcControlNode(Node):
 
         if self.mode == FlightMode.KILL:
             self.rc_control.initialized = False
-            for i in range(len(self.des_rpm)):
-                self.des_rpm[i] = 0
+            self.des_rpm[:] = 0
+            self.cmd_lpf.reset(self.des_rpm)
         elif self.mode == FlightMode.DISARMED:
             self.rc_control.initialized = False
-            for i in range(len(self.des_rpm)):
-                self.des_rpm[i] = 0
+            self.des_rpm[:] = 0
+            self.cmd_lpf.reset(self.des_rpm)
         elif self.mode == FlightMode.ARMED:
             self.rc_control.initialized = False
-            for i in range(len(self.des_rpm)):
-                self.des_rpm[i] = 2000
+            self.des_rpm[:] = 2000
+            self.cmd_lpf.reset(self.des_rpm)
         elif self.mode == FlightMode.MANUAL_STAB:
             cmd_vel = self.rc_state_buf.get_latest()[1]
             if self.wrench_buf.is_empty():
