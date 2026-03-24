@@ -332,10 +332,12 @@ class NmpcWithDOBNode(Node):
                                                             self.control_period))
 
         # Apply LPF and convert to CMD
-        filtered_rpm = self.cmd_lpf.filter(self.des_rotor_rpm_comp,
-                                           self.control_period)
+        # filtered_rpm = self.cmd_lpf.filter(self.des_rotor_rpm_comp,
+        #                                    self.control_period)
+        # cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
+        #                                           filtered_rpm)
         cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
-                                                  filtered_rpm)
+                                                  self.des_rotor_rpm_comp)
 
         nmpc_msg = WrenchStamped()
         nmpc_msg.header.stamp = self.get_clock().now().to_msg()
