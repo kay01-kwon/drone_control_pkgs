@@ -30,8 +30,9 @@ def _launch_bag_record(context):
         '/uav/rotor_state',
         '/mavros/local_position/odom',
         '/nmpc/ref',
-        filtered_odom_topic,
-        dob_wrench_topic,
+        '/nmpc/control',
+        '/hgdo/wrench',
+        '/l1_adaptive/wrench'
     ]
 
     bag_name = LaunchConfiguration('bag_name').perform(context)

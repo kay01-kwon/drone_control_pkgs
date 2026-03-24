@@ -21,6 +21,6 @@
     topic_names:
       odom_in: "/mavros/local_position/odom_sim"
       filtered_odom: "/l1_adaptive/filtered_odom"
-      actual_rpm: "/uav/rotor_state"
+      actual_rpm: "/uav/actual_rpm"
       base_line_control: "/nmpc/control"
       dob_wrench: "/l1_adaptive/wrench"
