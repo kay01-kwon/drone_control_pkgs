@@ -9,14 +9,14 @@
 
     l1_adaptive:
       dob_looptime: 0.010
-      As_array: [-10.0, -10.0, -10.0,    # vx, vy, vz (Body frame)
-                 -10.0, -10.0, -10.0]    # wx, wy ,wz (Body frame)
-      freq_cutoff_trans: 20.0
-      freq_cutoff_rot: 20.0
+      As_array: [-20.0, -20.0, -20.0,    # vx, vy, vz (Body frame)
+                 -20.0, -20.0, -20.0]    # wx, wy ,wz (Body frame)
+      freq_cutoff_trans: 2.0
+      freq_cutoff_rot: 2.0
 
     lpf:
-      lin_vel_cutoff: 20.0
-      ang_vel_cutoff: 60.0
+      lin_vel_cutoff: 100.0
+      ang_vel_cutoff: 100.0
 
     topic_names:
       odom_in: "/mavros/local_position/odom_sim"
