@@ -337,9 +337,18 @@ class NmpcWithDOBNode(Node):
         f_dist = wrench_body[0:3]       # [f_x, f_y, f_z]
         tau_dist = wrench_body[3:6]     # [tau_x, tau_y, tau_z]
 
-        # Full DOB compensation in flight
-        f_comp = u_mpc[0] - f_dist[2]
-        M_comp = u_mpc[1:4] - tau_dist
+        if state_body[2] >= 0.015:
+            # Full DOB compensation in flight
+            f_comp = u_mpc[0] - f_dist
+            M_comp = u_mpc[1:4] - tau_dist
+        else:
+            # Moment DOB compensation on ground
+            f_comp = u_mpc[0]
+            if self.moment_ff_flag is True:
+                M_comp = u_mpc[1:4] - self.M_ff.copy()
+            else:
+                M_comp = u_mpc[1:4] - tau_dist
+                M_comp[2] = 0.0
 
         self.des_rotor_rpm_comp = (self.control_allocator
                                    .compute_relaxed_des_rpm(f_comp, M_comp,
