@@ -56,28 +56,23 @@ def cdr_align(off, alignment, cdr_start=4):
 
 
 def parse_odom(data):
-    """Parse nav_msgs/Odometry CDR → (timestamp, roll, pitch, yaw)."""
+    """Parse nav_msgs/Odometry CDR2 → (timestamp, roll, pitch, yaw).
+    CDR2 adds 4-byte DHEADER before PoseWithCovariance.
+    Fixed offsets: position=44, quaternion=68.
+    """
     off = 4  # CDR header
     sec = struct.unpack_from('<I', data, off)[0]; off += 4
     nsec = struct.unpack_from('<I', data, off)[0]; off += 4
-    # frame_id string
-    flen = struct.unpack_from('<I', data, off)[0]; off += 4
-    off += flen
-    off = cdr_align(off, 4)
-    # child_frame_id string
-    flen = struct.unpack_from('<I', data, off)[0]; off += 4
-    off += flen
-    # Align to 8 bytes for float64 position
-    off = cdr_align(off, 8)
-    # Pose: position (3 x float64) + orientation (4 x float64)
-    px, py, pz = struct.unpack_from('<3d', data, off); off += 24
-    qx, qy, qz, qw = struct.unpack_from('<4d', data, off); off += 32
+
+    # quaternion at fixed offset 68 (after CDR2 DHEADER)
+    qx, qy, qz, qw = struct.unpack_from('<4d', data, 68)
 
     t = sec + nsec * 1e-9
-    norm = np.sqrt(qx**2 + qy**2 + qz**2 + qw**2)
-    if norm < 1e-10:
+    q = np.array([qx, qy, qz, qw], dtype=np.float64)
+    norm = np.linalg.norm(q)
+    if not np.isfinite(norm) or norm < 1e-10:
         return t, 0.0, 0.0, 0.0
-    r = Rotation.from_quat([qx, qy, qz, qw])
+    r = Rotation.from_quat(q / norm)
     roll, pitch, yaw = r.as_euler('xyz', degrees=True)
     return t, roll, pitch, yaw
 
