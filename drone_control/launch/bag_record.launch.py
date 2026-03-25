@@ -17,18 +17,18 @@ def _launch_bag_record(context):
 
     dob_type = cfg['bag_record']['dob_type']
 
-    if dob_type == 'hgdo':
-        dob_wrench_topic = '/hgdo/wrench'
-        filtered_odom_topic = '/hgdo/filtered_odom'
-    else:
-        dob_wrench_topic = '/l1_adaptive/wrench'
-        filtered_odom_topic = '/l1_adaptive/filtered_odom'
+    # if dob_type == 'hgdo':
+    #     dob_wrench_topic = '/hgdo/wrench'
+    #     filtered_odom_topic = '/hgdo/filtered_odom'
+    # else:
+    #     dob_wrench_topic = '/l1_adaptive/wrench'
+    #     filtered_odom_topic = '/l1_adaptive/filtered_odom'
 
     topics = [
         '/uav/cmd_raw',
         '/uav/actual_rpm',
-        '/uav/rotor_state',
         '/mavros/local_position/odom',
+        '/mavros/rc/in',
         '/nmpc/ref',
         '/nmpc/control',
         '/hgdo/wrench',
