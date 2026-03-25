@@ -366,7 +366,7 @@ class NmpcWithDOBNode(Node):
             # On ground: NMPC thrust only
             f_comp = u_mpc[0]
             
-            if self.moment_ff_flag is True:
+            if self.moment_ff_flag is True and state_body[2] < 0.02:
                 # On ground with moment feedforward: use feedforward moment without DOB compensation
                 M_comp = self.M_ff.copy()
             else:
