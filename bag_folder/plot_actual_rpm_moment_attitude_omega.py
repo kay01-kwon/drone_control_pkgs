@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plot moments from actual RPM, roll/pitch, and angular velocities (3 rows)."""
+"""Plot moments from actual RPM & cmd_raw, roll/pitch, and angular velocities (4 rows)."""
 
 import sqlite3
 import struct
@@ -11,6 +11,8 @@ from scipy.spatial.transform import Rotation
 C_T = 1.465e-07       # N/RPM^2
 k_m = 0.01569          # Nm/N
 l = 0.265              # arm length (m)
+MaxBit = 8191
+MaxRpm = 9800
 
 # ── K_forward matrix (same as existing code) ──
 lx1 = l * np.sin(np.pi / 3); ly1 = l * np.cos(np.pi / 3)
@@ -34,6 +36,18 @@ def cdr_align(off, alignment, cdr_start=4):
     if rem != 0:
         off += alignment - rem
     return off
+
+
+def parse_cmd_raw(data):
+    """Parse HexaCmdRaw CDR → (timestamp, cmd[6])."""
+    off = 4
+    sec = struct.unpack_from('<I', data, off)[0]; off += 4
+    nsec = struct.unpack_from('<I', data, off)[0]; off += 4
+    flen = struct.unpack_from('<I', data, off)[0]; off += 4
+    off += flen
+    off = (off + 3) & ~3
+    cmds = np.array(struct.unpack_from('<6h', data, off), dtype=np.float64)
+    return sec + nsec * 1e-9, cmds
 
 
 def parse_actual_rpm(data):
@@ -85,6 +99,19 @@ def load_bag(db_path):
     c.execute('SELECT id, name FROM topics')
     topics = {name: tid for tid, name in c.fetchall()}
 
+    # ── cmd_raw → moments ──
+    tid = topics['/uav/cmd_raw']
+    c.execute('SELECT timestamp, data FROM messages WHERE topic_id=? ORDER BY timestamp', (tid,))
+    cmd_times, cmd_Mx, cmd_My = [], [], []
+    for ts, data in c.fetchall():
+        t, cmds = parse_cmd_raw(data)
+        rpms = cmds * MaxRpm / MaxBit
+        thrusts = C_T * rpms ** 2
+        u = K_forward @ thrusts
+        cmd_times.append(t)
+        cmd_Mx.append(u[1])
+        cmd_My.append(u[2])
+
     # ── actual_rpm → moments ──
     tid = topics['/uav/actual_rpm']
     c.execute('SELECT timestamp, data FROM messages WHERE topic_id=? ORDER BY timestamp', (tid,))
@@ -114,29 +141,40 @@ def load_bag(db_path):
 
     conn.close()
 
+    cmd_times = np.array(cmd_times)
     rpm_times = np.array(rpm_times)
     odom_times = np.array(odom_times)
-    t0 = min(rpm_times[0], odom_times[0])
+    t0 = rpm_times[0]  # reference time = actual_rpm start
+    cmd_times -= t0
     rpm_times -= t0
     odom_times -= t0
 
-    return (rpm_times, np.array(Mx_list), np.array(My_list), np.array(Mz_list),
+    return (cmd_times, np.array(cmd_Mx), np.array(cmd_My),
+            rpm_times, np.array(Mx_list), np.array(My_list), np.array(Mz_list),
             odom_times, np.array(rolls), np.array(pitches),
             np.array(wxs), np.array(wys), np.array(wzs))
 
 
 # ── Load ──
 db_path = '/home/user/drone_control_pkgs/bag_folder/2026_03_22_nmpc_2/2026_03_22_nmpc_2_0.db3'
-(rpm_t, Mx, My, Mz, odom_t, roll, pitch, wx, wy, wz) = load_bag(db_path)
+(cmd_t, cmd_Mx, cmd_My,
+ rpm_t, Mx, My, Mz,
+ odom_t, roll, pitch, wx, wy, wz) = load_bag(db_path)
 
-# ── Plot: 3 rows ──
-fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
+# ── Plot: 4 rows ──
+fig, axes = plt.subplots(4, 1, figsize=(14, 12), sharex=True)
 
-color_m = 'tab:red'
-color_a = 'tab:blue'
-
-# Row 1: Moments from actual RPM (Mx, My)
+# Row 1: Moments from cmd_raw
 ax = axes[0]
+ax.plot(cmd_t, cmd_Mx, color='tab:red', alpha=0.8, linewidth=0.8, label='Mx (roll)')
+ax.plot(cmd_t, cmd_My, color='tab:blue', alpha=0.8, linewidth=0.8, label='My (pitch)')
+ax.set_ylabel('Moment (Nm)', fontsize=12)
+ax.set_title('Moments from cmd_raw (commanded)', fontsize=13)
+ax.legend(loc='upper right', fontsize=10)
+ax.grid(True, alpha=0.3)
+
+# Row 2: Moments from actual RPM
+ax = axes[1]
 ax.plot(rpm_t, Mx, color='tab:red', alpha=0.8, linewidth=0.8, label='Mx (roll)')
 ax.plot(rpm_t, My, color='tab:blue', alpha=0.8, linewidth=0.8, label='My (pitch)')
 ax.set_ylabel('Moment (Nm)', fontsize=12)
@@ -144,8 +182,8 @@ ax.set_title('Moments from actual RPM', fontsize=13)
 ax.legend(loc='upper right', fontsize=10)
 ax.grid(True, alpha=0.3)
 
-# Row 2: Roll & Pitch
-ax = axes[1]
+# Row 3: Roll & Pitch
+ax = axes[2]
 ax.plot(odom_t, roll, color='tab:red', alpha=0.8, label='Roll')
 ax.plot(odom_t, pitch, color='tab:blue', alpha=0.8, label='Pitch')
 ax.set_ylabel('Angle (deg)', fontsize=12)
@@ -153,8 +191,8 @@ ax.set_title('Roll & Pitch', fontsize=13)
 ax.legend(loc='upper right', fontsize=10)
 ax.grid(True, alpha=0.3)
 
-# Row 3: Angular velocities (wx, wy, wz)
-ax = axes[2]
+# Row 4: Angular velocities (wx, wy, wz)
+ax = axes[3]
 ax.plot(odom_t, wx, color='tab:red', alpha=0.8, linewidth=0.8, label=r'$\omega_x$')
 ax.plot(odom_t, wy, color='tab:blue', alpha=0.8, linewidth=0.8, label=r'$\omega_y$')
 ax.plot(odom_t, wz, color='tab:green', alpha=0.8, linewidth=0.8, label=r'$\omega_z$')
