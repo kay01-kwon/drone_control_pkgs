@@ -132,9 +132,9 @@ ros2 launch drone_control rc_control.launch.py
 
 - [x] NMPC - Moment feedforward
 
-- [ ] NMPC/RC integration with DOB (Integration)
+- [x] NMPC/RC integration with DOB (Integration)
 
-3. Rotor state estimator
+3. Rotor state estimator (Deprecated)
 
 - [x] Kalman filter with constraint inequality
 
