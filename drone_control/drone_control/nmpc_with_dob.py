@@ -25,6 +25,7 @@ from drone_msgs.msg import Ref
 from mavros_msgs.msg import RCIn
 from geometry_msgs.msg import WrenchStamped
 from ros2_libcanard_msgs.msg import HexaCmdRaw
+from ros2_libcanard_msgs.msg import HexaActualRpm
 
 from drone_control.rc_control import RcConverter
 from drone_control.rc_control import FlightMode, RcModeStr
@@ -110,6 +111,9 @@ class NmpcWithDOBNode(Node):
         self.des_rotor_rpm_comp_prev = np.zeros_like(self.des_rotor_thrust_mpc)
         self.C_T = self.drone_param['motor_const'] if hasattr(self, 'drone_param') else 1.386e-7
 
+        # Actual RPM → total thrust for ground/flight detection
+        self.actual_total_thrust = 0.0
+
         # LPF for cmd output
         cmd_lpf_cutoff = self.get_parameter('drone_param.cmd_lpf_cutoff').value
         self.cmd_lpf = LowPassFilter(cutoff_freq=cmd_lpf_cutoff)
@@ -152,6 +156,11 @@ class NmpcWithDOBNode(Node):
                                                    dob_wrench_topic,
                                                    callback=self._wrench_dob_callback,
                                                    qos_profile=qos_profile_sensor_data)
+
+        self.actual_rpm_sub = self.create_subscription(HexaActualRpm,
+                                                       '/uav/actual_rpm',
+                                                       callback=self._actual_rpm_callback,
+                                                       qos_profile=qos_profile_sensor_data)
 
         # Create control timer ( 100 Hz )
         self.control_period = 0.01
@@ -223,6 +232,15 @@ class NmpcWithDOBNode(Node):
         self.ref_state[11] = 0.0                    # wy
         self.ref_state[12] = msg.psi_dot            # wz
 
+    def _actual_rpm_callback(self, msg: HexaActualRpm):
+        """
+        Actual RPM callback - computes total thrust from actual RPM
+        for ground/flight state detection
+        """
+        rpms = np.array(msg.rpm, dtype=np.float64)
+        thrusts = self.C_T * rpms ** 2
+        self.actual_total_thrust = np.sum(thrusts)
+
     def _wrench_dob_callback(self, msg:WrenchStamped):
         """
         DOB wrench callback - stores latest disturbance estimate in buffer
@@ -274,10 +292,10 @@ class NmpcWithDOBNode(Node):
         # Get the latest state
         _, state_body = self.odom_buffer.get_latest()
 
-        # Ground contact detection: altitude < 2cm AND no takeoff reference
-        on_ground = (state_body[2] < 0.02) and (self.ref_state[2] < 0.01)
+        # Takeoff condition: ref altitude >= 1cm triggers NMPC solver
+        take_off_cond = self.ref_state[2] >= 0.01
 
-        if on_ground:
+        if not take_off_cond:
             # On ground: skip solver, fix thrust at 1N/rotor (6N total)
             self.des_rotor_thrust_mpc = 1.0 * np.ones(6)
             self.nmpc_solver.previous_states = None  # reset warm-start
@@ -337,18 +355,18 @@ class NmpcWithDOBNode(Node):
         f_dist = wrench_body[0:3]       # [f_x, f_y, f_z]
         tau_dist = wrench_body[3:6]     # [tau_x, tau_y, tau_z]
 
-        if state_body[2] >= 0.015:
+        # Airborne detection: actual total thrust >= weight
+        airborne = self.actual_total_thrust >= self.W
+
+        if airborne:
             # Full DOB compensation in flight
-            f_comp = u_mpc[0] - f_dist
+            f_comp = u_mpc[0] - f_dist[2]
             M_comp = u_mpc[1:4] - tau_dist
         else:
-            # Moment DOB compensation on ground
+            # On ground: NMPC thrust only, DOB moment compensation only
             f_comp = u_mpc[0]
-            if self.moment_ff_flag is True:
-                M_comp = u_mpc[1:4] - self.M_ff.copy()
-            else:
-                M_comp = u_mpc[1:4] - tau_dist
-                M_comp[2] = 0.0
+            M_comp = u_mpc[1:4] - tau_dist
+            M_comp[2] = 0.0
 
         self.des_rotor_rpm_comp = (self.control_allocator
                                    .compute_relaxed_des_rpm(f_comp, M_comp,
