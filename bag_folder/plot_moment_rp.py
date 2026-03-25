@@ -132,7 +132,7 @@ def load_bag(db_path):
 
 
 # ── Load data ──
-db_path = '/home/user/drone_control_pkgs/bag_folder/2026_03_22_nmpc_2/2026_03_22_nmpc_2_0.db3'
+db_path = '/home/user/drone_control_pkgs/bag_folder/2026_03_25_nmpc_01_1/2026_03_25_nmpc_01_1_0.db3'
 (cmd_t, F, Mx, My, Mz, odom_t, roll, pitch) = load_bag(db_path)
 
 # ── Plot ──
