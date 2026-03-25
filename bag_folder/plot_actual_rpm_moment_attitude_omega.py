@@ -45,7 +45,7 @@ def parse_cmd_raw(data):
     nsec = struct.unpack_from('<I', data, off)[0]; off += 4
     flen = struct.unpack_from('<I', data, off)[0]; off += 4
     off += flen
-    off = (off + 3) & ~3
+    if off % 2 != 0: off += 1  # align to 2 bytes for int16
     cmds = np.array(struct.unpack_from('<6h', data, off), dtype=np.float64)
     return sec + nsec * 1e-9, cmds
 
