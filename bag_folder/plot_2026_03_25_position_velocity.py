@@ -24,20 +24,20 @@ c = conn.cursor()
 c.execute('SELECT data FROM messages WHERE topic_id=5 ORDER BY timestamp')
 times, px_l, py_l, pz_l, vx_w, vy_w, vz_w = [], [], [], [], [], [], []
 for data, in c.fetchall():
-    off = 4
-    sec = struct.unpack_from('<I', data, off)[0]; off += 4
-    nsec = struct.unpack_from('<I', data, off)[0]; off += 4
-    flen = struct.unpack_from('<I', data, off)[0]; off += 4
-    off += flen; off = cdr_align(off, 4)
-    flen = struct.unpack_from('<I', data, off)[0]; off += 4
-    off += flen; off = cdr_align(off, 8)
-    px, py, pz = struct.unpack_from('<3d', data, off); off += 24
-    qx, qy, qz, qw = struct.unpack_from('<4d', data, off); off += 32
-    off += 288  # pose covariance
-    vx, vy, vz = struct.unpack_from('<3d', data, off)
+    # CDR2: timestamp at off=4, position at off=44, quaternion at off=68,
+    # twist.linear at off=388 (after 4-byte DHEADER before PoseWithCovariance)
+    sec = struct.unpack_from('<I', data, 4)[0]
+    nsec = struct.unpack_from('<I', data, 8)[0]
+    px, py, pz = struct.unpack_from('<3d', data, 44)
+    qx, qy, qz, qw = struct.unpack_from('<4d', data, 68)
+    vx, vy, vz = struct.unpack_from('<3d', data, 388)
 
     # Body → World
-    R = Rotation.from_quat([qx, qy, qz, qw]).as_matrix()
+    q = np.array([qx, qy, qz, qw], dtype=np.float64)
+    norm = np.linalg.norm(q)
+    if not np.isfinite(norm) or norm < 1e-10:
+        continue
+    R = Rotation.from_quat(q / norm).as_matrix()
     v_world = R @ np.array([vx, vy, vz])
 
     times.append(sec + nsec * 1e-9)

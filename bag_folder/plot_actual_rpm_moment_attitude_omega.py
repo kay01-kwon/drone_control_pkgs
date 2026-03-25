@@ -63,32 +63,25 @@ def parse_actual_rpm(data):
 
 
 def parse_odom_full(data):
-    """Parse Odometry CDR → (timestamp, roll, pitch, yaw, wx, wy, wz)."""
+    """Parse Odometry CDR2 → (timestamp, roll, pitch, yaw, wx, wy, wz).
+    CDR2 adds 4-byte DHEADER before PoseWithCovariance.
+    Fixed offsets: position=44, quaternion=68, twist.linear=388, twist.angular=412.
+    """
     off = 4
     sec = struct.unpack_from('<I', data, off)[0]; off += 4
     nsec = struct.unpack_from('<I', data, off)[0]; off += 4
-    # frame_id
-    flen = struct.unpack_from('<I', data, off)[0]; off += 4
-    off += flen
-    off = cdr_align(off, 4)
-    # child_frame_id
-    flen = struct.unpack_from('<I', data, off)[0]; off += 4
-    off += flen
-    off = cdr_align(off, 8)
-    # position (3d) + quaternion (4d)
-    struct.unpack_from('<3d', data, off); off += 24
-    qx, qy, qz, qw = struct.unpack_from('<4d', data, off); off += 32
-    # pose covariance (36d)
-    off += 288
-    # twist: linear (3d) + angular (3d)
-    struct.unpack_from('<3d', data, off); off += 24
-    wx, wy, wz = struct.unpack_from('<3d', data, off)
+
+    # quaternion at fixed offset 68 (after CDR2 DHEADER)
+    qx, qy, qz, qw = struct.unpack_from('<4d', data, 68)
+    # twist angular at fixed offset 412
+    wx, wy, wz = struct.unpack_from('<3d', data, 412)
 
     t = sec + nsec * 1e-9
-    norm = np.sqrt(qx**2 + qy**2 + qz**2 + qw**2)
-    if norm < 1e-10:
-        return t, 0.0, 0.0, 0.0, wx, wy, wz
-    r = Rotation.from_quat([qx, qy, qz, qw])
+    q = np.array([qx, qy, qz, qw], dtype=np.float64)
+    norm = np.linalg.norm(q)
+    if not np.isfinite(norm) or norm < 1e-10:
+        return t, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+    r = Rotation.from_quat(q / norm)
     roll, pitch, yaw = r.as_euler('xyz', degrees=True)
     return t, roll, pitch, yaw, wx, wy, wz
 
