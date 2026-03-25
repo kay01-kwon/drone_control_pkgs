@@ -122,7 +122,7 @@ def load_bag(db_path):
     # Convert to arrays and make time relative
     cmd_times = np.array(cmd_times)
     odom_times = np.array(odom_times)
-    t0 = min(cmd_times[0], odom_times[0])
+    t0 = cmd_times[0]  # reference time = cmd_raw (moment) start
     cmd_times -= t0
     odom_times -= t0
 
@@ -132,7 +132,7 @@ def load_bag(db_path):
 
 
 # ── Load data ──
-db_path = '/home/user/drone_control_pkgs/bag_folder/2026_03_22_nmpc/2026_03_22_nmpc_0.db3'
+db_path = '/home/user/drone_control_pkgs/bag_folder/2026_03_22_nmpc_2/2026_03_22_nmpc_2_0.db3'
 (cmd_t, F, Mx, My, Mz, odom_t, roll, pitch) = load_bag(db_path)
 
 # ── Plot ──
