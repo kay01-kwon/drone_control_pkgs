@@ -274,7 +274,46 @@ class NmpcWithDOBNode(Node):
         # Get the latest state
         _, state_body = self.odom_buffer.get_latest()
 
-        # Solve NMPC
+        # Ground contact detection: altitude < 2cm AND no takeoff reference
+        on_ground = (state_body[2] < 0.02) and (self.ref_state[2] < 0.01)
+
+        if on_ground:
+            # On ground: skip solver, fix thrust at 1N/rotor (6N total)
+            self.des_rotor_thrust_mpc = 1.0 * np.ones(6)
+            self.nmpc_solver.previous_states = None  # reset warm-start
+
+            f_comp = 1.0 * 6.0
+            if self.moment_ff_flag is True:
+                M_comp = self.M_ff.copy()
+            else:
+                M_comp = np.zeros((3,))
+            M_comp[2] = 0.0
+
+            u_mpc = self.control_allocator.compute_u_from_rotor_thrusts(
+                self.des_rotor_thrust_mpc)
+
+            self.des_rotor_rpm_comp = (self.control_allocator
+                                       .compute_relaxed_des_rpm(f_comp, M_comp,
+                                                                self.des_rotor_rpm_comp_prev,
+                                                                self.control_period))
+
+            cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
+                                                      self.des_rotor_rpm_comp)
+
+            nmpc_msg = WrenchStamped()
+            nmpc_msg.header.stamp = self.get_clock().now().to_msg()
+            nmpc_msg.header.frame_id = 'nmpc'
+            nmpc_msg.wrench.force.z = f_comp
+            nmpc_msg.wrench.torque.x = M_comp[0]
+            nmpc_msg.wrench.torque.y = M_comp[1]
+            nmpc_msg.wrench.torque.z = M_comp[2]
+
+            self.cmd_pub.publish(cmd_msg)
+            self.nmpc_pub.publish(nmpc_msg)
+            self.des_rotor_rpm_comp_prev = self.des_rotor_rpm_comp
+            return
+
+        # In flight or takeoff: solve NMPC
         solve_start = time.time()
         status, rotor_thrust_nmpc = self.nmpc_solver.solve(
             state = state_body,
@@ -298,33 +337,9 @@ class NmpcWithDOBNode(Node):
         f_dist = wrench_body[0:3]       # [f_x, f_y, f_z]
         tau_dist = wrench_body[3:6]     # [tau_x, tau_y, tau_z]
 
-        # Ground contact detection: thrust < hover weight AND altitude < 2cm
-        on_ground = (u_mpc[0] < self.W) and (state_body[2] < 0.02)
-
-        if on_ground:
-            if self.ref_state[2] < 0.01:
-                # Stay on ground / landing: minimal thrust, no DOB
-                f_comp = 1*6.0
-                if self.moment_ff_flag is True:
-                    M_comp = self.M_ff.copy()
-                else:
-                    M_comp = np.zeros((3,))
-                # No Mz compensation on ground
-                M_comp[2] = 0.0
-            else:
-                # Takeoff phase: use NMPC output directly, no DOB compensation
-                # DOB estimates are unreliable on the ground (ground effect, friction)
-                f_comp = u_mpc[0]
-                if self.moment_ff_flag is True:
-                    M_comp = u_mpc[1:4] + self.M_ff
-                else:
-                    M_comp = u_mpc[1:4]
-                # No Mz compensation on ground
-                M_comp[2] = u_mpc[3]
-        else:
-            # In flight (u_mpc[0] >= W): full DOB compensation
-            f_comp = u_mpc[0] - f_dist[2]
-            M_comp = u_mpc[1:4] - tau_dist
+        # Full DOB compensation in flight
+        f_comp = u_mpc[0] - f_dist[2]
+        M_comp = u_mpc[1:4] - tau_dist
 
         self.des_rotor_rpm_comp = (self.control_allocator
                                    .compute_relaxed_des_rpm(f_comp, M_comp,
