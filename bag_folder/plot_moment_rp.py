@@ -110,12 +110,13 @@ def load_bag(db_path):
     # ── Load odom ──
     tid = topics['/mavros/local_position/odom']
     c.execute('SELECT timestamp, data FROM messages WHERE topic_id=? ORDER BY timestamp', (tid,))
-    odom_times, rolls, pitches = [], [], []
+    odom_times, rolls, pitches, yaws = [], [], [], []
     for ts, data in c.fetchall():
         t, roll, pitch, yaw = parse_odom(data)
         odom_times.append(t)
         rolls.append(roll)
         pitches.append(pitch)
+        yaws.append(yaw)
 
     conn.close()
 
@@ -128,21 +129,21 @@ def load_bag(db_path):
 
     return (cmd_times, np.array(forces), np.array(moments_x),
             np.array(moments_y), np.array(moments_z),
-            odom_times, np.array(rolls), np.array(pitches))
+            odom_times, np.array(rolls), np.array(pitches), np.array(yaws))
 
 
 # ── Load data ──
 db_path = '/home/user/drone_control_pkgs/bag_folder/2026_03_25_nmpc_01_1/2026_03_25_nmpc_01_1_0.db3'
-(cmd_t, F, Mx, My, Mz, odom_t, roll, pitch) = load_bag(db_path)
+(cmd_t, F, Mx, My, Mz, odom_t, roll, pitch, yaw) = load_bag(db_path)
 
 # ── Plot ──
-fig, axes = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
+fig, axes = plt.subplots(3, 1, figsize=(14, 11), sharex=True)
 
-# Roll + Mx
-ax1 = axes[0]
 color_angle = 'tab:blue'
 color_moment = 'tab:red'
 
+# Roll + Mx
+ax1 = axes[0]
 ax1.set_ylabel('Roll (deg)', color=color_angle, fontsize=12)
 ax1.plot(odom_t, roll, color=color_angle, alpha=0.8, label='Roll')
 ax1.tick_params(axis='y', labelcolor=color_angle)
@@ -165,8 +166,21 @@ ax2_twin.set_ylabel('My (Nm)', color=color_moment, fontsize=12)
 ax2_twin.plot(cmd_t, My, color=color_moment, alpha=0.6, linewidth=0.8, label='My (from cmd_raw)')
 ax2_twin.tick_params(axis='y', labelcolor=color_moment)
 ax2.set_title('Pitch angle vs Pitch moment (My) from cmd_raw', fontsize=13)
-ax2.set_xlabel('Time (s)', fontsize=12)
 ax2.grid(True, alpha=0.3)
+
+# Yaw + Mz
+ax3 = axes[2]
+ax3.set_ylabel('Yaw (deg)', color=color_angle, fontsize=12)
+ax3.plot(odom_t, yaw, color=color_angle, alpha=0.8, label='Yaw')
+ax3.tick_params(axis='y', labelcolor=color_angle)
+
+ax3_twin = ax3.twinx()
+ax3_twin.set_ylabel('Mz (Nm)', color=color_moment, fontsize=12)
+ax3_twin.plot(cmd_t, Mz, color=color_moment, alpha=0.6, linewidth=0.8, label='Mz (from cmd_raw)')
+ax3_twin.tick_params(axis='y', labelcolor=color_moment)
+ax3.set_title('Yaw angle vs Yaw moment (Mz) from cmd_raw', fontsize=13)
+ax3.set_xlabel('Time (s)', fontsize=12)
+ax3.grid(True, alpha=0.3)
 
 plt.tight_layout()
 plt.savefig('/home/user/drone_control_pkgs/bag_folder/moment_vs_roll_pitch.png', dpi=150)
