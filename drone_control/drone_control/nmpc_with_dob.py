@@ -114,6 +114,9 @@ class NmpcWithDOBNode(Node):
         # Actual RPM → total thrust for ground/flight detection
         self.actual_total_thrust = 0.0
 
+        # Initial pz offset (from mocap)
+        self.pz_offset = None
+
         # LPF for cmd output
         cmd_lpf_cutoff = self.get_parameter('drone_param.cmd_lpf_cutoff').value
         self.cmd_lpf = LowPassFilter(cutoff_freq=cmd_lpf_cutoff)
@@ -193,6 +196,12 @@ class NmpcWithDOBNode(Node):
         """
 
         odom_time, odom_data = MsgParser.parse_odom_msg(msg)
+
+        # Subtract initial pz offset (mocap height above ground)
+        if self.pz_offset is None:
+            self.pz_offset = odom_data[2]
+            self.get_logger().info(f'Initial pz offset: {self.pz_offset:.4f} m')
+        odom_data[2] -= self.pz_offset
 
         if self.odom_buffer.is_full():
             self.odom_buffer.pop()
