@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation
 
 # ── Constants ──
-C_T = 1.465e-07
+C_T = 1.386e-07
 k_m = 0.01569
 l = 0.265
 MaxBit = 8191
@@ -244,7 +244,7 @@ def plot_bag(bag_name, db_path):
     # ── Detect liftoff time: first time cmd_raw total thrust > mg ──
     # Note: actual RPM never exceeded W (29N max vs 30.9N W) — drone flipped before liftoff.
     # Using cmd thrust as proxy for when controller intended liftoff.
-    m = 3.146  # kg (from nmpc_with_hgdo.yaml)
+    m = 3.144  # kg
     W = m * 9.81
     cmd_total_thrust = d['cmd_F']
     liftoff_t = None
