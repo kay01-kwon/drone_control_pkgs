@@ -177,14 +177,19 @@ def load_bag(db_path):
     t0 = odom_t[0]
     odom_t -= t0; mocap_t -= t0; cmd_t -= t0; rpm_t -= t0; hgdo_t -= t0
 
-    # Subtract initial mocap pz offset
+    # Subtract initial pz offset (both EKF2 and mocap)
+    ekf_pz = np.array(ekf_pz)
+    ekf_pz_offset = ekf_pz[0]
+    ekf_pz = ekf_pz - ekf_pz_offset
+
     mocap_pz = np.array(mocap_pz)
     mocap_pz_offset = mocap_pz[0]
     mocap_pz = mocap_pz - mocap_pz_offset
 
     return dict(
         odom_t=odom_t,
-        ekf_px=np.array(ekf_px), ekf_py=np.array(ekf_py), ekf_pz=np.array(ekf_pz),
+        ekf_px=np.array(ekf_px), ekf_py=np.array(ekf_py), ekf_pz=ekf_pz,
+        ekf_pz_offset=ekf_pz_offset,
         ekf_vx=np.array(ekf_vx_w), ekf_vy=np.array(ekf_vy_w), ekf_vz=np.array(ekf_vz_w),
         ekf_roll=np.array(ekf_roll), ekf_pitch=np.array(ekf_pitch), ekf_yaw=np.array(ekf_yaw),
         ekf_wx=np.array(ekf_wx), ekf_wy=np.array(ekf_wy), ekf_wz=np.array(ekf_wz),
@@ -217,7 +222,7 @@ def plot_bag(bag_name, db_path):
     ax.plot(d['mocap_t'], d['mocap_py'], 'tab:blue', lw=0.8, ls='--', alpha=0.6, label='mocap y')
     ax.plot(d['mocap_t'], d['mocap_pz'], 'tab:green', lw=0.8, ls='--', alpha=0.6, label='mocap z')
     ax.set_ylabel('Position (m)')
-    ax.set_title(f'Position - EKF2 (solid) vs Mocap (dashed, pz0={d["mocap_pz_offset"]:.3f}m subtracted) ({bag_name})')
+    ax.set_title(f'Position - EKF2 (solid, pz0={d["ekf_pz_offset"]:.3f}m sub) vs Mocap (dashed, pz0={d["mocap_pz_offset"]:.3f}m sub) ({bag_name})')
     ax.legend(loc='upper right', fontsize=9, ncol=2)
     ax.grid(True, alpha=0.3)
 
@@ -236,31 +241,32 @@ def plot_bag(bag_name, db_path):
     plt.savefig(out, dpi=150); plt.close()
     print(f'Saved: {out}')
 
-    # ── 2. cmd_raw moments + RPY (4 rows) ──
-    fig, axes = plt.subplots(4, 1, figsize=(14, 12), sharex=True)
+    # ── 2. cmd_raw moment + angle paired by axis (3 rows x 2 cols) ──
+    fig, axes = plt.subplots(3, 2, figsize=(16, 10), sharex=True)
 
-    ax = axes[0]
-    ax.plot(d['cmd_t'], d['cmd_Mx'], 'tab:red', lw=0.8, label='Mx (roll)')
-    ax.plot(d['cmd_t'], d['cmd_My'], 'tab:blue', lw=0.8, label='My (pitch)')
-    ax.plot(d['cmd_t'], d['cmd_Mz'], 'tab:green', lw=0.8, label='Mz (yaw)')
-    ax.set_ylabel('Moment (Nm)')
-    ax.set_title(f'Moments from cmd_raw ({bag_name})')
-    ax.legend(loc='upper right', fontsize=10)
-    ax.grid(True, alpha=0.3)
-
-    for i, (label, ekf_key, mocap_key) in enumerate([
-        ('Roll', 'ekf_roll', 'mocap_roll'),
-        ('Pitch', 'ekf_pitch', 'mocap_pitch'),
-        ('Yaw', 'ekf_yaw', 'mocap_yaw'),
+    for i, (m_label, m_key, a_label, ekf_key, mocap_key) in enumerate([
+        ('Mx (roll)', 'cmd_Mx', 'Roll', 'ekf_roll', 'mocap_roll'),
+        ('My (pitch)', 'cmd_My', 'Pitch', 'ekf_pitch', 'mocap_pitch'),
+        ('Mz (yaw)', 'cmd_Mz', 'Yaw', 'ekf_yaw', 'mocap_yaw'),
     ]):
-        ax = axes[i + 1]
+        # Left: moment
+        ax = axes[i, 0]
+        ax.plot(d['cmd_t'], d[m_key], 'tab:blue', lw=0.8)
+        ax.set_ylabel('Moment (Nm)')
+        ax.set_title(f'{m_label} from cmd_raw ({bag_name})')
+        ax.grid(True, alpha=0.3)
+
+        # Right: angle
+        ax = axes[i, 1]
         ax.plot(d['odom_t'], d[ekf_key], 'tab:blue', lw=0.8, label='EKF2')
         ax.plot(d['mocap_t'], d[mocap_key], 'tab:red', lw=0.8, alpha=0.7, label='Mocap')
-        ax.set_ylabel(f'{label} (deg)')
-        ax.set_title(f'{label} ({bag_name})')
-        ax.legend(loc='upper right', fontsize=10)
+        ax.set_ylabel(f'{a_label} (deg)')
+        ax.set_title(f'{a_label} ({bag_name})')
+        ax.legend(loc='upper right', fontsize=9)
         ax.grid(True, alpha=0.3)
-    axes[3].set_xlabel('Time (s)')
+
+    axes[2, 0].set_xlabel('Time (s)')
+    axes[2, 1].set_xlabel('Time (s)')
 
     plt.tight_layout()
     out = f'{base}_cmd_moments_rpy.png'
