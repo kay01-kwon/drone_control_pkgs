@@ -256,37 +256,37 @@ def plot_bag(bag_name, db_path):
             liftoff_t = d['cmd_t'][j]
             break
 
-    # ── 2. cmd_raw moment + angle paired by axis (3 rows x 2 cols) ──
-    fig, axes = plt.subplots(3, 2, figsize=(16, 10), sharex=True)
+    # ── 2. cmd_raw moment + angle paired by axis (3 rows, dual y-axis) ──
+    fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
 
-    for i, (m_label, m_key, a_label, ekf_key, mocap_key) in enumerate([
-        ('Mx (roll)', 'cmd_Mx', 'Roll', 'ekf_roll', 'mocap_roll'),
-        ('My (pitch)', 'cmd_My', 'Pitch', 'ekf_pitch', 'mocap_pitch'),
-        ('Mz (yaw)', 'cmd_Mz', 'Yaw', 'ekf_yaw', 'mocap_yaw'),
+    for i, (m_label, m_key, a_label, ekf_key, mocap_key, m_color, a_color) in enumerate([
+        ('Mx', 'cmd_Mx', 'Roll', 'ekf_roll', 'mocap_roll', 'tab:blue', 'tab:red'),
+        ('My', 'cmd_My', 'Pitch', 'ekf_pitch', 'mocap_pitch', 'tab:blue', 'tab:red'),
+        ('Mz', 'cmd_Mz', 'Yaw', 'ekf_yaw', 'mocap_yaw', 'tab:blue', 'tab:red'),
     ]):
-        # Left: moment
-        ax = axes[i, 0]
-        ax.plot(d['cmd_t'], d[m_key], 'tab:blue', lw=0.8)
-        if liftoff_t is not None:
-            ax.axvline(liftoff_t, color='k', ls='--', lw=0.8, alpha=0.6, label=f'liftoff {liftoff_t:.1f}s')
-            ax.legend(loc='upper right', fontsize=8)
-        ax.set_ylabel('Moment (Nm)')
-        ax.set_title(f'{m_label} from cmd_raw ({bag_name})')
-        ax.grid(True, alpha=0.3)
+        ax1 = axes[i]
+        ln1 = ax1.plot(d['cmd_t'], d[m_key], color=m_color, lw=0.8, label=f'{m_label} (Nm)')
+        ax1.set_ylabel(f'{m_label} Moment (Nm)', color=m_color)
+        ax1.tick_params(axis='y', labelcolor=m_color)
+        ax1.grid(True, alpha=0.3)
 
-        # Right: angle
-        ax = axes[i, 1]
-        ax.plot(d['odom_t'], d[ekf_key], 'tab:blue', lw=0.8, label='EKF2')
-        ax.plot(d['mocap_t'], d[mocap_key], 'tab:red', lw=0.8, alpha=0.7, label='Mocap')
-        if liftoff_t is not None:
-            ax.axvline(liftoff_t, color='k', ls='--', lw=0.8, alpha=0.6)
-        ax.set_ylabel(f'{a_label} (deg)')
-        ax.set_title(f'{a_label} ({bag_name})')
-        ax.legend(loc='upper right', fontsize=9)
-        ax.grid(True, alpha=0.3)
+        ax2 = ax1.twinx()
+        ln2 = ax2.plot(d['odom_t'], d[ekf_key], color=a_color, lw=0.8, label=f'{a_label} EKF2 (deg)')
+        ln3 = ax2.plot(d['mocap_t'], d[mocap_key], color='tab:orange', lw=0.8, alpha=0.7, label=f'{a_label} Mocap (deg)')
+        ax2.set_ylabel(f'{a_label} (deg)', color=a_color)
+        ax2.tick_params(axis='y', labelcolor=a_color)
 
-    axes[2, 0].set_xlabel('Time (s)')
-    axes[2, 1].set_xlabel('Time (s)')
+        if liftoff_t is not None:
+            ax1.axvline(liftoff_t, color='k', ls='--', lw=0.8, alpha=0.6, label=f'liftoff {liftoff_t:.1f}s')
+
+        lns = ln1 + ln2 + ln3
+        if liftoff_t is not None:
+            lns += ax1.get_lines()[-1:]  # liftoff vline
+        labs = [l.get_label() for l in lns]
+        ax1.legend(lns, labs, loc='upper right', fontsize=8)
+        ax1.set_title(f'{m_label} moment + {a_label} ({bag_name})')
+
+    axes[2].set_xlabel('Time (s)')
 
     plt.tight_layout()
     out = f'{base}_cmd_moments_rpy.png'
