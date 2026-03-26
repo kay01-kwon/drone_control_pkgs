@@ -241,6 +241,15 @@ def plot_bag(bag_name, db_path):
     plt.savefig(out, dpi=150); plt.close()
     print(f'Saved: {out}')
 
+    # ── Detect liftoff time: first time vz > threshold (rising) ──
+    vz = d['ekf_vz']
+    vz_thresh = 0.05  # m/s
+    liftoff_t = None
+    for j in range(1, len(vz)):
+        if vz[j] > vz_thresh and vz[j - 1] <= vz_thresh:
+            liftoff_t = d['odom_t'][j]
+            break
+
     # ── 2. cmd_raw moment + angle paired by axis (3 rows x 2 cols) ──
     fig, axes = plt.subplots(3, 2, figsize=(16, 10), sharex=True)
 
@@ -252,6 +261,9 @@ def plot_bag(bag_name, db_path):
         # Left: moment
         ax = axes[i, 0]
         ax.plot(d['cmd_t'], d[m_key], 'tab:blue', lw=0.8)
+        if liftoff_t is not None:
+            ax.axvline(liftoff_t, color='k', ls='--', lw=0.8, alpha=0.6, label=f'liftoff {liftoff_t:.1f}s')
+            ax.legend(loc='upper right', fontsize=8)
         ax.set_ylabel('Moment (Nm)')
         ax.set_title(f'{m_label} from cmd_raw ({bag_name})')
         ax.grid(True, alpha=0.3)
@@ -260,6 +272,8 @@ def plot_bag(bag_name, db_path):
         ax = axes[i, 1]
         ax.plot(d['odom_t'], d[ekf_key], 'tab:blue', lw=0.8, label='EKF2')
         ax.plot(d['mocap_t'], d[mocap_key], 'tab:red', lw=0.8, alpha=0.7, label='Mocap')
+        if liftoff_t is not None:
+            ax.axvline(liftoff_t, color='k', ls='--', lw=0.8, alpha=0.6)
         ax.set_ylabel(f'{a_label} (deg)')
         ax.set_title(f'{a_label} ({bag_name})')
         ax.legend(loc='upper right', fontsize=9)
