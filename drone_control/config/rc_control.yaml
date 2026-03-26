@@ -28,7 +28,7 @@
       rotor_min: 2000.0     # Minimum RPM
       acc_max: 15000.0    # Acc 15 krpm/s
       acc_min: 15000.0    # Dec 15 krpm/s
-      cmd_lpf_cutoff: 10.0  # LPF cutoff frequency [Hz] for cmd output
+      cmd_lpf_cutoff: 100.0  # LPF cutoff frequency [Hz] for cmd output
 
     sensor_time_param:
       timeout:
@@ -40,6 +40,6 @@
       cmd_topic: '/uav/cmd_raw'
       base_line_control_topic: '/nmpc/control'
       rc_topic: '/mavros/rc/in'
-      filtered_odom_topic: '/l1_adaptive/filtered_odom'
+      filtered_odom_topic: '/mavros/local_position/odom_sim'
       ref_topic: '/nmpc/ref'
-      dob_wrench_topic: '/l1_adaptive/wrench'
+      dob_wrench_topic: '/hgdo/wrench'
