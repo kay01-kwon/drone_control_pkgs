@@ -241,13 +241,16 @@ def plot_bag(bag_name, db_path):
     plt.savefig(out, dpi=150); plt.close()
     print(f'Saved: {out}')
 
-    # ── Detect liftoff time: first time vz > threshold (rising) ──
-    vz = d['ekf_vz']
-    vz_thresh = 0.05  # m/s
+    # ── Detect liftoff time: first time cmd_raw total thrust > mg ──
+    # Note: actual RPM never exceeded W (29N max vs 30.9N W) — drone flipped before liftoff.
+    # Using cmd thrust as proxy for when controller intended liftoff.
+    m = 3.146  # kg (from nmpc_with_hgdo.yaml)
+    W = m * 9.81
+    cmd_total_thrust = d['cmd_F']
     liftoff_t = None
-    for j in range(1, len(vz)):
-        if vz[j] > vz_thresh and vz[j - 1] <= vz_thresh:
-            liftoff_t = d['odom_t'][j]
+    for j in range(len(cmd_total_thrust)):
+        if cmd_total_thrust[j] > W:
+            liftoff_t = d['cmd_t'][j]
             break
 
     # ── 2. cmd_raw moment + angle paired by axis (3 rows x 2 cols) ──
