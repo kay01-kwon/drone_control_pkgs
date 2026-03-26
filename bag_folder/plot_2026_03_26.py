@@ -333,7 +333,7 @@ def plot_bag(bag_name, db_path):
 
 
 # ── Run for both bags ──
-for bag in ['2026_03_26_01', '2026_03_26_02']:
+for bag in ['2026_03_26_01', '2026_03_26_02', '2026_03_26_03']:
     db = f'/home/user/drone_control_pkgs/bag_folder/{bag}/{bag}_0.db3'
     print(f'\n=== {bag} ===')
     plot_bag(bag, db)
