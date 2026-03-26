@@ -159,6 +159,16 @@ def load_bag(db_path):
         rpm_Mx.append(u[1]); rpm_My.append(u[2]); rpm_Mz.append(u[3])
         rpm_raw.append(rpms.copy())
 
+    # ── nmpc/control (pure MPC output) ──
+    tid = topics['/nmpc/control']
+    c.execute('SELECT data FROM messages WHERE topic_id=? ORDER BY timestamp', (tid,))
+    mpc_t, mpc_F, mpc_Mx, mpc_My, mpc_Mz = [], [], [], [], []
+    for data, in c.fetchall():
+        t, fx, fy, fz, tx, ty, tz = parse_wrench_stamped(data)
+        mpc_t.append(t)
+        mpc_F.append(fz)
+        mpc_Mx.append(tx); mpc_My.append(ty); mpc_Mz.append(tz)
+
     # ── hgdo wrench ──
     tid = topics['/hgdo/wrench']
     c.execute('SELECT data FROM messages WHERE topic_id=? ORDER BY timestamp', (tid,))
@@ -175,9 +185,10 @@ def load_bag(db_path):
     # Convert to arrays and align time
     odom_t = np.array(odom_t); mocap_t = np.array(mocap_t)
     cmd_t = np.array(cmd_t); rpm_t = np.array(rpm_t)
+    mpc_t = np.array(mpc_t)
     hgdo_t = np.array(hgdo_t)
     t0 = odom_t[0]
-    odom_t -= t0; mocap_t -= t0; cmd_t -= t0; rpm_t -= t0; hgdo_t -= t0
+    odom_t -= t0; mocap_t -= t0; cmd_t -= t0; rpm_t -= t0; mpc_t -= t0; hgdo_t -= t0
 
     # Subtract initial pz offset (both EKF2 and mocap)
     ekf_pz = np.array(ekf_pz)
@@ -206,6 +217,8 @@ def load_bag(db_path):
         rpm_Mx=np.array(rpm_Mx), rpm_My=np.array(rpm_My), rpm_Mz=np.array(rpm_Mz),
         rpm_raw=np.array(rpm_raw),
         hgdo_t=hgdo_t,
+        mpc_t=mpc_t, mpc_F=np.array(mpc_F),
+        mpc_Mx=np.array(mpc_Mx), mpc_My=np.array(mpc_My), mpc_Mz=np.array(mpc_Mz),
         hgdo_fx=np.array(hgdo_fx), hgdo_fy=np.array(hgdo_fy), hgdo_fz=np.array(hgdo_fz),
         hgdo_tx=np.array(hgdo_tx), hgdo_ty=np.array(hgdo_ty), hgdo_tz=np.array(hgdo_tz),
     )
@@ -256,40 +269,41 @@ def plot_bag(bag_name, db_path):
             liftoff_t = d['cmd_t'][j]
             break
 
-    # ── 2. cmd_raw moment + angle paired by axis (3 rows, dual y-axis) ──
+    # ── 2. MPC moment + angle paired by axis (3 rows, dual y-axis) ──
     fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
 
-    for i, (m_label, m_key, a_label, ekf_key, mocap_key, m_color, a_color) in enumerate([
-        ('Mx', 'cmd_Mx', 'Roll', 'ekf_roll', 'mocap_roll', 'tab:blue', 'tab:red'),
-        ('My', 'cmd_My', 'Pitch', 'ekf_pitch', 'mocap_pitch', 'tab:blue', 'tab:red'),
-        ('Mz', 'cmd_Mz', 'Yaw', 'ekf_yaw', 'mocap_yaw', 'tab:blue', 'tab:red'),
+    for i, (m_label, mpc_key, cmd_key, a_label, ekf_key, mocap_key) in enumerate([
+        ('Mx', 'mpc_Mx', 'cmd_Mx', 'Roll', 'ekf_roll', 'mocap_roll'),
+        ('My', 'mpc_My', 'cmd_My', 'Pitch', 'ekf_pitch', 'mocap_pitch'),
+        ('Mz', 'mpc_Mz', 'cmd_Mz', 'Yaw', 'ekf_yaw', 'mocap_yaw'),
     ]):
         ax1 = axes[i]
-        ln1 = ax1.plot(d['cmd_t'], d[m_key], color=m_color, lw=0.8, label=f'{m_label} (Nm)')
-        ax1.set_ylabel(f'{m_label} Moment (Nm)', color=m_color)
-        ax1.tick_params(axis='y', labelcolor=m_color)
+        ln1 = ax1.plot(d['mpc_t'], d[mpc_key], color='tab:blue', lw=0.8, label=f'MPC {m_label} (Nm)')
+        ln4 = ax1.plot(d['cmd_t'], d[cmd_key], color='tab:cyan', lw=0.6, alpha=0.5, label=f'cmd_raw {m_label} (Nm)')
+        ax1.set_ylabel(f'{m_label} Moment (Nm)', color='tab:blue')
+        ax1.tick_params(axis='y', labelcolor='tab:blue')
         ax1.grid(True, alpha=0.3)
 
         ax2 = ax1.twinx()
-        ln2 = ax2.plot(d['odom_t'], d[ekf_key], color=a_color, lw=0.8, label=f'{a_label} EKF2 (deg)')
+        ln2 = ax2.plot(d['odom_t'], d[ekf_key], color='tab:red', lw=0.8, label=f'{a_label} EKF2 (deg)')
         ln3 = ax2.plot(d['mocap_t'], d[mocap_key], color='tab:orange', lw=0.8, alpha=0.7, label=f'{a_label} Mocap (deg)')
-        ax2.set_ylabel(f'{a_label} (deg)', color=a_color)
-        ax2.tick_params(axis='y', labelcolor=a_color)
+        ax2.set_ylabel(f'{a_label} (deg)', color='tab:red')
+        ax2.tick_params(axis='y', labelcolor='tab:red')
 
         if liftoff_t is not None:
             ax1.axvline(liftoff_t, color='k', ls='--', lw=0.8, alpha=0.6, label=f'liftoff {liftoff_t:.1f}s')
 
-        lns = ln1 + ln2 + ln3
+        lns = ln1 + ln4 + ln2 + ln3
         if liftoff_t is not None:
-            lns += ax1.get_lines()[-1:]  # liftoff vline
+            lns += ax1.get_lines()[-1:]
         labs = [l.get_label() for l in lns]
         ax1.legend(lns, labs, loc='upper right', fontsize=8)
-        ax1.set_title(f'{m_label} moment + {a_label} ({bag_name})')
+        ax1.set_title(f'MPC {m_label} + {a_label} ({bag_name})')
 
     axes[2].set_xlabel('Time (s)')
 
     plt.tight_layout()
-    out = f'{base}_cmd_moments_rpy.png'
+    out = f'{base}_mpc_moments_rpy.png'
     plt.savefig(out, dpi=150); plt.close()
     print(f'Saved: {out}')
 
