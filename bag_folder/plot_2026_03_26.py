@@ -73,6 +73,18 @@ def parse_pose_stamped(data):
     return t, px, py, pz, qx, qy, qz, qw
 
 
+def parse_wrench_stamped(data):
+    """Parse WrenchStamped CDR2 → (t, fx, fy, fz, tx, ty, tz).
+    frame_id='base_link' (10 bytes), force at off=28, torque at off=52.
+    """
+    sec = struct.unpack_from('<I', data, 4)[0]
+    nsec = struct.unpack_from('<I', data, 8)[0]
+    fx, fy, fz = struct.unpack_from('<3d', data, 28)
+    tx, ty, tz = struct.unpack_from('<3d', data, 52)
+    t = sec + nsec * 1e-9
+    return t, fx, fy, fz, tx, ty, tz
+
+
 def load_bag(db_path):
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
@@ -145,13 +157,30 @@ def load_bag(db_path):
         rpm_Mx.append(u[1]); rpm_My.append(u[2]); rpm_Mz.append(u[3])
         rpm_raw.append(rpms.copy())
 
+    # ── hgdo wrench ──
+    tid = topics['/hgdo/wrench']
+    c.execute('SELECT data FROM messages WHERE topic_id=? ORDER BY timestamp', (tid,))
+    hgdo_t, hgdo_fx, hgdo_fy, hgdo_fz = [], [], [], []
+    hgdo_tx, hgdo_ty, hgdo_tz = [], [], []
+    for data, in c.fetchall():
+        t, fx, fy, fz, tx, ty, tz = parse_wrench_stamped(data)
+        hgdo_t.append(t)
+        hgdo_fx.append(fx); hgdo_fy.append(fy); hgdo_fz.append(fz)
+        hgdo_tx.append(tx); hgdo_ty.append(ty); hgdo_tz.append(tz)
+
     conn.close()
 
     # Convert to arrays and align time
     odom_t = np.array(odom_t); mocap_t = np.array(mocap_t)
     cmd_t = np.array(cmd_t); rpm_t = np.array(rpm_t)
+    hgdo_t = np.array(hgdo_t)
     t0 = odom_t[0]
-    odom_t -= t0; mocap_t -= t0; cmd_t -= t0; rpm_t -= t0
+    odom_t -= t0; mocap_t -= t0; cmd_t -= t0; rpm_t -= t0; hgdo_t -= t0
+
+    # Subtract initial mocap pz offset
+    mocap_pz = np.array(mocap_pz)
+    mocap_pz_offset = mocap_pz[0]
+    mocap_pz = mocap_pz - mocap_pz_offset
 
     return dict(
         odom_t=odom_t,
@@ -160,13 +189,17 @@ def load_bag(db_path):
         ekf_roll=np.array(ekf_roll), ekf_pitch=np.array(ekf_pitch), ekf_yaw=np.array(ekf_yaw),
         ekf_wx=np.array(ekf_wx), ekf_wy=np.array(ekf_wy), ekf_wz=np.array(ekf_wz),
         mocap_t=mocap_t,
-        mocap_px=np.array(mocap_px), mocap_py=np.array(mocap_py), mocap_pz=np.array(mocap_pz),
+        mocap_px=np.array(mocap_px), mocap_py=np.array(mocap_py), mocap_pz=mocap_pz,
+        mocap_pz_offset=mocap_pz_offset,
         mocap_roll=np.array(mocap_roll), mocap_pitch=np.array(mocap_pitch), mocap_yaw=np.array(mocap_yaw),
         cmd_t=cmd_t, cmd_F=np.array(cmd_F),
         cmd_Mx=np.array(cmd_Mx), cmd_My=np.array(cmd_My), cmd_Mz=np.array(cmd_Mz),
         rpm_t=rpm_t, rpm_F=np.array(rpm_F),
         rpm_Mx=np.array(rpm_Mx), rpm_My=np.array(rpm_My), rpm_Mz=np.array(rpm_Mz),
         rpm_raw=np.array(rpm_raw),
+        hgdo_t=hgdo_t,
+        hgdo_fx=np.array(hgdo_fx), hgdo_fy=np.array(hgdo_fy), hgdo_fz=np.array(hgdo_fz),
+        hgdo_tx=np.array(hgdo_tx), hgdo_ty=np.array(hgdo_ty), hgdo_tz=np.array(hgdo_tz),
     )
 
 
@@ -174,7 +207,7 @@ def plot_bag(bag_name, db_path):
     d = load_bag(db_path)
     base = f'/home/user/drone_control_pkgs/bag_folder/{bag_name}'
 
-    # ── 1. Position + Velocity (EKF2 + mocap position) ──
+    # ── 1. Position + Velocity (EKF2 + mocap, mocap pz offset subtracted) ──
     fig, axes = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
     ax = axes[0]
     ax.plot(d['odom_t'], d['ekf_px'], 'tab:red', lw=0.8, label='EKF2 x')
@@ -184,7 +217,7 @@ def plot_bag(bag_name, db_path):
     ax.plot(d['mocap_t'], d['mocap_py'], 'tab:blue', lw=0.8, ls='--', alpha=0.6, label='mocap y')
     ax.plot(d['mocap_t'], d['mocap_pz'], 'tab:green', lw=0.8, ls='--', alpha=0.6, label='mocap z')
     ax.set_ylabel('Position (m)')
-    ax.set_title(f'Position - EKF2 (solid) vs Mocap (dashed) ({bag_name})')
+    ax.set_title(f'Position - EKF2 (solid) vs Mocap (dashed, pz0={d["mocap_pz_offset"]:.3f}m subtracted) ({bag_name})')
     ax.legend(loc='upper right', fontsize=9, ncol=2)
     ax.grid(True, alpha=0.3)
 
@@ -203,28 +236,9 @@ def plot_bag(bag_name, db_path):
     plt.savefig(out, dpi=150); plt.close()
     print(f'Saved: {out}')
 
-    # ── 2. RPY (EKF2 + mocap) ──
-    fig, axes = plt.subplots(3, 1, figsize=(14, 9), sharex=True)
-    for i, (label, ekf_key, mocap_key) in enumerate([
-        ('Roll', 'ekf_roll', 'mocap_roll'),
-        ('Pitch', 'ekf_pitch', 'mocap_pitch'),
-        ('Yaw', 'ekf_yaw', 'mocap_yaw'),
-    ]):
-        ax = axes[i]
-        ax.plot(d['odom_t'], d[ekf_key], 'tab:blue', lw=0.8, label='EKF2')
-        ax.plot(d['mocap_t'], d[mocap_key], 'tab:red', lw=0.8, alpha=0.7, label='Mocap')
-        ax.set_ylabel(f'{label} (deg)')
-        ax.set_title(f'{label} ({bag_name})')
-        ax.legend(loc='upper right', fontsize=10)
-        ax.grid(True, alpha=0.3)
-    axes[2].set_xlabel('Time (s)')
-    plt.tight_layout()
-    out = f'{base}_rpy.png'
-    plt.savefig(out, dpi=150); plt.close()
-    print(f'Saved: {out}')
+    # ── 2. cmd_raw moments + RPY (4 rows) ──
+    fig, axes = plt.subplots(4, 1, figsize=(14, 12), sharex=True)
 
-    # ── 3. cmd_raw moments + actual RPM moments ──
-    fig, axes = plt.subplots(2, 1, figsize=(14, 7), sharex=True)
     ax = axes[0]
     ax.plot(d['cmd_t'], d['cmd_Mx'], 'tab:red', lw=0.8, label='Mx (roll)')
     ax.plot(d['cmd_t'], d['cmd_My'], 'tab:blue', lw=0.8, label='My (pitch)')
@@ -234,22 +248,26 @@ def plot_bag(bag_name, db_path):
     ax.legend(loc='upper right', fontsize=10)
     ax.grid(True, alpha=0.3)
 
-    ax = axes[1]
-    ax.plot(d['rpm_t'], d['rpm_Mx'], 'tab:red', lw=0.8, label='Mx (roll)')
-    ax.plot(d['rpm_t'], d['rpm_My'], 'tab:blue', lw=0.8, label='My (pitch)')
-    ax.plot(d['rpm_t'], d['rpm_Mz'], 'tab:green', lw=0.8, label='Mz (yaw)')
-    ax.set_ylabel('Moment (Nm)')
-    ax.set_xlabel('Time (s)')
-    ax.set_title(f'Moments from actual RPM ({bag_name})')
-    ax.legend(loc='upper right', fontsize=10)
-    ax.grid(True, alpha=0.3)
+    for i, (label, ekf_key, mocap_key) in enumerate([
+        ('Roll', 'ekf_roll', 'mocap_roll'),
+        ('Pitch', 'ekf_pitch', 'mocap_pitch'),
+        ('Yaw', 'ekf_yaw', 'mocap_yaw'),
+    ]):
+        ax = axes[i + 1]
+        ax.plot(d['odom_t'], d[ekf_key], 'tab:blue', lw=0.8, label='EKF2')
+        ax.plot(d['mocap_t'], d[mocap_key], 'tab:red', lw=0.8, alpha=0.7, label='Mocap')
+        ax.set_ylabel(f'{label} (deg)')
+        ax.set_title(f'{label} ({bag_name})')
+        ax.legend(loc='upper right', fontsize=10)
+        ax.grid(True, alpha=0.3)
+    axes[3].set_xlabel('Time (s)')
 
     plt.tight_layout()
-    out = f'{base}_cmd_rpm_moments.png'
+    out = f'{base}_cmd_moments_rpy.png'
     plt.savefig(out, dpi=150); plt.close()
     print(f'Saved: {out}')
 
-    # ── 4. Actual RPM per motor ──
+    # ── 3. Actual RPM per motor ──
     fig, ax = plt.subplots(1, 1, figsize=(14, 5))
     colors = ['tab:red', 'tab:orange', 'tab:olive', 'tab:green', 'tab:blue', 'tab:purple']
     for i in range(6):
@@ -261,6 +279,32 @@ def plot_bag(bag_name, db_path):
     ax.grid(True, alpha=0.3)
     plt.tight_layout()
     out = f'{base}_actual_rpm.png'
+    plt.savefig(out, dpi=150); plt.close()
+    print(f'Saved: {out}')
+
+    # ── 4. HGDO (disturbance observer) ──
+    fig, axes = plt.subplots(2, 1, figsize=(14, 7), sharex=True)
+    ax = axes[0]
+    ax.plot(d['hgdo_t'], d['hgdo_fx'], 'tab:red', lw=0.8, label='fx')
+    ax.plot(d['hgdo_t'], d['hgdo_fy'], 'tab:blue', lw=0.8, label='fy')
+    ax.plot(d['hgdo_t'], d['hgdo_fz'], 'tab:green', lw=0.8, label='fz')
+    ax.set_ylabel('Force (N)')
+    ax.set_title(f'HGDO estimated disturbance force ({bag_name})')
+    ax.legend(loc='upper right', fontsize=10)
+    ax.grid(True, alpha=0.3)
+
+    ax = axes[1]
+    ax.plot(d['hgdo_t'], d['hgdo_tx'], 'tab:red', lw=0.8, label='tx (roll)')
+    ax.plot(d['hgdo_t'], d['hgdo_ty'], 'tab:blue', lw=0.8, label='ty (pitch)')
+    ax.plot(d['hgdo_t'], d['hgdo_tz'], 'tab:green', lw=0.8, label='tz (yaw)')
+    ax.set_ylabel('Torque (Nm)')
+    ax.set_xlabel('Time (s)')
+    ax.set_title(f'HGDO estimated disturbance torque ({bag_name})')
+    ax.legend(loc='upper right', fontsize=10)
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    out = f'{base}_hgdo.png'
     plt.savefig(out, dpi=150); plt.close()
     print(f'Saved: {out}')
 
