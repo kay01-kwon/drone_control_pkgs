@@ -134,6 +134,7 @@ def load_bag(db_path):
     tid = topics['/uav/cmd_raw']
     c.execute('SELECT data FROM messages WHERE topic_id=? ORDER BY timestamp', (tid,))
     cmd_t, cmd_Mx, cmd_My, cmd_Mz, cmd_F = [], [], [], [], []
+    cmd_rpms_list = []
     for data, in c.fetchall():
         t, cmds = parse_cmd_raw(data)
         rpms = cmds * MaxRpm / MaxBit
@@ -142,6 +143,7 @@ def load_bag(db_path):
         cmd_t.append(t)
         cmd_F.append(u[0])
         cmd_Mx.append(u[1]); cmd_My.append(u[2]); cmd_Mz.append(u[3])
+        cmd_rpms_list.append(rpms.copy())
 
     # ── actual_rpm ──
     tid = topics['/uav/actual_rpm']
@@ -199,6 +201,7 @@ def load_bag(db_path):
         mocap_roll=np.array(mocap_roll), mocap_pitch=np.array(mocap_pitch), mocap_yaw=np.array(mocap_yaw),
         cmd_t=cmd_t, cmd_F=np.array(cmd_F),
         cmd_Mx=np.array(cmd_Mx), cmd_My=np.array(cmd_My), cmd_Mz=np.array(cmd_Mz),
+        cmd_rpms=np.array(cmd_rpms_list),
         rpm_t=rpm_t, rpm_F=np.array(rpm_F),
         rpm_Mx=np.array(rpm_Mx), rpm_My=np.array(rpm_My), rpm_Mz=np.array(rpm_Mz),
         rpm_raw=np.array(rpm_raw),
@@ -290,16 +293,28 @@ def plot_bag(bag_name, db_path):
     plt.savefig(out, dpi=150); plt.close()
     print(f'Saved: {out}')
 
-    # ── 3. Actual RPM per motor ──
-    fig, ax = plt.subplots(1, 1, figsize=(14, 5))
+    # ── 3. Actual RPM + cmd_raw RPM per motor ──
+    fig, axes = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
     colors = ['tab:red', 'tab:orange', 'tab:olive', 'tab:green', 'tab:blue', 'tab:purple']
+
+    ax = axes[0]
     for i in range(6):
         ax.plot(d['rpm_t'], d['rpm_raw'][:, i], color=colors[i], lw=0.7, alpha=0.8, label=f'M{i+1}')
     ax.set_ylabel('RPM')
-    ax.set_xlabel('Time (s)')
     ax.set_title(f'Actual RPM per motor ({bag_name})')
     ax.legend(loc='upper right', fontsize=9, ncol=3)
     ax.grid(True, alpha=0.3)
+
+    ax = axes[1]
+    cmd_rpms = d['cmd_rpms']
+    for i in range(6):
+        ax.plot(d['cmd_t'], cmd_rpms[:, i], color=colors[i], lw=0.7, alpha=0.8, label=f'M{i+1}')
+    ax.set_ylabel('RPM')
+    ax.set_xlabel('Time (s)')
+    ax.set_title(f'Cmd raw RPM per motor ({bag_name})')
+    ax.legend(loc='upper right', fontsize=9, ncol=3)
+    ax.grid(True, alpha=0.3)
+
     plt.tight_layout()
     out = f'{base}_actual_rpm.png'
     plt.savefig(out, dpi=150); plt.close()
