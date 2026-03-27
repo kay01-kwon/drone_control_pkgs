@@ -113,6 +113,7 @@ class NmpcWithDOBNode(Node):
 
         # Actual RPM → total thrust for ground/flight detection
         self.actual_total_thrust = 0.0
+        self.was_airborne = False
 
         # Initial pz offset (from mocap)
         self.pz_offset = None
@@ -368,18 +369,28 @@ class NmpcWithDOBNode(Node):
         airborne = self.actual_total_thrust >= self.W
 
         if airborne:
-            # Full DOB compensation in flight
+            self.was_airborne = True
+
+        # Stay in flight mode during landing until altitude is very low
+        in_flight = airborne or (self.was_airborne and state_body[2] > 0.02)
+
+        if in_flight:
+            # Full DOB compensation in flight (including landing descent)
             f_comp = u_mpc[0] - f_dist[2]
             M_comp = u_mpc[1:4] - tau_dist
         else:
+            if self.was_airborne:
+                # Just landed — reset flag
+                self.was_airborne = False
+
             # On ground: NMPC thrust only
             f_comp = u_mpc[0]
-            
+
             if self.moment_ff_flag is True and state_body[2] < 0.02:
                 # On ground with moment feedforward: use feedforward moment without DOB compensation
                 M_comp = self.M_ff.copy()
             else:
-                # On ground: DOB compensation for moment, but zero out yaw moment
+                # On ground: MPC moment only, no DOB compensation
                 M_comp = u_mpc[1:4]
 
         self.des_rotor_rpm_comp = (self.control_allocator
