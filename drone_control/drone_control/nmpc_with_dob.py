@@ -302,7 +302,7 @@ class NmpcWithDOBNode(Node):
         _, state_body = self.odom_buffer.get_latest()
 
         # Takeoff condition: ref altitude >= 1cm triggers NMPC solver
-        take_off_cond = (self.ref_state[2]) >= 0.01 or (state_body[2] >= 0.02)
+        take_off_cond = (self.ref_state[2]) >= 0.01 or (state_body[2] >= 0.01)
 
         if not take_off_cond:
             # On ground: skip solver, fix thrust at 1N/rotor (6N total)
@@ -379,20 +379,14 @@ class NmpcWithDOBNode(Node):
                 # On ground with moment feedforward: use feedforward moment without DOB compensation
                 M_comp = self.M_ff.copy()
             else:
-                # On ground without ff: MPC moment only, no DOB compensation
-                M_comp = u_mpc[1:4].copy()
-                M_comp[2] = 0.0
+                # On ground: MPC moment only, no DOB compensation
+                M_comp = u_mpc[1:4]
 
         self.des_rotor_rpm_comp = (self.control_allocator
                                    .compute_relaxed_des_rpm(f_comp, M_comp,
                                                             self.des_rotor_rpm_comp_prev,
                                                             self.control_period))
 
-        # Apply LPF and convert to CMD
-        # filtered_rpm = self.cmd_lpf.filter(self.des_rotor_rpm_comp,
-        #                                    self.control_period)
-        # cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
-        #                                           filtered_rpm)
         cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
                                                   self.des_rotor_rpm_comp)
 
