@@ -372,7 +372,7 @@ class NmpcWithDOBNode(Node):
             self.was_airborne = True
 
         # Stay in flight mode during landing until altitude is very low
-        in_flight = airborne or (self.was_airborne and state_body[2] > 0.02)
+        in_flight = airborne or (self.was_airborne and state_body[2] > 0.20)
 
         if in_flight:
             # Full DOB compensation in flight (including landing descent)
@@ -386,7 +386,7 @@ class NmpcWithDOBNode(Node):
             # On ground: NMPC thrust only
             f_comp = u_mpc[0]
 
-            if self.moment_ff_flag is True and state_body[2] < 0.02:
+            if self.moment_ff_flag is True and state_body[2] < 0.20:
                 # On ground with moment feedforward: use feedforward moment without DOB compensation
                 M_comp = self.M_ff.copy()
             else:
