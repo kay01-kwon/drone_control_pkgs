@@ -507,8 +507,9 @@ def plot_bag(bag_name, db_path):
     # Compute average sample time from odom timestamps
     dt_arr = np.diff(d['odom_t'])
     ts = np.median(dt_arr)
-    cutoffs = [10, 15, 20]
-    lpf_colors = ['tab:orange', 'tab:green', 'tab:purple']
+    # Plot order: raw (bottom) → 20 Hz → 15 Hz → 10 Hz (top, smoothest)
+    cutoffs_draw = [20, 15, 10]
+    lpf_colors_draw = ['tab:purple', 'tab:green', 'tab:orange']
 
     fig, axes = plt.subplots(6, 1, figsize=(14, 20), sharex=True)
     vel_labels = [
@@ -521,10 +522,10 @@ def plot_bag(bag_name, db_path):
     ]
     for idx, (name, sig, ylabel) in enumerate(vel_labels):
         ax = axes[idx]
-        ax.plot(d['odom_t'], sig, 'tab:blue', lw=0.5, alpha=0.5, label='raw')
-        for fc, clr in zip(cutoffs, lpf_colors):
+        ax.plot(d['odom_t'], sig, 'tab:blue', lw=0.4, alpha=0.35, label='raw')
+        for fc, clr in zip(cutoffs_draw, lpf_colors_draw):
             filtered = apply_lpf(sig, fc, ts)
-            ax.plot(d['odom_t'], filtered, color=clr, lw=0.9, label=f'LPF {fc}Hz')
+            ax.plot(d['odom_t'], filtered, color=clr, lw=1.0, label=f'LPF {fc}Hz')
         ax.set_ylabel(ylabel)
         ax.set_title(f'{name} raw vs LPF (ts={ts*1000:.1f}ms) ({bag_name})')
         ax.legend(loc='upper right', fontsize=8, ncol=4)
