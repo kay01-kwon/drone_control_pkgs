@@ -228,8 +228,8 @@ def plot_bag(bag_name, db_path):
     d = load_bag(db_path)
     base = f'/home/user/drone_control_pkgs/bag_folder/{bag_name}'
 
-    # ── 1. Position + Velocity (EKF2 + mocap, mocap pz offset subtracted) ──
-    fig, axes = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
+    # ── 1. Position + Velocity + Position Error (EKF2 + mocap) ──
+    fig, axes = plt.subplots(3, 1, figsize=(14, 11), sharex=True)
     ax = axes[0]
     ax.plot(d['odom_t'], d['ekf_px'], 'tab:red', lw=0.8, label='EKF2 x')
     ax.plot(d['odom_t'], d['ekf_py'], 'tab:blue', lw=0.8, label='EKF2 y')
@@ -247,8 +247,21 @@ def plot_bag(bag_name, db_path):
     ax.plot(d['odom_t'], d['ekf_vy'], 'tab:blue', lw=0.8, label='vy')
     ax.plot(d['odom_t'], d['ekf_vz'], 'tab:green', lw=0.8, label='vz')
     ax.set_ylabel('Velocity (m/s)')
-    ax.set_xlabel('Time (s)')
     ax.set_title(f'Linear velocity - world frame ({bag_name})')
+    ax.legend(loc='upper right', fontsize=10)
+    ax.grid(True, alpha=0.3)
+
+    # Position error (EKF2 - mocap), interpolate mocap onto ekf time
+    mocap_px_i = np.interp(d['odom_t'], d['mocap_t'], d['mocap_px'])
+    mocap_py_i = np.interp(d['odom_t'], d['mocap_t'], d['mocap_py'])
+    mocap_pz_i = np.interp(d['odom_t'], d['mocap_t'], d['mocap_pz'])
+    ax = axes[2]
+    ax.plot(d['odom_t'], d['ekf_px'] - mocap_px_i, 'tab:red', lw=0.8, label='ex')
+    ax.plot(d['odom_t'], d['ekf_py'] - mocap_py_i, 'tab:blue', lw=0.8, label='ey')
+    ax.plot(d['odom_t'], d['ekf_pz'] - mocap_pz_i, 'tab:green', lw=0.8, label='ez')
+    ax.set_ylabel('Position error (m)')
+    ax.set_xlabel('Time (s)')
+    ax.set_title(f'Position error (EKF2 - Mocap) ({bag_name})')
     ax.legend(loc='upper right', fontsize=10)
     ax.grid(True, alpha=0.3)
 
@@ -357,6 +370,54 @@ def plot_bag(bag_name, db_path):
 
     plt.tight_layout()
     out = f'{base}_hgdo.png'
+    plt.savefig(out, dpi=150); plt.close()
+    print(f'Saved: {out}')
+
+    # ── 5. RPY comparison (initial offset subtracted) ──
+    mocap_roll_i = np.interp(d['odom_t'], d['mocap_t'], d['mocap_roll'])
+    mocap_pitch_i = np.interp(d['odom_t'], d['mocap_t'], d['mocap_pitch'])
+    mocap_yaw_i = np.interp(d['odom_t'], d['mocap_t'], d['mocap_yaw'])
+
+    # Subtract initial values
+    ekf_roll0 = d['ekf_roll'][0]; ekf_pitch0 = d['ekf_pitch'][0]; ekf_yaw0 = d['ekf_yaw'][0]
+    mocap_roll0 = mocap_roll_i[0]; mocap_pitch0 = mocap_pitch_i[0]; mocap_yaw0 = mocap_yaw_i[0]
+
+    fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
+    for i, (label, ekf_sig, ekf0, mocap_sig, mocap0) in enumerate([
+        ('Roll', d['ekf_roll'], ekf_roll0, mocap_roll_i, mocap_roll0),
+        ('Pitch', d['ekf_pitch'], ekf_pitch0, mocap_pitch_i, mocap_pitch0),
+        ('Yaw', d['ekf_yaw'], ekf_yaw0, mocap_yaw_i, mocap_yaw0),
+    ]):
+        ax = axes[i]
+        ax.plot(d['odom_t'], ekf_sig - ekf0, 'tab:blue', lw=0.8, label=f'EKF2 (init={ekf0:.2f})')
+        ax.plot(d['odom_t'], mocap_sig - mocap0, 'tab:red', lw=0.8, alpha=0.7, label=f'Mocap (init={mocap0:.2f})')
+        ax.set_ylabel(f'{label} (deg)')
+        ax.set_title(f'{label} - initial offset subtracted ({bag_name})')
+        ax.legend(loc='upper right', fontsize=9)
+        ax.grid(True, alpha=0.3)
+    axes[2].set_xlabel('Time (s)')
+    plt.tight_layout()
+    out = f'{base}_rpy_comparison.png'
+    plt.savefig(out, dpi=150); plt.close()
+    print(f'Saved: {out}')
+
+    # ── 6. RPY error (EKF2 - Mocap, raw without offset subtraction) ──
+    fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
+    for i, (label, ekf_sig, mocap_sig) in enumerate([
+        ('Roll', d['ekf_roll'], mocap_roll_i),
+        ('Pitch', d['ekf_pitch'], mocap_pitch_i),
+        ('Yaw', d['ekf_yaw'], mocap_yaw_i),
+    ]):
+        ax = axes[i]
+        err = ekf_sig - mocap_sig
+        ax.plot(d['odom_t'], err, 'tab:blue', lw=0.8)
+        ax.axhline(0, color='k', ls='-', lw=0.5, alpha=0.3)
+        ax.set_ylabel(f'{label} error (deg)')
+        ax.set_title(f'{label} error (EKF2 - Mocap), mean={np.mean(err):.3f}, std={np.std(err):.3f} ({bag_name})')
+        ax.grid(True, alpha=0.3)
+    axes[2].set_xlabel('Time (s)')
+    plt.tight_layout()
+    out = f'{base}_rpy_error.png'
     plt.savefig(out, dpi=150); plt.close()
     print(f'Saved: {out}')
 
