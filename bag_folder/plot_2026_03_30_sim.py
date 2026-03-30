@@ -51,13 +51,13 @@ def parse_actual_rpm(data):
     return sec + nsec * 1e-9, rpms
 
 
-def parse_odom(data):
+def parse_odom(data, pos_off=44, q_off=68, v_off=388, w_off=412):
     sec = struct.unpack_from('<I', data, 4)[0]
     nsec = struct.unpack_from('<I', data, 8)[0]
-    px, py, pz = struct.unpack_from('<3d', data, 44)
-    qx, qy, qz, qw = struct.unpack_from('<4d', data, 68)
-    vx, vy, vz = struct.unpack_from('<3d', data, 388)
-    wx, wy, wz = struct.unpack_from('<3d', data, 412)
+    px, py, pz = struct.unpack_from('<3d', data, pos_off)
+    qx, qy, qz, qw = struct.unpack_from('<4d', data, q_off)
+    vx, vy, vz = struct.unpack_from('<3d', data, v_off)
+    wx, wy, wz = struct.unpack_from('<3d', data, w_off)
     t = sec + nsec * 1e-9
     return t, px, py, pz, qx, qy, qz, qw, vx, vy, vz, wx, wy, wz
 
@@ -84,7 +84,8 @@ def load_bag(db_path):
     sim_vx_w, sim_vy_w, sim_vz_w = [], [], []
     sim_roll, sim_pitch, sim_yaw = [], [], []
     for data, in c.fetchall():
-        t, px, py, pz, qx, qy, qz, qw, vx, vy, vz, wx, wy, wz = parse_odom(data)
+        t, px, py, pz, qx, qy, qz, qw, vx, vy, vz, wx, wy, wz = parse_odom(
+            data, pos_off=52, q_off=76, v_off=396, w_off=420)
         q = np.array([qx, qy, qz, qw]); norm = np.linalg.norm(q)
         if not np.isfinite(norm) or norm < 1e-10: continue
         R = Rotation.from_quat(q / norm)
@@ -102,7 +103,8 @@ def load_bag(db_path):
     gt_vx_w, gt_vy_w, gt_vz_w = [], [], []
     gt_roll, gt_pitch, gt_yaw = [], [], []
     for data, in c.fetchall():
-        t, px, py, pz, qx, qy, qz, qw, vx, vy, vz, wx, wy, wz = parse_odom(data)
+        t, px, py, pz, qx, qy, qz, qw, vx, vy, vz, wx, wy, wz = parse_odom(
+            data, pos_off=36, q_off=60, v_off=380, w_off=404)
         q = np.array([qx, qy, qz, qw]); norm = np.linalg.norm(q)
         if not np.isfinite(norm) or norm < 1e-10: continue
         R = Rotation.from_quat(q / norm)
