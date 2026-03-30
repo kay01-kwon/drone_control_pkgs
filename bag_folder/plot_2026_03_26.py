@@ -169,6 +169,19 @@ def load_bag(db_path):
         mpc_F.append(fz)
         mpc_Mx.append(tx); mpc_My.append(ty); mpc_Mz.append(tz)
 
+    # ── RC in (kill switch detection) ──
+    kill_t = None
+    if '/mavros/rc/in' in topics:
+        tid = topics['/mavros/rc/in']
+        c.execute('SELECT data FROM messages WHERE topic_id=? ORDER BY timestamp', (tid,))
+        for data, in c.fetchall():
+            sec = struct.unpack_from('<I', data, 4)[0]
+            nsec = struct.unpack_from('<I', data, 8)[0]
+            ch8 = struct.unpack_from('<H', data, 24 + 8 * 2)[0]  # channel 8 (SE)
+            if ch8 < 1200:
+                kill_t = sec + nsec * 1e-9
+                break
+
     # ── hgdo wrench ──
     tid = topics['/hgdo/wrench']
     c.execute('SELECT data FROM messages WHERE topic_id=? ORDER BY timestamp', (tid,))
@@ -189,6 +202,8 @@ def load_bag(db_path):
     hgdo_t = np.array(hgdo_t)
     t0 = odom_t[0]
     odom_t -= t0; mocap_t -= t0; cmd_t -= t0; rpm_t -= t0; mpc_t -= t0; hgdo_t -= t0
+    if kill_t is not None:
+        kill_t -= t0
 
     # Subtract initial pz offset (both EKF2 and mocap)
     ekf_pz = np.array(ekf_pz)
@@ -221,12 +236,20 @@ def load_bag(db_path):
         mpc_Mx=np.array(mpc_Mx), mpc_My=np.array(mpc_My), mpc_Mz=np.array(mpc_Mz),
         hgdo_fx=np.array(hgdo_fx), hgdo_fy=np.array(hgdo_fy), hgdo_fz=np.array(hgdo_fz),
         hgdo_tx=np.array(hgdo_tx), hgdo_ty=np.array(hgdo_ty), hgdo_tz=np.array(hgdo_tz),
+        kill_t=kill_t,
     )
+
+
+def add_kill_line(ax, kill_t):
+    """Add a red dashed vertical line at kill time."""
+    if kill_t is not None:
+        ax.axvline(kill_t, color='red', ls='--', lw=1.2, alpha=0.8, label=f'kill {kill_t:.1f}s')
 
 
 def plot_bag(bag_name, db_path):
     d = load_bag(db_path)
     base = f'/home/user/drone_control_pkgs/bag_folder/{bag_name}'
+    kill_t = d['kill_t']
 
     # ── 1. Position + Velocity + Position Error (EKF2 + mocap) ──
     fig, axes = plt.subplots(3, 1, figsize=(14, 11), sharex=True)
@@ -264,6 +287,9 @@ def plot_bag(bag_name, db_path):
     ax.set_title(f'Position error (EKF2 - Mocap) ({bag_name})')
     ax.legend(loc='upper right', fontsize=10)
     ax.grid(True, alpha=0.3)
+
+    for ax in axes:
+        add_kill_line(ax, kill_t)
 
     plt.tight_layout()
     out = f'{base}_position_velocity.png'
@@ -305,10 +331,14 @@ def plot_bag(bag_name, db_path):
 
         if liftoff_t is not None:
             ax1.axvline(liftoff_t, color='k', ls='--', lw=0.8, alpha=0.6, label=f'liftoff {liftoff_t:.1f}s')
+        if kill_t is not None:
+            ax1.axvline(kill_t, color='red', ls='--', lw=1.2, alpha=0.8, label=f'kill {kill_t:.1f}s')
 
         lns = ln1 + ln4 + ln2 + ln3
         if liftoff_t is not None:
-            lns += ax1.get_lines()[-1:]
+            lns += [ax1.get_lines()[-2 if kill_t is not None else -1]]
+        if kill_t is not None:
+            lns += [ax1.get_lines()[-1]]
         labs = [l.get_label() for l in lns]
         ax1.legend(lns, labs, loc='upper right', fontsize=8)
         ax1.set_title(f'MPC {m_label} + {a_label} ({bag_name})')
@@ -342,6 +372,9 @@ def plot_bag(bag_name, db_path):
     ax.legend(loc='upper right', fontsize=9, ncol=3)
     ax.grid(True, alpha=0.3)
 
+    for ax in axes:
+        add_kill_line(ax, kill_t)
+
     plt.tight_layout()
     out = f'{base}_actual_rpm.png'
     plt.savefig(out, dpi=150); plt.close()
@@ -367,6 +400,9 @@ def plot_bag(bag_name, db_path):
     ax.set_title(f'HGDO estimated disturbance torque ({bag_name})')
     ax.legend(loc='upper right', fontsize=10)
     ax.grid(True, alpha=0.3)
+
+    for ax in axes:
+        add_kill_line(ax, kill_t)
 
     plt.tight_layout()
     out = f'{base}_hgdo.png'
@@ -396,6 +432,8 @@ def plot_bag(bag_name, db_path):
         ax.legend(loc='upper right', fontsize=9)
         ax.grid(True, alpha=0.3)
     axes[2].set_xlabel('Time (s)')
+    for ax in axes:
+        add_kill_line(ax, kill_t)
     plt.tight_layout()
     out = f'{base}_rpy_comparison.png'
     plt.savefig(out, dpi=150); plt.close()
@@ -416,6 +454,8 @@ def plot_bag(bag_name, db_path):
         ax.set_title(f'{label} error (EKF2 - Mocap), mean={np.mean(err):.3f}, std={np.std(err):.3f} ({bag_name})')
         ax.grid(True, alpha=0.3)
     axes[2].set_xlabel('Time (s)')
+    for ax in axes:
+        add_kill_line(ax, kill_t)
     plt.tight_layout()
     out = f'{base}_rpy_error.png'
     plt.savefig(out, dpi=150); plt.close()
