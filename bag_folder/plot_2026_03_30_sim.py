@@ -83,6 +83,7 @@ def load_bag(db_path):
     sim_t, sim_px, sim_py, sim_pz = [], [], [], []
     sim_vx_w, sim_vy_w, sim_vz_w = [], [], []
     sim_roll, sim_pitch, sim_yaw = [], [], []
+    sim_wx, sim_wy, sim_wz = [], [], []
     for data, in c.fetchall():
         t, px, py, pz, qx, qy, qz, qw, vx, vy, vz, wx, wy, wz = parse_odom(
             data, pos_off=52, q_off=76, v_off=396, w_off=420)
@@ -95,6 +96,7 @@ def load_bag(db_path):
         sim_px.append(px); sim_py.append(py); sim_pz.append(pz)
         sim_vx_w.append(v_world[0]); sim_vy_w.append(v_world[1]); sim_vz_w.append(v_world[2])
         sim_roll.append(roll); sim_pitch.append(pitch); sim_yaw.append(yaw)
+        sim_wx.append(wx); sim_wy.append(wy); sim_wz.append(wz)
 
     # ── odom (ground truth) ──
     tid = topics['/mavros/local_position/odom']
@@ -178,6 +180,7 @@ def load_bag(db_path):
         sim_px=np.array(sim_px), sim_py=np.array(sim_py), sim_pz=sim_pz,
         sim_vx=np.array(sim_vx_w), sim_vy=np.array(sim_vy_w), sim_vz=np.array(sim_vz_w),
         sim_roll=np.array(sim_roll), sim_pitch=np.array(sim_pitch), sim_yaw=np.array(sim_yaw),
+        sim_wx=np.array(sim_wx), sim_wy=np.array(sim_wy), sim_wz=np.array(sim_wz),
         gt_t=gt_t,
         gt_px=np.array(gt_px), gt_py=np.array(gt_py), gt_pz=gt_pz,
         gt_vx=np.array(gt_vx_w), gt_vy=np.array(gt_vy_w), gt_vz=np.array(gt_vz_w),
@@ -239,13 +242,14 @@ def plot_sim(bag_name, db_path):
     sim_roll_unwrap = np.rad2deg(np.unwrap(sim_roll_rad))
     sim_roll_clean = sim_roll_unwrap - sim_roll_unwrap[0]  # zero-referenced
 
-    fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
-    for i, (m_label, mpc_key, cmd_key, a_label, angle_data) in enumerate([
-        ('Mx', 'mpc_Mx', 'cmd_Mx', 'Roll', sim_roll_clean),
-        ('My', 'mpc_My', 'cmd_My', 'Pitch', d['sim_pitch']),
-        ('Mz', 'mpc_Mz', 'cmd_Mz', 'Yaw', d['sim_yaw']),
+    fig, axes = plt.subplots(6, 1, figsize=(14, 18), sharex=True)
+    for i, (m_label, mpc_key, cmd_key, a_label, angle_data, w_label, w_key) in enumerate([
+        ('Mx', 'mpc_Mx', 'cmd_Mx', 'Roll', sim_roll_clean, 'wx', 'sim_wx'),
+        ('My', 'mpc_My', 'cmd_My', 'Pitch', d['sim_pitch'], 'wy', 'sim_wy'),
+        ('Mz', 'mpc_Mz', 'cmd_Mz', 'Yaw', d['sim_yaw'], 'wz', 'sim_wz'),
     ]):
-        ax1 = axes[i]
+        # Row 1: Moment + Angle
+        ax1 = axes[i * 2]
         ln1 = ax1.plot(d['mpc_t'], d[mpc_key], color='tab:blue', lw=0.8, label=f'MPC {m_label} (Nm)')
         ln4 = ax1.plot(d['cmd_t'], d[cmd_key], color='tab:cyan', lw=0.6, alpha=0.5, label=f'cmd_raw {m_label} (Nm)')
         ax1.set_ylabel(f'{m_label} Moment (Nm)', color='tab:blue')
@@ -257,7 +261,7 @@ def plot_sim(bag_name, db_path):
         ax2.set_ylabel(f'{a_label} (deg)', color='tab:red')
         ax2.tick_params(axis='y', labelcolor='tab:red')
 
-        # Align 0-lines: make both axes symmetric around 0
+        # Align 0-lines
         m_max = max(abs(ax1.get_ylim()[0]), abs(ax1.get_ylim()[1]))
         ax1.set_ylim(-m_max, m_max)
         a_max = max(abs(ax2.get_ylim()[0]), abs(ax2.get_ylim()[1]))
@@ -273,7 +277,34 @@ def plot_sim(bag_name, db_path):
         ax1.legend(lns, labs, loc='upper right', fontsize=8)
         ax1.set_title(f'MPC {m_label} + {a_label} ({bag_name})')
 
-    axes[2].set_xlabel('Time (s)')
+        # Row 2: Moment + Angular velocity
+        ax3 = axes[i * 2 + 1]
+        ln5 = ax3.plot(d['mpc_t'], d[mpc_key], color='tab:blue', lw=0.8, label=f'MPC {m_label} (Nm)')
+        ln6 = ax3.plot(d['cmd_t'], d[cmd_key], color='tab:cyan', lw=0.6, alpha=0.5, label=f'cmd_raw {m_label} (Nm)')
+        ax3.set_ylabel(f'{m_label} Moment (Nm)', color='tab:blue')
+        ax3.tick_params(axis='y', labelcolor='tab:blue')
+        ax3.grid(True, alpha=0.3)
+
+        ax4 = ax3.twinx()
+        ln7 = ax4.plot(d['sim_t'], d[w_key], color='tab:green', lw=0.8, label=f'{w_label} (rad/s)')
+        ax4.set_ylabel(f'{w_label} (rad/s)', color='tab:green')
+        ax4.tick_params(axis='y', labelcolor='tab:green')
+
+        # Align 0-lines
+        m_max = max(abs(ax3.get_ylim()[0]), abs(ax3.get_ylim()[1]))
+        ax3.set_ylim(-m_max, m_max)
+        w_max = max(abs(ax4.get_ylim()[0]), abs(ax4.get_ylim()[1]))
+        ax4.set_ylim(-w_max, w_max)
+
+        if liftoff_t is not None:
+            ax3.axvline(liftoff_t, color='k', ls='--', lw=0.8, alpha=0.6)
+
+        lns_w = ln5 + ln6 + ln7
+        labs_w = [l.get_label() for l in lns_w]
+        ax3.legend(lns_w, labs_w, loc='upper right', fontsize=8)
+        ax3.set_title(f'MPC {m_label} + {w_label} ({bag_name})')
+
+    axes[5].set_xlabel('Time (s)')
     plt.tight_layout()
     out = f'{base}_mpc_moments_rpy.png'
     plt.savefig(out, dpi=150); plt.close()
