@@ -438,7 +438,7 @@ def plot_sim(bag_name, db_path):
 
 
 # ── Run ──
-for bag in ['2026_03_30_sim', '2026_03_30_sim_tunning']:
+for bag in ['2026_03_30_sim', '2026_03_30_sim_tunning', 'Q_q_5_w_0_5_sim', 'Q_q_5_w_1_0_sim']:
     db = f'/home/user/drone_control_pkgs/bag_folder/{bag}/{bag}_0.db3'
     print(f'\n=== {bag} ===')
     plot_sim(bag, db)
