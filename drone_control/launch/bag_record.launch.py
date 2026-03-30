@@ -28,6 +28,7 @@ def _launch_bag_record(context):
         '/uav/cmd_raw',
         '/uav/actual_rpm',
         '/mavros/local_position/odom',
+        '/mavros/local_position/odom_sim',
         '/mavros/rc/in',
         '/nmpc/ref',
         '/nmpc/control',
