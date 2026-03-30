@@ -537,6 +537,59 @@ def plot_bag(bag_name, db_path):
     plt.savefig(out, dpi=150); plt.close()
     print(f'Saved: {out}')
 
+    # ── 8. RPM vs angular velocity noise (scatter) ──
+    # Interpolate RPM onto odom time
+    rpm_raw = d['rpm_raw']  # (N, 6)
+    rpm_mean_per_sample = np.mean(np.abs(rpm_raw), axis=1)  # mean of 6 motors
+    rpm_interp = np.interp(d['odom_t'], d['rpm_t'], rpm_mean_per_sample)
+
+    # Windowed analysis: detrend + std per window
+    win_sec = 0.3
+    win_samples = max(int(win_sec / ts), 5)
+    n = len(d['odom_t'])
+    n_windows = n // win_samples
+
+    win_rpm, win_wx_std, win_wy_std, win_wz_std = [], [], [], []
+    for i in range(n_windows):
+        s = i * win_samples
+        e = s + win_samples
+        win_rpm.append(np.mean(rpm_interp[s:e]))
+        # Detrend (remove linear trend) then take std = high-freq noise
+        for wlist, sig in [(win_wx_std, d['ekf_wx']),
+                           (win_wy_std, d['ekf_wy']),
+                           (win_wz_std, d['ekf_wz'])]:
+            seg = sig[s:e]
+            t_seg = np.arange(len(seg))
+            if len(seg) > 1:
+                coef = np.polyfit(t_seg, seg, 1)
+                detrended = seg - np.polyval(coef, t_seg)
+                wlist.append(np.std(detrended))
+            else:
+                wlist.append(0.0)
+
+    win_rpm = np.array(win_rpm)
+    win_wx_std = np.array(win_wx_std)
+    win_wy_std = np.array(win_wy_std)
+    win_wz_std = np.array(win_wz_std)
+
+    fig, axes = plt.subplots(3, 1, figsize=(10, 12))
+    for ax, wstd, label in zip(axes,
+                                [win_wx_std, win_wy_std, win_wz_std],
+                                ['wx', 'wy', 'wz']):
+        ax.scatter(win_rpm, wstd, s=8, alpha=0.5, edgecolors='none')
+        ax.set_xlabel('Mean RPM (abs, 6-motor avg)')
+        ax.set_ylabel(f'{label} noise std (rad/s)')
+        ax.set_title(f'{label} noise vs RPM (window={win_sec}s, detrended) ({bag_name})')
+        ax.grid(True, alpha=0.3)
+        # Add reference lines
+        ax.axhline(0.000245, color='green', ls='--', lw=1, alpha=0.7, label='static std (0.000245)')
+        ax.axhline(0.05, color='red', ls='--', lw=1, alpha=0.7, label='sim worst (0.05)')
+        ax.legend(fontsize=8)
+    plt.tight_layout()
+    out = f'{base}_rpm_vs_noise.png'
+    plt.savefig(out, dpi=150); plt.close()
+    print(f'Saved: {out}')
+
 
 # ── Run for both bags ──
 for bag in ['2026_03_26_06', '2026_03_26_07']:
