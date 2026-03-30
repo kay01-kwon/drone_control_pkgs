@@ -308,15 +308,16 @@ def plot_bag(bag_name, db_path):
             liftoff_t = d['cmd_t'][j]
             break
 
-    # ── 2. MPC moment + angle paired by axis (3 rows, dual y-axis) ──
-    fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
+    # ── 2. MPC moment + angle + angular velocity (6 rows, dual y-axis) ──
+    fig, axes = plt.subplots(6, 1, figsize=(14, 18), sharex=True)
 
-    for i, (m_label, mpc_key, cmd_key, a_label, ekf_key, mocap_key) in enumerate([
-        ('Mx', 'mpc_Mx', 'cmd_Mx', 'Roll', 'ekf_roll', 'mocap_roll'),
-        ('My', 'mpc_My', 'cmd_My', 'Pitch', 'ekf_pitch', 'mocap_pitch'),
-        ('Mz', 'mpc_Mz', 'cmd_Mz', 'Yaw', 'ekf_yaw', 'mocap_yaw'),
+    for i, (m_label, mpc_key, cmd_key, a_label, ekf_key, mocap_key, w_label, w_key) in enumerate([
+        ('Mx', 'mpc_Mx', 'cmd_Mx', 'Roll', 'ekf_roll', 'mocap_roll', 'wx', 'ekf_wx'),
+        ('My', 'mpc_My', 'cmd_My', 'Pitch', 'ekf_pitch', 'mocap_pitch', 'wy', 'ekf_wy'),
+        ('Mz', 'mpc_Mz', 'cmd_Mz', 'Yaw', 'ekf_yaw', 'mocap_yaw', 'wz', 'ekf_wz'),
     ]):
-        ax1 = axes[i]
+        # Row 1: Moment + Angle
+        ax1 = axes[i * 2]
         ln1 = ax1.plot(d['mpc_t'], d[mpc_key], color='tab:blue', lw=0.8, label=f'MPC {m_label} (Nm)')
         ln4 = ax1.plot(d['cmd_t'], d[cmd_key], color='tab:cyan', lw=0.6, alpha=0.5, label=f'cmd_raw {m_label} (Nm)')
         ax1.set_ylabel(f'{m_label} Moment (Nm)', color='tab:blue')
@@ -325,6 +326,9 @@ def plot_bag(bag_name, db_path):
 
         ax2 = ax1.twinx()
         ln2 = ax2.plot(d['odom_t'], d[ekf_key], color='tab:red', lw=0.8, label=f'{a_label} EKF2 (deg)')
+        ln3 = ax2.plot(d['mocap_t'], d[mocap_key], color='tab:orange', lw=0.8, alpha=0.7, label=f'{a_label} Mocap (deg)')
+        ax2.set_ylabel(f'{a_label} (deg)', color='tab:red')
+        ax2.tick_params(axis='y', labelcolor='tab:red')
         ln3 = ax2.plot(d['mocap_t'], d[mocap_key], color='tab:orange', lw=0.8, alpha=0.7, label=f'{a_label} Mocap (deg)')
         ax2.set_ylabel(f'{a_label} (deg)', color='tab:red')
         ax2.tick_params(axis='y', labelcolor='tab:red')
@@ -343,7 +347,30 @@ def plot_bag(bag_name, db_path):
         ax1.legend(lns, labs, loc='upper right', fontsize=8)
         ax1.set_title(f'MPC {m_label} + {a_label} ({bag_name})')
 
-    axes[2].set_xlabel('Time (s)')
+        # Row 2: Moment + Angular velocity
+        ax3 = axes[i * 2 + 1]
+        ln5 = ax3.plot(d['mpc_t'], d[mpc_key], color='tab:blue', lw=0.8, label=f'MPC {m_label} (Nm)')
+        ln6 = ax3.plot(d['cmd_t'], d[cmd_key], color='tab:cyan', lw=0.6, alpha=0.5, label=f'cmd_raw {m_label} (Nm)')
+        ax3.set_ylabel(f'{m_label} Moment (Nm)', color='tab:blue')
+        ax3.tick_params(axis='y', labelcolor='tab:blue')
+        ax3.grid(True, alpha=0.3)
+
+        ax4 = ax3.twinx()
+        ln7 = ax4.plot(d['odom_t'], d[w_key], color='tab:green', lw=0.8, label=f'{w_label} (rad/s)')
+        ax4.set_ylabel(f'{w_label} (rad/s)', color='tab:green')
+        ax4.tick_params(axis='y', labelcolor='tab:green')
+
+        if liftoff_t is not None:
+            ax3.axvline(liftoff_t, color='k', ls='--', lw=0.8, alpha=0.6)
+        if kill_t is not None:
+            ax3.axvline(kill_t, color='red', ls='--', lw=1.2, alpha=0.8)
+
+        lns_w = ln5 + ln6 + ln7
+        labs_w = [l.get_label() for l in lns_w]
+        ax3.legend(lns_w, labs_w, loc='upper right', fontsize=8)
+        ax3.set_title(f'MPC {m_label} + {w_label} ({bag_name})')
+
+    axes[5].set_xlabel('Time (s)')
 
     plt.tight_layout()
     out = f'{base}_mpc_moments_rpy.png'
