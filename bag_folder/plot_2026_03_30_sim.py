@@ -62,6 +62,15 @@ def parse_odom(data, pos_off=44, q_off=68, v_off=388, w_off=412):
     return t, px, py, pz, qx, qy, qz, qw, vx, vy, vz, wx, wy, wz
 
 
+def parse_pose_stamped(data, pos_off=28, q_off=52):
+    sec = struct.unpack_from('<I', data, 4)[0]
+    nsec = struct.unpack_from('<I', data, 8)[0]
+    px, py, pz = struct.unpack_from('<3d', data, pos_off)
+    qx, qy, qz, qw = struct.unpack_from('<4d', data, q_off)
+    t = sec + nsec * 1e-9
+    return t, px, py, pz, qx, qy, qz, qw
+
+
 def parse_wrench_stamped(data):
     sec = struct.unpack_from('<I', data, 4)[0]
     nsec = struct.unpack_from('<I', data, 8)[0]
@@ -98,23 +107,24 @@ def load_bag(db_path):
         sim_roll.append(roll); sim_pitch.append(pitch); sim_yaw.append(yaw)
         sim_wx.append(wx); sim_wy.append(wy); sim_wz.append(wz)
 
-    # ── odom (ground truth) ──
-    tid = topics['/mavros/local_position/odom']
+    # ── S550/pose (ground truth) ──
+    gt_topic = '/S550/pose' if '/S550/pose' in topics else '/mavros/local_position/odom'
+    tid = topics[gt_topic]
     c.execute('SELECT data FROM messages WHERE topic_id=? ORDER BY timestamp', (tid,))
     gt_t, gt_px, gt_py, gt_pz = [], [], [], []
-    gt_vx_w, gt_vy_w, gt_vz_w = [], [], []
     gt_roll, gt_pitch, gt_yaw = [], [], []
     for data, in c.fetchall():
-        t, px, py, pz, qx, qy, qz, qw, vx, vy, vz, wx, wy, wz = parse_odom(
-            data, pos_off=36, q_off=60, v_off=380, w_off=404)
+        if gt_topic == '/S550/pose':
+            t, px, py, pz, qx, qy, qz, qw = parse_pose_stamped(data, pos_off=28, q_off=52)
+        else:
+            t, px, py, pz, qx, qy, qz, qw, *_ = parse_odom(
+                data, pos_off=36, q_off=60, v_off=380, w_off=404)
         q = np.array([qx, qy, qz, qw]); norm = np.linalg.norm(q)
         if not np.isfinite(norm) or norm < 1e-10: continue
         R = Rotation.from_quat(q / norm)
         roll, pitch, yaw = R.as_euler('xyz', degrees=True)
-        v_world = R.as_matrix() @ np.array([vx, vy, vz])
         gt_t.append(t)
         gt_px.append(px); gt_py.append(py); gt_pz.append(pz)
-        gt_vx_w.append(v_world[0]); gt_vy_w.append(v_world[1]); gt_vz_w.append(v_world[2])
         gt_roll.append(roll); gt_pitch.append(pitch); gt_yaw.append(yaw)
 
     # ── cmd_raw ──
@@ -183,7 +193,6 @@ def load_bag(db_path):
         sim_wx=np.array(sim_wx), sim_wy=np.array(sim_wy), sim_wz=np.array(sim_wz),
         gt_t=gt_t,
         gt_px=np.array(gt_px), gt_py=np.array(gt_py), gt_pz=gt_pz,
-        gt_vx=np.array(gt_vx_w), gt_vy=np.array(gt_vy_w), gt_vz=np.array(gt_vz_w),
         gt_roll=np.array(gt_roll), gt_pitch=np.array(gt_pitch), gt_yaw=np.array(gt_yaw),
         cmd_t=cmd_t, cmd_F=np.array(cmd_F),
         cmd_Mx=np.array(cmd_Mx), cmd_My=np.array(cmd_My), cmd_Mz=np.array(cmd_Mz),
@@ -210,15 +219,22 @@ def plot_sim(bag_name, db_path):
             liftoff_t = d['cmd_t'][j]
             break
 
-    # ── 1. Position + Velocity (odom_sim only, no GT) ──
-    fig, axes = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
+    # ── 1. Position + Velocity + Position Error (odom_sim vs GT) ──
+    gt_px_i = np.interp(d['sim_t'], d['gt_t'], d['gt_px'])
+    gt_py_i = np.interp(d['sim_t'], d['gt_t'], d['gt_py'])
+    gt_pz_i = np.interp(d['sim_t'], d['gt_t'], d['gt_pz'])
+
+    fig, axes = plt.subplots(3, 1, figsize=(14, 11), sharex=True)
     ax = axes[0]
-    ax.plot(d['sim_t'], d['sim_px'], 'tab:red', lw=0.8, label='x')
-    ax.plot(d['sim_t'], d['sim_py'], 'tab:blue', lw=0.8, label='y')
-    ax.plot(d['sim_t'], d['sim_pz'], 'tab:green', lw=0.8, label='z')
+    ax.plot(d['sim_t'], d['sim_px'], 'tab:red', lw=0.8, label='odom_sim x')
+    ax.plot(d['sim_t'], d['sim_py'], 'tab:blue', lw=0.8, label='odom_sim y')
+    ax.plot(d['sim_t'], d['sim_pz'], 'tab:green', lw=0.8, label='odom_sim z')
+    ax.plot(d['gt_t'], d['gt_px'], 'tab:red', lw=0.8, ls='--', alpha=0.6, label='GT x')
+    ax.plot(d['gt_t'], d['gt_py'], 'tab:blue', lw=0.8, ls='--', alpha=0.6, label='GT y')
+    ax.plot(d['gt_t'], d['gt_pz'], 'tab:green', lw=0.8, ls='--', alpha=0.6, label='GT z')
     ax.set_ylabel('Position (m)')
-    ax.set_title(f'Position ({bag_name})')
-    ax.legend(loc='upper right', fontsize=10)
+    ax.set_title(f'Position - odom_sim (solid) vs GT (dashed) ({bag_name})')
+    ax.legend(loc='upper right', fontsize=9, ncol=2)
     ax.grid(True, alpha=0.3)
 
     ax = axes[1]
@@ -226,8 +242,18 @@ def plot_sim(bag_name, db_path):
     ax.plot(d['sim_t'], d['sim_vy'], 'tab:blue', lw=0.8, label='vy')
     ax.plot(d['sim_t'], d['sim_vz'], 'tab:green', lw=0.8, label='vz')
     ax.set_ylabel('Velocity (m/s)')
-    ax.set_xlabel('Time (s)')
     ax.set_title(f'Linear velocity - world frame ({bag_name})')
+    ax.legend(loc='upper right', fontsize=10)
+    ax.grid(True, alpha=0.3)
+
+    ax = axes[2]
+    ax.plot(d['sim_t'], d['sim_px'] - gt_px_i, 'tab:red', lw=0.8, label='ex')
+    ax.plot(d['sim_t'], d['sim_py'] - gt_py_i, 'tab:blue', lw=0.8, label='ey')
+    ax.plot(d['sim_t'], d['sim_pz'] - gt_pz_i, 'tab:green', lw=0.8, label='ez')
+    ax.axhline(0, color='k', ls='-', lw=0.5, alpha=0.3)
+    ax.set_ylabel('Position error (m)')
+    ax.set_xlabel('Time (s)')
+    ax.set_title(f'Position error (odom_sim - GT) ({bag_name})')
     ax.legend(loc='upper right', fontsize=10)
     ax.grid(True, alpha=0.3)
 
@@ -362,17 +388,23 @@ def plot_sim(bag_name, db_path):
     plt.savefig(out, dpi=150); plt.close()
     print(f'Saved: {out}')
 
-    # ── 5. RPY (odom_sim only, initial offset subtracted, roll clipped) ──
-    sim_roll0 = d['sim_roll'][0]; sim_pitch0 = d['sim_pitch'][0]; sim_yaw0 = d['sim_yaw'][0]
+    # ── 5. RPY comparison (initial offset subtracted, odom_sim vs GT) ──
+    gt_roll_i = np.interp(d['sim_t'], d['gt_t'], d['gt_roll'])
+    gt_pitch_i = np.interp(d['sim_t'], d['gt_t'], d['gt_pitch'])
+    gt_yaw_i = np.interp(d['sim_t'], d['gt_t'], d['gt_yaw'])
+
+    sim_roll0 = sim_roll_clean[0]; sim_pitch0 = d['sim_pitch'][0]; sim_yaw0 = d['sim_yaw'][0]
+    gt_roll0 = gt_roll_i[0]; gt_pitch0 = gt_pitch_i[0]; gt_yaw0 = gt_yaw_i[0]
 
     fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
-    for i, (label, sim_sig, sim0) in enumerate([
-        ('Roll', sim_roll_clean, sim_roll_clean[0]),
-        ('Pitch', d['sim_pitch'], sim_pitch0),
-        ('Yaw', d['sim_yaw'], sim_yaw0),
+    for i, (label, sim_sig, sim0, gt_sig, gt0) in enumerate([
+        ('Roll', sim_roll_clean, sim_roll0, gt_roll_i, gt_roll0),
+        ('Pitch', d['sim_pitch'], sim_pitch0, gt_pitch_i, gt_pitch0),
+        ('Yaw', d['sim_yaw'], sim_yaw0, gt_yaw_i, gt_yaw0),
     ]):
         ax = axes[i]
         ax.plot(d['sim_t'], sim_sig - sim0, 'tab:blue', lw=0.8, label=f'odom_sim (init={sim0:.2f})')
+        ax.plot(d['sim_t'], gt_sig - gt0, 'tab:red', lw=0.8, alpha=0.7, label=f'GT (init={gt0:.2f})')
         ax.axhline(0, color='k', ls='-', lw=0.5, alpha=0.3)
         ax.set_ylabel(f'{label} (deg)')
         ax.set_title(f'{label} - initial offset subtracted ({bag_name})')
@@ -381,6 +413,26 @@ def plot_sim(bag_name, db_path):
     axes[2].set_xlabel('Time (s)')
     plt.tight_layout()
     out = f'{base}_rpy_comparison.png'
+    plt.savefig(out, dpi=150); plt.close()
+    print(f'Saved: {out}')
+
+    # ── 6. RPY error (odom_sim - GT) ──
+    fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
+    for i, (label, sim_sig, gt_sig) in enumerate([
+        ('Roll', d['sim_roll'], gt_roll_i),
+        ('Pitch', d['sim_pitch'], gt_pitch_i),
+        ('Yaw', d['sim_yaw'], gt_yaw_i),
+    ]):
+        err = sim_sig - gt_sig
+        ax = axes[i]
+        ax.plot(d['sim_t'], err, 'tab:blue', lw=0.8)
+        ax.axhline(0, color='k', ls='-', lw=0.5, alpha=0.3)
+        ax.set_ylabel(f'{label} error (deg)')
+        ax.set_title(f'{label} error (odom_sim - GT), mean={np.mean(err):.3f}, std={np.std(err):.3f} ({bag_name})')
+        ax.grid(True, alpha=0.3)
+    axes[2].set_xlabel('Time (s)')
+    plt.tight_layout()
+    out = f'{base}_rpy_error.png'
     plt.savefig(out, dpi=150); plt.close()
     print(f'Saved: {out}')
 
