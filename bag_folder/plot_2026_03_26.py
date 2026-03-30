@@ -169,6 +169,19 @@ def load_bag(db_path):
         mpc_F.append(fz)
         mpc_Mx.append(tx); mpc_My.append(ty); mpc_Mz.append(tz)
 
+    # ── RC in (kill switch detection) ──
+    kill_t = None
+    if '/mavros/rc/in' in topics:
+        tid = topics['/mavros/rc/in']
+        c.execute('SELECT data FROM messages WHERE topic_id=? ORDER BY timestamp', (tid,))
+        for data, in c.fetchall():
+            sec = struct.unpack_from('<I', data, 4)[0]
+            nsec = struct.unpack_from('<I', data, 8)[0]
+            ch8 = struct.unpack_from('<H', data, 24 + 8 * 2)[0]  # channel 8 (SE)
+            if ch8 < 1200:
+                kill_t = sec + nsec * 1e-9
+                break
+
     # ── hgdo wrench ──
     tid = topics['/hgdo/wrench']
     c.execute('SELECT data FROM messages WHERE topic_id=? ORDER BY timestamp', (tid,))
@@ -189,6 +202,8 @@ def load_bag(db_path):
     hgdo_t = np.array(hgdo_t)
     t0 = odom_t[0]
     odom_t -= t0; mocap_t -= t0; cmd_t -= t0; rpm_t -= t0; mpc_t -= t0; hgdo_t -= t0
+    if kill_t is not None:
+        kill_t -= t0
 
     # Subtract initial pz offset (both EKF2 and mocap)
     ekf_pz = np.array(ekf_pz)
@@ -221,12 +236,20 @@ def load_bag(db_path):
         mpc_Mx=np.array(mpc_Mx), mpc_My=np.array(mpc_My), mpc_Mz=np.array(mpc_Mz),
         hgdo_fx=np.array(hgdo_fx), hgdo_fy=np.array(hgdo_fy), hgdo_fz=np.array(hgdo_fz),
         hgdo_tx=np.array(hgdo_tx), hgdo_ty=np.array(hgdo_ty), hgdo_tz=np.array(hgdo_tz),
+        kill_t=kill_t,
     )
+
+
+def add_kill_line(ax, kill_t):
+    """Add a red dashed vertical line at kill time."""
+    if kill_t is not None:
+        ax.axvline(kill_t, color='red', ls='--', lw=1.2, alpha=0.8, label=f'kill {kill_t:.1f}s')
 
 
 def plot_bag(bag_name, db_path):
     d = load_bag(db_path)
     base = f'/home/user/drone_control_pkgs/bag_folder/{bag_name}'
+    kill_t = d['kill_t']
 
     # ── 1. Position + Velocity + Position Error (EKF2 + mocap) ──
     fig, axes = plt.subplots(3, 1, figsize=(14, 11), sharex=True)
@@ -265,6 +288,9 @@ def plot_bag(bag_name, db_path):
     ax.legend(loc='upper right', fontsize=10)
     ax.grid(True, alpha=0.3)
 
+    for ax in axes:
+        add_kill_line(ax, kill_t)
+
     plt.tight_layout()
     out = f'{base}_position_velocity.png'
     plt.savefig(out, dpi=150); plt.close()
@@ -282,15 +308,16 @@ def plot_bag(bag_name, db_path):
             liftoff_t = d['cmd_t'][j]
             break
 
-    # ── 2. MPC moment + angle paired by axis (3 rows, dual y-axis) ──
-    fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
+    # ── 2. MPC moment + angle + angular velocity (6 rows, dual y-axis) ──
+    fig, axes = plt.subplots(6, 1, figsize=(14, 18), sharex=True)
 
-    for i, (m_label, mpc_key, cmd_key, a_label, ekf_key, mocap_key) in enumerate([
-        ('Mx', 'mpc_Mx', 'cmd_Mx', 'Roll', 'ekf_roll', 'mocap_roll'),
-        ('My', 'mpc_My', 'cmd_My', 'Pitch', 'ekf_pitch', 'mocap_pitch'),
-        ('Mz', 'mpc_Mz', 'cmd_Mz', 'Yaw', 'ekf_yaw', 'mocap_yaw'),
+    for i, (m_label, mpc_key, cmd_key, a_label, ekf_key, mocap_key, w_label, w_key) in enumerate([
+        ('Mx', 'mpc_Mx', 'cmd_Mx', 'Roll', 'ekf_roll', 'mocap_roll', 'wx', 'ekf_wx'),
+        ('My', 'mpc_My', 'cmd_My', 'Pitch', 'ekf_pitch', 'mocap_pitch', 'wy', 'ekf_wy'),
+        ('Mz', 'mpc_Mz', 'cmd_Mz', 'Yaw', 'ekf_yaw', 'mocap_yaw', 'wz', 'ekf_wz'),
     ]):
-        ax1 = axes[i]
+        # Row 1: Moment + Angle
+        ax1 = axes[i * 2]
         ln1 = ax1.plot(d['mpc_t'], d[mpc_key], color='tab:blue', lw=0.8, label=f'MPC {m_label} (Nm)')
         ln4 = ax1.plot(d['cmd_t'], d[cmd_key], color='tab:cyan', lw=0.6, alpha=0.5, label=f'cmd_raw {m_label} (Nm)')
         ax1.set_ylabel(f'{m_label} Moment (Nm)', color='tab:blue')
@@ -302,18 +329,48 @@ def plot_bag(bag_name, db_path):
         ln3 = ax2.plot(d['mocap_t'], d[mocap_key], color='tab:orange', lw=0.8, alpha=0.7, label=f'{a_label} Mocap (deg)')
         ax2.set_ylabel(f'{a_label} (deg)', color='tab:red')
         ax2.tick_params(axis='y', labelcolor='tab:red')
+        ln3 = ax2.plot(d['mocap_t'], d[mocap_key], color='tab:orange', lw=0.8, alpha=0.7, label=f'{a_label} Mocap (deg)')
+        ax2.set_ylabel(f'{a_label} (deg)', color='tab:red')
+        ax2.tick_params(axis='y', labelcolor='tab:red')
 
         if liftoff_t is not None:
             ax1.axvline(liftoff_t, color='k', ls='--', lw=0.8, alpha=0.6, label=f'liftoff {liftoff_t:.1f}s')
+        if kill_t is not None:
+            ax1.axvline(kill_t, color='red', ls='--', lw=1.2, alpha=0.8, label=f'kill {kill_t:.1f}s')
 
         lns = ln1 + ln4 + ln2 + ln3
         if liftoff_t is not None:
-            lns += ax1.get_lines()[-1:]
+            lns += [ax1.get_lines()[-2 if kill_t is not None else -1]]
+        if kill_t is not None:
+            lns += [ax1.get_lines()[-1]]
         labs = [l.get_label() for l in lns]
         ax1.legend(lns, labs, loc='upper right', fontsize=8)
         ax1.set_title(f'MPC {m_label} + {a_label} ({bag_name})')
 
-    axes[2].set_xlabel('Time (s)')
+        # Row 2: Moment + Angular velocity
+        ax3 = axes[i * 2 + 1]
+        ln5 = ax3.plot(d['mpc_t'], d[mpc_key], color='tab:blue', lw=0.8, label=f'MPC {m_label} (Nm)')
+        ln6 = ax3.plot(d['cmd_t'], d[cmd_key], color='tab:cyan', lw=0.6, alpha=0.5, label=f'cmd_raw {m_label} (Nm)')
+        ax3.set_ylabel(f'{m_label} Moment (Nm)', color='tab:blue')
+        ax3.tick_params(axis='y', labelcolor='tab:blue')
+        ax3.grid(True, alpha=0.3)
+
+        ax4 = ax3.twinx()
+        ln7 = ax4.plot(d['odom_t'], d[w_key], color='tab:green', lw=0.8, label=f'{w_label} (rad/s)')
+        ax4.set_ylabel(f'{w_label} (rad/s)', color='tab:green')
+        ax4.tick_params(axis='y', labelcolor='tab:green')
+
+        if liftoff_t is not None:
+            ax3.axvline(liftoff_t, color='k', ls='--', lw=0.8, alpha=0.6)
+        if kill_t is not None:
+            ax3.axvline(kill_t, color='red', ls='--', lw=1.2, alpha=0.8)
+
+        lns_w = ln5 + ln6 + ln7
+        labs_w = [l.get_label() for l in lns_w]
+        ax3.legend(lns_w, labs_w, loc='upper right', fontsize=8)
+        ax3.set_title(f'MPC {m_label} + {w_label} ({bag_name})')
+
+    axes[5].set_xlabel('Time (s)')
 
     plt.tight_layout()
     out = f'{base}_mpc_moments_rpy.png'
@@ -342,6 +399,9 @@ def plot_bag(bag_name, db_path):
     ax.legend(loc='upper right', fontsize=9, ncol=3)
     ax.grid(True, alpha=0.3)
 
+    for ax in axes:
+        add_kill_line(ax, kill_t)
+
     plt.tight_layout()
     out = f'{base}_actual_rpm.png'
     plt.savefig(out, dpi=150); plt.close()
@@ -367,6 +427,9 @@ def plot_bag(bag_name, db_path):
     ax.set_title(f'HGDO estimated disturbance torque ({bag_name})')
     ax.legend(loc='upper right', fontsize=10)
     ax.grid(True, alpha=0.3)
+
+    for ax in axes:
+        add_kill_line(ax, kill_t)
 
     plt.tight_layout()
     out = f'{base}_hgdo.png'
@@ -396,6 +459,8 @@ def plot_bag(bag_name, db_path):
         ax.legend(loc='upper right', fontsize=9)
         ax.grid(True, alpha=0.3)
     axes[2].set_xlabel('Time (s)')
+    for ax in axes:
+        add_kill_line(ax, kill_t)
     plt.tight_layout()
     out = f'{base}_rpy_comparison.png'
     plt.savefig(out, dpi=150); plt.close()
@@ -416,6 +481,8 @@ def plot_bag(bag_name, db_path):
         ax.set_title(f'{label} error (EKF2 - Mocap), mean={np.mean(err):.3f}, std={np.std(err):.3f} ({bag_name})')
         ax.grid(True, alpha=0.3)
     axes[2].set_xlabel('Time (s)')
+    for ax in axes:
+        add_kill_line(ax, kill_t)
     plt.tight_layout()
     out = f'{base}_rpy_error.png'
     plt.savefig(out, dpi=150); plt.close()
