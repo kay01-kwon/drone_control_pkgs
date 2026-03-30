@@ -205,22 +205,15 @@ def plot_sim(bag_name, db_path):
             liftoff_t = d['cmd_t'][j]
             break
 
-    # ── 1. Position + Velocity + Position Error ──
-    gt_px_i = np.interp(d['sim_t'], d['gt_t'], d['gt_px'])
-    gt_py_i = np.interp(d['sim_t'], d['gt_t'], d['gt_py'])
-    gt_pz_i = np.interp(d['sim_t'], d['gt_t'], d['gt_pz'])
-
-    fig, axes = plt.subplots(3, 1, figsize=(14, 11), sharex=True)
+    # ── 1. Position + Velocity (odom_sim only, no GT) ──
+    fig, axes = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
     ax = axes[0]
-    ax.plot(d['sim_t'], d['sim_px'], 'tab:red', lw=0.8, label='odom_sim x')
-    ax.plot(d['sim_t'], d['sim_py'], 'tab:blue', lw=0.8, label='odom_sim y')
-    ax.plot(d['sim_t'], d['sim_pz'], 'tab:green', lw=0.8, label='odom_sim z')
-    ax.plot(d['gt_t'], d['gt_px'], 'tab:red', lw=0.8, ls='--', alpha=0.6, label='GT x')
-    ax.plot(d['gt_t'], d['gt_py'], 'tab:blue', lw=0.8, ls='--', alpha=0.6, label='GT y')
-    ax.plot(d['gt_t'], d['gt_pz'], 'tab:green', lw=0.8, ls='--', alpha=0.6, label='GT z')
+    ax.plot(d['sim_t'], d['sim_px'], 'tab:red', lw=0.8, label='x')
+    ax.plot(d['sim_t'], d['sim_py'], 'tab:blue', lw=0.8, label='y')
+    ax.plot(d['sim_t'], d['sim_pz'], 'tab:green', lw=0.8, label='z')
     ax.set_ylabel('Position (m)')
-    ax.set_title(f'Position - odom_sim (solid) vs GT (dashed) ({bag_name})')
-    ax.legend(loc='upper right', fontsize=9, ncol=2)
+    ax.set_title(f'Position ({bag_name})')
+    ax.legend(loc='upper right', fontsize=10)
     ax.grid(True, alpha=0.3)
 
     ax = axes[1]
@@ -228,18 +221,8 @@ def plot_sim(bag_name, db_path):
     ax.plot(d['sim_t'], d['sim_vy'], 'tab:blue', lw=0.8, label='vy')
     ax.plot(d['sim_t'], d['sim_vz'], 'tab:green', lw=0.8, label='vz')
     ax.set_ylabel('Velocity (m/s)')
-    ax.set_title(f'Linear velocity - world frame ({bag_name})')
-    ax.legend(loc='upper right', fontsize=10)
-    ax.grid(True, alpha=0.3)
-
-    ax = axes[2]
-    ax.plot(d['sim_t'], d['sim_px'] - gt_px_i, 'tab:red', lw=0.8, label='ex')
-    ax.plot(d['sim_t'], d['sim_py'] - gt_py_i, 'tab:blue', lw=0.8, label='ey')
-    ax.plot(d['sim_t'], d['sim_pz'] - gt_pz_i, 'tab:green', lw=0.8, label='ez')
-    ax.axhline(0, color='k', ls='-', lw=0.5, alpha=0.3)
-    ax.set_ylabel('Position error (m)')
     ax.set_xlabel('Time (s)')
-    ax.set_title(f'Position error (odom_sim - GT) ({bag_name})')
+    ax.set_title(f'Linear velocity - world frame ({bag_name})')
     ax.legend(loc='upper right', fontsize=10)
     ax.grid(True, alpha=0.3)
 
@@ -248,12 +231,17 @@ def plot_sim(bag_name, db_path):
     plt.savefig(out, dpi=150); plt.close()
     print(f'Saved: {out}')
 
-    # ── 2. MPC moment + angle (3 rows, dual y-axis) ──
+    # ── 2. MPC moment + angle (3 rows, dual y-axis, 0-lines aligned) ──
+    # Fix roll singularity: unwrap ±180 jumps, then subtract initial value
+    sim_roll_rad = np.deg2rad(d['sim_roll'])
+    sim_roll_unwrap = np.rad2deg(np.unwrap(sim_roll_rad))
+    sim_roll_clean = sim_roll_unwrap - sim_roll_unwrap[0]  # zero-referenced
+
     fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
-    for i, (m_label, mpc_key, cmd_key, a_label, sim_key, gt_key) in enumerate([
-        ('Mx', 'mpc_Mx', 'cmd_Mx', 'Roll', 'sim_roll', 'gt_roll'),
-        ('My', 'mpc_My', 'cmd_My', 'Pitch', 'sim_pitch', 'gt_pitch'),
-        ('Mz', 'mpc_Mz', 'cmd_Mz', 'Yaw', 'sim_yaw', 'gt_yaw'),
+    for i, (m_label, mpc_key, cmd_key, a_label, angle_data) in enumerate([
+        ('Mx', 'mpc_Mx', 'cmd_Mx', 'Roll', sim_roll_clean),
+        ('My', 'mpc_My', 'cmd_My', 'Pitch', d['sim_pitch']),
+        ('Mz', 'mpc_Mz', 'cmd_Mz', 'Yaw', d['sim_yaw']),
     ]):
         ax1 = axes[i]
         ln1 = ax1.plot(d['mpc_t'], d[mpc_key], color='tab:blue', lw=0.8, label=f'MPC {m_label} (Nm)')
@@ -263,15 +251,20 @@ def plot_sim(bag_name, db_path):
         ax1.grid(True, alpha=0.3)
 
         ax2 = ax1.twinx()
-        ln2 = ax2.plot(d['sim_t'], d[sim_key], color='tab:red', lw=0.8, label=f'{a_label} sim (deg)')
-        ln3 = ax2.plot(d['gt_t'], d[gt_key], color='tab:orange', lw=0.8, alpha=0.7, label=f'{a_label} GT (deg)')
+        ln2 = ax2.plot(d['sim_t'], angle_data, color='tab:red', lw=0.8, label=f'{a_label} (deg)')
         ax2.set_ylabel(f'{a_label} (deg)', color='tab:red')
         ax2.tick_params(axis='y', labelcolor='tab:red')
+
+        # Align 0-lines: make both axes symmetric around 0
+        m_max = max(abs(ax1.get_ylim()[0]), abs(ax1.get_ylim()[1]))
+        ax1.set_ylim(-m_max, m_max)
+        a_max = max(abs(ax2.get_ylim()[0]), abs(ax2.get_ylim()[1]))
+        ax2.set_ylim(-a_max, a_max)
 
         if liftoff_t is not None:
             ax1.axvline(liftoff_t, color='k', ls='--', lw=0.8, alpha=0.6, label=f'liftoff {liftoff_t:.1f}s')
 
-        lns = ln1 + ln4 + ln2 + ln3
+        lns = ln1 + ln4 + ln2
         if liftoff_t is not None:
             lns += ax1.get_lines()[-1:]
         labs = [l.get_label() for l in lns]
@@ -336,23 +329,18 @@ def plot_sim(bag_name, db_path):
     plt.savefig(out, dpi=150); plt.close()
     print(f'Saved: {out}')
 
-    # ── 5. RPY comparison (initial offset subtracted) ──
-    gt_roll_i = np.interp(d['sim_t'], d['gt_t'], d['gt_roll'])
-    gt_pitch_i = np.interp(d['sim_t'], d['gt_t'], d['gt_pitch'])
-    gt_yaw_i = np.interp(d['sim_t'], d['gt_t'], d['gt_yaw'])
-
+    # ── 5. RPY (odom_sim only, initial offset subtracted, roll clipped) ──
     sim_roll0 = d['sim_roll'][0]; sim_pitch0 = d['sim_pitch'][0]; sim_yaw0 = d['sim_yaw'][0]
-    gt_roll0 = gt_roll_i[0]; gt_pitch0 = gt_pitch_i[0]; gt_yaw0 = gt_yaw_i[0]
 
     fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
-    for i, (label, sim_sig, sim0, gt_sig, gt0) in enumerate([
-        ('Roll', d['sim_roll'], sim_roll0, gt_roll_i, gt_roll0),
-        ('Pitch', d['sim_pitch'], sim_pitch0, gt_pitch_i, gt_pitch0),
-        ('Yaw', d['sim_yaw'], sim_yaw0, gt_yaw_i, gt_yaw0),
+    for i, (label, sim_sig, sim0) in enumerate([
+        ('Roll', sim_roll_clean, sim_roll_clean[0]),
+        ('Pitch', d['sim_pitch'], sim_pitch0),
+        ('Yaw', d['sim_yaw'], sim_yaw0),
     ]):
         ax = axes[i]
         ax.plot(d['sim_t'], sim_sig - sim0, 'tab:blue', lw=0.8, label=f'odom_sim (init={sim0:.2f})')
-        ax.plot(d['sim_t'], gt_sig - gt0, 'tab:red', lw=0.8, alpha=0.7, label=f'GT (init={gt0:.2f})')
+        ax.axhline(0, color='k', ls='-', lw=0.5, alpha=0.3)
         ax.set_ylabel(f'{label} (deg)')
         ax.set_title(f'{label} - initial offset subtracted ({bag_name})')
         ax.legend(loc='upper right', fontsize=9)
@@ -360,26 +348,6 @@ def plot_sim(bag_name, db_path):
     axes[2].set_xlabel('Time (s)')
     plt.tight_layout()
     out = f'{base}_rpy_comparison.png'
-    plt.savefig(out, dpi=150); plt.close()
-    print(f'Saved: {out}')
-
-    # ── 6. RPY error (odom_sim - GT) ──
-    fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
-    for i, (label, sim_sig, gt_sig) in enumerate([
-        ('Roll', d['sim_roll'], gt_roll_i),
-        ('Pitch', d['sim_pitch'], gt_pitch_i),
-        ('Yaw', d['sim_yaw'], gt_yaw_i),
-    ]):
-        err = sim_sig - gt_sig
-        ax = axes[i]
-        ax.plot(d['sim_t'], err, 'tab:blue', lw=0.8)
-        ax.axhline(0, color='k', ls='-', lw=0.5, alpha=0.3)
-        ax.set_ylabel(f'{label} error (deg)')
-        ax.set_title(f'{label} error (odom_sim - GT), mean={np.mean(err):.3f}, std={np.std(err):.3f} ({bag_name})')
-        ax.grid(True, alpha=0.3)
-    axes[2].set_xlabel('Time (s)')
-    plt.tight_layout()
-    out = f'{base}_rpy_error.png'
     plt.savefig(out, dpi=150); plt.close()
     print(f'Saved: {out}')
 
