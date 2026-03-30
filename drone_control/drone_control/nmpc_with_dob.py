@@ -116,6 +116,8 @@ class NmpcWithDOBNode(Node):
         self.was_airborne = False
 
         # Initial pz offset (from mocap)
+        self.px_offset = None
+        self.py_offset = None
         self.pz_offset = None
 
         # LPF for cmd output
@@ -200,8 +202,12 @@ class NmpcWithDOBNode(Node):
 
         # Subtract initial pz offset (mocap height above ground)
         if self.pz_offset is None:
+            self.px_offset = odom_data[0]
+            self.py_offset = odom_data[1]
             self.pz_offset = odom_data[2]
-            self.get_logger().info(f'Initial pz offset: {self.pz_offset:.4f} m')
+            self.get_logger().info(f'Initial offset: {self.px_offset:.4f}, {self.py_offset:.4f}, {self.pz_offset:.4f} m')
+        odom_data[0] -= self.px_offset
+        odom_data[1] -= self.py_offset
         odom_data[2] -= self.pz_offset
 
         if self.odom_buffer.is_full():
