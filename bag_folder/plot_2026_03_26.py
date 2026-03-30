@@ -7,6 +7,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation
 
+def apply_lpf(signal, fc, ts):
+    """Apply 1st-order exponential LPF (exact ZOH).
+    y[k+1] = beta * y[k] + (1 - beta) * x[k], beta = exp(-2*pi*fc*ts)
+    """
+    beta = np.exp(-2 * np.pi * fc * ts)
+    out = np.zeros_like(signal)
+    out[0] = signal[0]
+    for k in range(1, len(signal)):
+        out[k] = beta * out[k - 1] + (1 - beta) * signal[k]
+    return out
+
+
 # ── Constants ──
 C_T = 1.386e-07
 k_m = 0.01569
@@ -98,6 +110,7 @@ def load_bag(db_path):
     ekf_vx_w, ekf_vy_w, ekf_vz_w = [], [], []
     ekf_roll, ekf_pitch, ekf_yaw = [], [], []
     ekf_wx, ekf_wy, ekf_wz = [], [], []
+    ekf_vx_b, ekf_vy_b, ekf_vz_b = [], [], []  # body frame velocity
     for data, in c.fetchall():
         t, px, py, pz, qx, qy, qz, qw, vx, vy, vz, wx, wy, wz = parse_odom(data)
         q = np.array([qx, qy, qz, qw])
@@ -112,6 +125,7 @@ def load_bag(db_path):
         ekf_vx_w.append(v_world[0]); ekf_vy_w.append(v_world[1]); ekf_vz_w.append(v_world[2])
         ekf_roll.append(roll); ekf_pitch.append(pitch); ekf_yaw.append(yaw)
         ekf_wx.append(wx); ekf_wy.append(wy); ekf_wz.append(wz)
+        ekf_vx_b.append(vx); ekf_vy_b.append(vy); ekf_vz_b.append(vz)
 
     # ── mocap (/S550/pose) ──
     tid = topics['/S550/pose']
@@ -221,6 +235,7 @@ def load_bag(db_path):
         ekf_vx=np.array(ekf_vx_w), ekf_vy=np.array(ekf_vy_w), ekf_vz=np.array(ekf_vz_w),
         ekf_roll=np.array(ekf_roll), ekf_pitch=np.array(ekf_pitch), ekf_yaw=np.array(ekf_yaw),
         ekf_wx=np.array(ekf_wx), ekf_wy=np.array(ekf_wy), ekf_wz=np.array(ekf_wz),
+        ekf_vx_b=np.array(ekf_vx_b), ekf_vy_b=np.array(ekf_vy_b), ekf_vz_b=np.array(ekf_vz_b),
         mocap_t=mocap_t,
         mocap_px=np.array(mocap_px), mocap_py=np.array(mocap_py), mocap_pz=mocap_pz,
         mocap_pz_offset=mocap_pz_offset,
@@ -485,6 +500,39 @@ def plot_bag(bag_name, db_path):
         add_kill_line(ax, kill_t)
     plt.tight_layout()
     out = f'{base}_rpy_error.png'
+    plt.savefig(out, dpi=150); plt.close()
+    print(f'Saved: {out}')
+
+    # ── 7. LPF comparison: body-frame velocity + angular velocity ──
+    # Compute average sample time from odom timestamps
+    dt_arr = np.diff(d['odom_t'])
+    ts = np.median(dt_arr)
+    cutoffs = [10, 15, 20]
+    lpf_colors = ['tab:orange', 'tab:green', 'tab:purple']
+
+    fig, axes = plt.subplots(6, 1, figsize=(14, 20), sharex=True)
+    vel_labels = [
+        ('vx_b', d['ekf_vx_b'], 'Body vx (m/s)'),
+        ('vy_b', d['ekf_vy_b'], 'Body vy (m/s)'),
+        ('vz_b', d['ekf_vz_b'], 'Body vz (m/s)'),
+        ('wx', d['ekf_wx'], 'wx (rad/s)'),
+        ('wy', d['ekf_wy'], 'wy (rad/s)'),
+        ('wz', d['ekf_wz'], 'wz (rad/s)'),
+    ]
+    for idx, (name, sig, ylabel) in enumerate(vel_labels):
+        ax = axes[idx]
+        ax.plot(d['odom_t'], sig, 'tab:blue', lw=0.5, alpha=0.5, label='raw')
+        for fc, clr in zip(cutoffs, lpf_colors):
+            filtered = apply_lpf(sig, fc, ts)
+            ax.plot(d['odom_t'], filtered, color=clr, lw=0.9, label=f'LPF {fc}Hz')
+        ax.set_ylabel(ylabel)
+        ax.set_title(f'{name} raw vs LPF (ts={ts*1000:.1f}ms) ({bag_name})')
+        ax.legend(loc='upper right', fontsize=8, ncol=4)
+        ax.grid(True, alpha=0.3)
+        add_kill_line(ax, kill_t)
+    axes[5].set_xlabel('Time (s)')
+    plt.tight_layout()
+    out = f'{base}_velocity_lpf.png'
     plt.savefig(out, dpi=150); plt.close()
     print(f'Saved: {out}')
 
