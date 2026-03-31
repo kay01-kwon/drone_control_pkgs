@@ -86,7 +86,7 @@ class NmpcNodeV2(Node):
             Odometry,
             filtered_odom_topic,
             self._odom_callback,
-            5
+            qos_profile_sensor_data
         )
 
         self.ref_sub = self.create_subscription(
@@ -161,8 +161,8 @@ class NmpcNodeV2(Node):
         arm_length = self.get_parameter('drone_param.arm_length').value
         motor_const = self.get_parameter('drone_param.motor_const').value
         moment_const = self.get_parameter('drone_param.moment_const').value
-        T_max = self.get_parameter('drone_param.T_max').value
-        T_min = self.get_parameter('drone_param.T_min').value
+        rotor_max = self.get_parameter('drone_param.rotor_max').value
+        rotor_min = self.get_parameter('drone_param.rotor_min').value
         acc_max = self.get_parameter('drone_param.acc_max').value
         acc_min = self.get_parameter('drone_param.acc_min').value
 
@@ -178,7 +178,7 @@ class NmpcNodeV2(Node):
         self.get_logger().info(f'  Inertia: {MoiArray}')
         self.get_logger().info(f'  Arm length: {arm_length:.3f} m')
         self.get_logger().info(f'  Rotor const: {motor_const:.2e}')
-        self.get_logger().info(f'  Thrust limits: [{T_min:.2f}, {T_max:.2f}] N')
+        self.get_logger().info(f'  Thrust limits: [{rotor_min:.2f}, {rotor_max:.2f}] N')
         self.get_logger().info(f'  Horizon: {t_horizon:.2f} s, Nodes: {n_nodes}')
 
         dynamic_param = {
@@ -190,8 +190,8 @@ class NmpcNodeV2(Node):
             'arm_length': arm_length,
             'motor_const': motor_const,
             'moment_const': moment_const,
-            'T_max': T_max,
-            'T_min': T_min,
+            'rotor_max': rotor_max,
+            'rotor_min': rotor_min,
             'acc_max': acc_max,
             'acc_min': acc_min
         }
@@ -302,7 +302,7 @@ class NmpcNodeV2(Node):
         filtered_rpm = self.cmd_lpf.filter(des_rpm, self.control_dt)
         cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(
             self.get_clock().now(),
-            filtered_rpm
+            des_rpm
         )
 
         nmpc_msg = WrenchStamped()
