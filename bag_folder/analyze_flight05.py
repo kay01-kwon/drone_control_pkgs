@@ -41,36 +41,42 @@ def parse_wrench_stamped(data):
 
 
 def parse_ref(data):
-    """Parse drone_msgs/msg/Ref CDR2:
-    Header (4+4+4+framestr), float64[3] p, float64[3] v, float64 psi, float64 psi_dot.
+    """Parse drone_msgs/msg/Ref CDR:
+    4-byte CDR encapsulation + Header (sec,nsec,frame_id) + float64[3] p + float64[3] v + float64 psi + float64 psi_dot.
+    Alignment is relative to data start (offset 4 past encapsulation header).
     """
     sec = struct.unpack_from('<I', data, 4)[0]
     nsec = struct.unpack_from('<I', data, 8)[0]
-    # Frame ID string length
     flen = struct.unpack_from('<I', data, 12)[0]
-    off = 16 + flen
-    # Align to 8 bytes for float64 array
-    off = (off + 7) & ~7
+    # After frame_id string: 16 + flen
+    # Align relative to data start (offset 4): (16+flen-4) aligned to 8, then +4
+    rel = 16 + flen - 4  # relative to data start
+    rel = (rel + 7) & ~7
+    off = rel + 4  # back to absolute
     p = struct.unpack_from('<3d', data, off)
     off += 24
     v = struct.unpack_from('<3d', data, off)
     off += 24
     psi = struct.unpack_from('<d', data, off)[0]
     off += 8
-    psi_dot = struct.unpack_from('<d', data, off)[0]
+    if off + 8 <= len(data):
+        psi_dot = struct.unpack_from('<d', data, off)[0]
+    else:
+        psi_dot = 0.0
     t = sec + nsec * 1e-9
     return t, p, v, psi, psi_dot
 
 
 def parse_rc_in(data):
+    """Parse mavros_msgs/RCIn: Header + uint16 rssi + uint16[] channels.
+    Channels start at offset 24 (after 4-byte CDR encap + header + rssi + array length).
+    """
     sec = struct.unpack_from('<I', data, 4)[0]
     nsec = struct.unpack_from('<I', data, 8)[0]
-    # channels start after header; detect kill on channel 8 (index 8, 0-based)
-    # RC channels: after header (sec,nsec,frame_id), then sequence of uint16
-    # Approximate: channel data starts at offset 24 (after header padding)
-    ch8 = struct.unpack_from('<H', data, 24 + 8 * 2)[0]
+    arr_len = struct.unpack_from('<I', data, 20)[0]
+    channels = list(struct.unpack_from(f'<{min(arr_len, 16)}H', data, 24))
     t = sec + nsec * 1e-9
-    return t, ch8
+    return t, channels
 
 
 def load_bag(db_path):
@@ -111,14 +117,19 @@ def load_bag(db_path):
     mocap_t = np.array(mocap_t)
     mocap_pz = np.array(mocap_pz)
 
-    # Reference
+    # Reference (use bag timestamp since header stamp may be zero)
     ref_t, ref_pz, ref_vz = [], [], []
     if '/nmpc/ref' in topics:
         tid = topics['/nmpc/ref']
-        c.execute('SELECT data FROM messages WHERE topic_id=? ORDER BY timestamp', (tid,))
-        for data, in c.fetchall():
+        c.execute('SELECT timestamp, data FROM messages WHERE topic_id=? ORDER BY timestamp', (tid,))
+        for bag_ts, data in c.fetchall():
             try:
-                t, p, v, psi, psi_dot = parse_ref(data)
+                t_hdr, p, v, psi, psi_dot = parse_ref(data)
+                # Use header time if valid, else bag timestamp (in nanoseconds)
+                if t_hdr > 1e9:
+                    t = t_hdr
+                else:
+                    t = bag_ts * 1e-9
                 ref_t.append(t)
                 ref_pz.append(p[2])
                 ref_vz.append(v[2])
@@ -152,16 +163,24 @@ def load_bag(db_path):
     hgdo_t = np.array(hgdo_t) if hgdo_t else np.array([])
     hgdo_fz = np.array(hgdo_fz) if hgdo_fz else np.array([])
 
-    # Kill time (RC channel 8 < 1200)
+    # Kill time: detect when ch8 (NMPC enable, index 8) drops from 2000 to 1000
     kill_t = None
+    nmpc_enable_t = None
     if '/mavros/rc/in' in topics:
         tid = topics['/mavros/rc/in']
         c.execute('SELECT data FROM messages WHERE topic_id=? ORDER BY timestamp', (tid,))
+        prev_ch8 = None
         for data, in c.fetchall():
-            t, ch8 = parse_rc_in(data)
-            if ch8 < 1200:
-                kill_t = t
-                break
+            t, channels = parse_rc_in(data)
+            if len(channels) > 8:
+                ch8 = channels[8]
+                if prev_ch8 is not None:
+                    if prev_ch8 < 1500 and ch8 > 1500 and nmpc_enable_t is None:
+                        nmpc_enable_t = t
+                    if prev_ch8 > 1500 and ch8 < 1500 and nmpc_enable_t is not None:
+                        kill_t = t
+                        break
+                prev_ch8 = ch8
 
     conn.close()
 
@@ -239,16 +258,21 @@ def print_stats(name, d, target=0.2):
         print(f"  Reference vz values: {d['ref_vz']}")
 
     if len(d['mpc_fz']) > 0:
-        print(f"  MPC thrust (fz) range: [{np.min(d['mpc_fz']):.2f}, {np.max(d['mpc_fz']):.2f}] N")
-        # Check if thrust stays high after reaching target
-        m = 3.144
+        m = 3.146
         W = m * 9.81
+        print(f"  MPC thrust u_mpc range: [{np.min(d['mpc_fz']):.2f}, {np.max(d['mpc_fz']):.2f}] N")
         above_hover = np.sum(d['mpc_fz'] > W) / len(d['mpc_fz']) * 100
         print(f"  MPC thrust > hover weight ({W:.1f}N): {above_hover:.1f}% of the time")
 
     if len(d['hgdo_fz']) > 0:
         print(f"  HGDO fz range: [{np.min(d['hgdo_fz']):.2f}, {np.max(d['hgdo_fz']):.2f}] N")
         print(f"  HGDO fz mean: {np.mean(d['hgdo_fz']):.2f} N")
+
+    if len(d['mpc_fz']) > 0 and len(d['hgdo_fz']) > 0:
+        hgdo_interp = np.interp(d['mpc_t'], d['hgdo_t'], d['hgdo_fz'])
+        f_eff = d['mpc_fz'] - hgdo_interp
+        print(f"  Effective thrust (u_mpc - hgdo) range: [{np.min(f_eff):.2f}, {np.max(f_eff):.2f}] N")
+        print(f"  Effective thrust max (= motor command peak): {np.max(f_eff):.2f} N")
 
 
 # ── Load all bags ──
@@ -268,28 +292,34 @@ for label, path in bag_configs:
         print(f"  ERROR loading bag {label}: {e}")
         import traceback; traceback.print_exc()
 
-# ── Main analysis plot for bag 05 ──
+# ── Main analysis plot for bag 05 (zoomed to t=12-22s around the event) ──
 d = bags['05']
-fig, axes = plt.subplots(4, 1, figsize=(14, 16), sharex=True)
+m = 3.146  # from config
+W = m * 9.81
+t_zoom = (12, 22)
+
+fig, axes = plt.subplots(5, 1, figsize=(14, 20), sharex=True)
 
 # 1) Altitude: EKF2 + Mocap + Reference
 ax = axes[0]
-ax.plot(d['odom_t'], d['pz'], 'tab:blue', lw=1.0, label='EKF2 z')
-ax.plot(d['mocap_t'], d['mocap_pz'], 'tab:cyan', lw=1.0, alpha=0.7, label='Mocap z')
+ax.plot(d['odom_t'], d['pz'], 'tab:blue', lw=1.2, label='EKF2 z (relative)')
+ax.plot(d['mocap_t'], d['mocap_pz'], 'tab:cyan', lw=1.0, alpha=0.7, label='Mocap z (relative)')
 if len(d['ref_t']) > 0:
-    ax.step(d['ref_t'], d['ref_pz'], 'tab:red', lw=1.5, where='post', label='Reference z')
-ax.axhline(0.2, color='green', ls=':', lw=1.0, alpha=0.7, label='Target 0.2m')
-ax.axhline(0.0, color='k', ls='-', lw=0.5, alpha=0.3)
+    ax.step(d['ref_t'], d['ref_pz'], 'tab:red', lw=1.5, where='post', label=f'Reference z (0.2m abs = {d["ref_pz"][0]:.3f}m rel)')
+ax.axhline(0.2, color='green', ls=':', lw=1.0, alpha=0.7, label='Intended target 0.2m AGL')
+ax.axhline(0.0, color='k', ls='-', lw=0.5, alpha=0.3, label='Ground level')
 if d['kill_t'] is not None:
     ax.axvline(d['kill_t'], color='red', ls='--', lw=1.2, alpha=0.8, label=f"Kill @ {d['kill_t']:.1f}s")
 ax.set_ylabel('Altitude (m)')
-ax.set_title('Bag 05 - Altitude vs Time (initial offset subtracted)')
-ax.legend(loc='upper left', fontsize=9)
+ax.set_title('Bag 05 - Altitude vs Time (offset subtracted: ground=0)')
+ax.legend(loc='upper left', fontsize=8)
 ax.grid(True, alpha=0.3)
+ax.set_xlim(t_zoom)
+ax.set_ylim(-0.2, 0.7)
 
 # 2) Vertical velocity
 ax = axes[1]
-ax.plot(d['odom_t'], d['vz'], 'tab:green', lw=0.8, label='vz (world)')
+ax.plot(d['odom_t'], d['vz'], 'tab:green', lw=0.8, label='vz (world frame)')
 if len(d['ref_vz']) > 0:
     ax.step(d['ref_t'], d['ref_vz'], 'tab:red', lw=1.5, where='post', label='ref vz')
 ax.axhline(0, color='k', ls='-', lw=0.5, alpha=0.3)
@@ -297,33 +327,53 @@ if d['kill_t'] is not None:
     ax.axvline(d['kill_t'], color='red', ls='--', lw=1.2, alpha=0.8)
 ax.set_ylabel('Vertical velocity (m/s)')
 ax.set_title('Bag 05 - Vertical velocity')
-ax.legend(loc='upper left', fontsize=9)
+ax.legend(loc='upper left', fontsize=8)
 ax.grid(True, alpha=0.3)
 
-# 3) MPC thrust (fz)
+# 3) MPC thrust (u_mpc) - this is the NMPC solver output, NOT the actual motor command
 ax = axes[2]
 if len(d['mpc_t']) > 0:
-    ax.plot(d['mpc_t'], d['mpc_fz'], 'tab:purple', lw=0.8, label='MPC fz')
-    m = 3.144
-    W = m * 9.81
-    ax.axhline(W, color='orange', ls=':', lw=1.0, label=f'Hover thrust ({W:.1f}N)')
+    ax.plot(d['mpc_t'], d['mpc_fz'], 'tab:purple', lw=0.8, label='u_mpc[0] (NMPC solver output)')
+    ax.axhline(W, color='orange', ls=':', lw=1.0, label=f'Hover weight ({W:.1f}N)')
 if d['kill_t'] is not None:
     ax.axvline(d['kill_t'], color='red', ls='--', lw=1.2, alpha=0.8)
 ax.set_ylabel('Thrust (N)')
-ax.set_title('Bag 05 - MPC commanded thrust (fz)')
-ax.legend(loc='upper left', fontsize=9)
+ax.set_title('Bag 05 - NMPC solver output (u_mpc)')
+ax.legend(loc='upper left', fontsize=8)
 ax.grid(True, alpha=0.3)
 
 # 4) HGDO disturbance fz
 ax = axes[3]
 if len(d['hgdo_t']) > 0:
-    ax.plot(d['hgdo_t'], d['hgdo_fz'], 'tab:brown', lw=0.8, label='HGDO fz (disturbance)')
+    ax.plot(d['hgdo_t'], d['hgdo_fz'], 'tab:brown', lw=0.8, label='HGDO fz (disturbance estimate)')
+    ax.axhline(0, color='k', ls='-', lw=0.5, alpha=0.3)
 if d['kill_t'] is not None:
     ax.axvline(d['kill_t'], color='red', ls='--', lw=1.2, alpha=0.8)
-ax.set_ylabel('Disturbance force z (N)')
-ax.set_xlabel('Time (s)')
+ax.set_ylabel('Disturbance fz (N)')
 ax.set_title('Bag 05 - HGDO estimated vertical disturbance')
-ax.legend(loc='upper left', fontsize=9)
+ax.legend(loc='upper left', fontsize=8)
+ax.grid(True, alpha=0.3)
+
+# 5) Effective thrust = u_mpc - hgdo_fz (what actually goes to motors in flight)
+ax = axes[4]
+if len(d['mpc_t']) > 0 and len(d['hgdo_t']) > 0:
+    # Interpolate HGDO to MPC timestamps
+    hgdo_interp = np.interp(d['mpc_t'], d['hgdo_t'], d['hgdo_fz'])
+    f_effective = d['mpc_fz'] - hgdo_interp
+    ax.plot(d['mpc_t'], f_effective, 'tab:red', lw=1.0, label='f_comp = u_mpc - hgdo_fz (motor command)')
+    ax.plot(d['mpc_t'], d['mpc_fz'], 'tab:purple', lw=0.6, alpha=0.5, label='u_mpc (NMPC only)')
+    ax.axhline(W, color='orange', ls=':', lw=1.0, label=f'Hover weight ({W:.1f}N)')
+    ax.axhline(0, color='k', ls='-', lw=0.5, alpha=0.3)
+    # Mark where airborne detection would fire
+    ax.annotate('DOB comp kicks in\n(airborne detected)',
+                xy=(16.5, 37), fontsize=8, color='red',
+                ha='center')
+if d['kill_t'] is not None:
+    ax.axvline(d['kill_t'], color='red', ls='--', lw=1.2, alpha=0.8)
+ax.set_ylabel('Thrust (N)')
+ax.set_xlabel('Time (s)')
+ax.set_title('Bag 05 - Effective motor thrust (with DOB compensation)')
+ax.legend(loc='upper left', fontsize=8)
 ax.grid(True, alpha=0.3)
 
 plt.tight_layout()
