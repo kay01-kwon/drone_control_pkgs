@@ -51,8 +51,6 @@ HgdoNode::~HgdoNode(){
     for(int i = 0; i < 3; ++i){
         delete angular_velocity_lpf_[i];
         delete linear_velocity_lpf_[i];
-        delete disturbance_force_lpf_[i];
-        delete disturbance_torque_lpf_[i];
     }
 }
 
@@ -185,12 +183,6 @@ void HgdoNode::odom_filter()
 
 void HgdoNode::dob_estimate()
 {
-    // Implement DOB estimation logic if needed
-
-    Vector3d disturbance_force_filtered = Vector3d::Zero();
-    Vector3d disturbance_torque_filtered = Vector3d::Zero();
-
-
     OdomData odom_recent;
     odom_recent = odom_buffer_.get_latest().value();
 
@@ -215,28 +207,17 @@ void HgdoNode::dob_estimate()
     
     disturbance_estimate_ = hgdo_model_->get_disturbance_estimate();
 
-    // Vector3d disturbance_torque_clamped = 
-    //     clampVector3d(disturbance_estimate_.tail<3>(), -2.0, 2.0);
-
-    for(int i = 0; i < 3; ++i)
-    {
-        disturbance_force_filtered(i) = 
-        disturbance_force_lpf_[i]->update(disturbance_estimate_(i), dt_odom);
-
-        disturbance_torque_filtered(i) = 
-        disturbance_torque_lpf_[i]->update(disturbance_estimate_(i+3), dt_odom);
-    }
-
-    // Publish DOB estimate
+    // Publish DOB estimate directly (no additional LPF — HGDO observer
+    // already filters via eps_f / eps_tau dynamics)
 
     dob_msg_.header.stamp = this->now();
     dob_msg_.header.frame_id = "base_link";
-    dob_msg_.wrench.force.x = disturbance_force_filtered(0);
-    dob_msg_.wrench.force.y = disturbance_force_filtered(1);
-    dob_msg_.wrench.force.z = disturbance_force_filtered(2);
-    dob_msg_.wrench.torque.x = disturbance_torque_filtered(0);
-    dob_msg_.wrench.torque.y = disturbance_torque_filtered(1);
-    dob_msg_.wrench.torque.z = disturbance_torque_filtered(2);
+    dob_msg_.wrench.force.x = disturbance_estimate_(0);
+    dob_msg_.wrench.force.y = disturbance_estimate_(1);
+    dob_msg_.wrench.force.z = disturbance_estimate_(2);
+    dob_msg_.wrench.torque.x = disturbance_estimate_(3);
+    dob_msg_.wrench.torque.y = disturbance_estimate_(4);
+    dob_msg_.wrench.torque.z = disturbance_estimate_(5);
 
 }
 
@@ -357,39 +338,26 @@ void HgdoNode::configure_parameters()
     this->declare_parameter<double>("lpf.ang_vel_cutoff", 60.0);
     double ang_vel_cutoff = this->get_parameter("lpf.ang_vel_cutoff").as_double();
 
-    this->declare_parameter<double>("lpf.disturbance_force_cutoff", 20.0);
-    double disturbance_force_cutoff = this->get_parameter("lpf.disturbance_force_cutoff").as_double();
-
-    this->declare_parameter<double>("lpf.disturbance_torque_cutoff", 60.0);
-    double disturbance_torque_cutoff = this->get_parameter("lpf.disturbance_torque_cutoff").as_double();
-
-
     // 4. Initialize HGDO model and other utilities
 
     for(int i = 0; i < 3; ++i){
         linear_velocity_lpf_[i] = new LowPassFilter(lin_vel_cutoff);
         angular_velocity_lpf_[i] = new LowPassFilter(ang_vel_cutoff);
-        disturbance_force_lpf_[i] = new LowPassFilter(disturbance_force_cutoff);
-        disturbance_torque_lpf_[i] = new LowPassFilter(disturbance_torque_cutoff);
     }
 
     rpm_to_cmd_converter_ = new HexaRotorRpmToCmd(drone_param);
     hgdo_model_ = new HgdoModel(drone_param, hgdo_param);
 
-    print_parameters(drone_param, 
-        hgdo_param, 
-        lin_vel_cutoff, 
-        ang_vel_cutoff,
-        disturbance_force_cutoff,
-        disturbance_torque_cutoff);
+    print_parameters(drone_param,
+        hgdo_param,
+        lin_vel_cutoff,
+        ang_vel_cutoff);
 }
 
 void HgdoNode::print_parameters(const DroneParam &drone_param,
                                 const HgdoParam &hgdo_param,
                                 const double &lin_cutoff_freq,
-                                const double &ang_cutoff_freq,
-                                const double &disturbance_force_cutoff,
-                                const double &disturbance_torque_cutoff)
+                                const double &ang_cutoff_freq)
 {
     RCLCPP_INFO(this->get_logger(), "===== HGDO Node Parameters =====");
     RCLCPP_INFO(this->get_logger(), "Drone Parameters:");
@@ -408,13 +376,11 @@ void HgdoNode::print_parameters(const DroneParam &drone_param,
     RCLCPP_INFO(this->get_logger(), "Epsilon for Torque Estimation (eps_tau): %.5f", hgdo_param.eps_tau);
 
     RCLCPP_INFO(this->get_logger(), "Low-Pass Filter Cutoff Frequencies:");
-    RCLCPP_INFO(this->get_logger(), 
+    RCLCPP_INFO(this->get_logger(),
     "Linear Velocity LPF Cutoff Frequency: %.2f Hz", lin_cutoff_freq);
-    RCLCPP_INFO(this->get_logger(), 
+    RCLCPP_INFO(this->get_logger(),
     "Angular Velocity LPF Cutoff Frequency: %.2f Hz", ang_cutoff_freq);
     RCLCPP_INFO(this->get_logger(),
-    "Disturbance Force LPF Cutoff Frequency: %.2f Hz", disturbance_force_cutoff);
-    RCLCPP_INFO(this->get_logger(),
-    "Disturbance Torque LPF Cutoff Frequency: %.2f Hz", disturbance_torque_cutoff);
+    "Disturbance LPF: NONE (HGDO observer dynamics provide filtering)");
     RCLCPP_INFO(this->get_logger(), "==========================");
 }

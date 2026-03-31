@@ -15,8 +15,6 @@
     lpf:
       lin_vel_cutoff: 100.0
       ang_vel_cutoff: 100.0
-      disturbance_force_cutoff: 100.0
-      disturbance_torque_cutoff: 100.0
 
     topic_names:
       odom_in: "/mavros/local_position/odom"
