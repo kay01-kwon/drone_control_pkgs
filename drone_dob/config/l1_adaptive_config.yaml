@@ -15,8 +15,8 @@
       freq_cutoff_rot: 2.0
 
     lpf:
-      lin_vel_cutoff: 10.0
-      ang_vel_cutoff: 10.0
+      lin_vel_cutoff: 100.0
+      ang_vel_cutoff: 100.0
 
     topic_names:
       odom_in: "/mavros/local_position/odom_sim"
