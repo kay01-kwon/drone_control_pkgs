@@ -591,8 +591,8 @@ def plot_bag(bag_name, db_path):
     print(f'Saved: {out}')
 
 
-# ── Run for both bags ──
-for bag in ['2026_03_26_06', '2026_03_26_07']:
+# ── Run for selected bags ──
+for bag in ['2026_03_26_07', '2026_03_31_01']:
     db = f'/home/user/drone_control_pkgs/bag_folder/{bag}/{bag}_0.db3'
     print(f'\n=== {bag} ===')
     plot_bag(bag, db)
