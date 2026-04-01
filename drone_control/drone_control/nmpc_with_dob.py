@@ -401,8 +401,9 @@ class NmpcWithDOBNode(Node):
                 # On ground with moment feedforward: use feedforward moment without DOB compensation
                 M_comp = self.M_ff.copy()
             else:
-                # On ground: MPC moment only, no DOB compensation
-                M_comp = u_mpc[1:4]
+                # On ground: DOB moment compensation for roll/pitch (non-restoring)
+                M_comp = u_mpc[1:4] - tau_dist
+                M_comp[2] = 0.0  # zero out yaw moment on ground
 
         self.des_rotor_rpm_comp = (self.control_allocator
                                    .compute_relaxed_des_rpm(f_comp, M_comp,
