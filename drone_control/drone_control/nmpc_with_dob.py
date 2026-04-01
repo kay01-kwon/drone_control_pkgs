@@ -386,7 +386,7 @@ class NmpcWithDOBNode(Node):
         in_flight = airborne or (self.was_airborne and state_body[2] > 0.01)
 
         if in_flight:
-            # Full DOB compensation in flight (including landing descent)
+            # In flight: NMPC translational force + DOB force compensation
             f_comp = u_mpc[0] - f_dist[2]
             M_comp = u_mpc[1:4] - tau_dist
         else:
@@ -394,8 +394,8 @@ class NmpcWithDOBNode(Node):
                 # Just landed — reset flag
                 self.was_airborne = False
 
-            # On ground: NMPC thrust only
-            f_comp = u_mpc[0]
+            # On ground: hover thrust only, no NMPC translational force, no DOB force
+            f_comp = self.W
 
             if self.moment_ff_flag is True and state_body[2] < 0.01:
                 # On ground with moment feedforward: use feedforward moment without DOB compensation
