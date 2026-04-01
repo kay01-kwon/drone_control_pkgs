@@ -132,10 +132,11 @@ def load_common(db_path, odom_offsets):
     # Cmd raw
     tid = topics['/uav/cmd_raw']
     c.execute('SELECT data FROM messages WHERE topic_id=? ORDER BY timestamp', (tid,))
-    cmd_t, cmd_F = [], []
+    cmd_t, cmd_F, cmd_rpm_raw = [], [], []
     for data, in c.fetchall():
         t, cmds = parse_cmd_raw(data)
         rpms = cmds * MaxRpm / MaxBit
+        cmd_rpm_raw.append(rpms.copy())
         thrusts = C_T * rpms ** 2
         u = K_forward @ thrusts
         cmd_t.append(t); cmd_F.append(u[0])
@@ -167,7 +168,7 @@ def load_common(db_path, odom_offsets):
         mpc_t=mpc_t, mpc_F=np.array(mpc_F),
         mpc_Mx=np.array(mpc_Mx), mpc_My=np.array(mpc_My), mpc_Mz=np.array(mpc_Mz),
         rpm_t=rpm_t, rpm_raw=np.array(rpm_raw),
-        cmd_t=cmd_t, cmd_F=np.array(cmd_F),
+        cmd_t=cmd_t, cmd_F=np.array(cmd_F), cmd_rpm_raw=np.array(cmd_rpm_raw),
     )
 
 
@@ -426,26 +427,30 @@ plt.savefig(out, dpi=150); plt.close()
 print(f'Saved: {out}')
 
 # ═══════════════════════════════════════════════════════════
-# PLOT 4: RPM comparison
+# PLOT 4: RPM comparison (2x6: LEFT=REAL, RIGHT=SIM, per motor)
 # ═══════════════════════════════════════════════════════════
-fig, axes = plt.subplots(2, 1, figsize=(16, 8))
-fig.suptitle('Sim2Real: Actual RPM Comparison', fontsize=14, fontweight='bold')
-colors = ['tab:red', 'tab:orange', 'tab:olive', 'tab:green', 'tab:blue', 'tab:purple']
+fig, axes = plt.subplots(6, 2, figsize=(18, 20))
+fig.suptitle('Sim2Real: Cmd vs Actual RPM per Motor\n'
+             'LEFT=REAL (2026_03_31_05)  RIGHT=SIM (2026_04_01_sim)', fontsize=14, fontweight='bold')
 
-for idx, (d, name, fs, fe) in enumerate([
-    (sim, 'SIM', sim_start, sim_end),
+for col, (d, name, fs, fe) in enumerate([
     (real, 'REAL', real_start, real_end),
+    (sim, 'SIM', sim_start, sim_end),
 ]):
-    ax = axes[idx]
-    mask = (d['rpm_t'] >= fs) & (d['rpm_t'] <= fe)
+    rpm_mask = (d['rpm_t'] >= fs) & (d['rpm_t'] <= fe)
+    cmd_mask = (d['cmd_t'] >= fs) & (d['cmd_t'] <= fe)
     for i in range(6):
-        ax.plot(d['rpm_t'][mask], d['rpm_raw'][mask, i], color=colors[i], lw=0.6, alpha=0.8, label=f'M{i+1}')
-    ax.axhline(np.sqrt(W / (6 * C_T)), color='k', ls=':', lw=0.8, alpha=0.5, label='hover RPM/motor')
-    ax.set_ylabel('RPM')
-    ax.set_title(f'{name} - Actual RPM (flight window)')
-    ax.legend(loc='upper right', fontsize=8, ncol=3); ax.grid(True, alpha=0.3)
+        ax = axes[i, col]
+        ax.plot(d['cmd_t'][cmd_mask], d['cmd_rpm_raw'][cmd_mask, i],
+                'tab:red', lw=0.6, alpha=0.8, label='Cmd RPM')
+        ax.plot(d['rpm_t'][rpm_mask], d['rpm_raw'][rpm_mask, i],
+                'tab:blue', lw=0.6, alpha=0.8, label='Actual RPM')
+        ax.set_ylabel('RPM')
+        ax.set_title(f'{name} - Motor {i+1}')
+        ax.legend(loc='upper right', fontsize=8); ax.grid(True, alpha=0.3)
+        if i == 5:
+            ax.set_xlabel('Time (s)')
 
-axes[1].set_xlabel('Time (s)')
 plt.tight_layout()
 out = 'bag_folder/sim2real_rpm.png'
 plt.savefig(out, dpi=150); plt.close()
