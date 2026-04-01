@@ -501,9 +501,10 @@ print(f"{'='*50}")
 print(f"  {'Motor':<10} {'REAL2':>12} {'SIM':>12}")
 print(f"  {'-'*34}")
 
+real2_duration = real2_end - real2_start
 for col, (d, name, fs, fe) in enumerate([
     (real2, 'REAL', real2_start, real2_end),
-    (sim, 'SIM', sim_start, sim_end),
+    (sim, 'SIM', sim_start, sim_start + real2_duration),
 ]):
     rpm_mask = (d['rpm_t'] >= fs) & (d['rpm_t'] <= fe)
     cmd_mask = (d['cmd_t'] >= fs) & (d['cmd_t'] <= fe)
