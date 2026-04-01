@@ -210,6 +210,11 @@ class NmpcWithDOBNode(Node):
         odom_data[1] -= self.py_offset
         odom_data[2] -= self.pz_offset
 
+        # Clamp pz to 0: negative altitude is physically impossible,
+        # occurs from ground contact + tilt causing mocap marker arc motion
+        if odom_data[2] < 0.0:
+            odom_data[2] = 0.0
+
         if self.odom_buffer.is_full():
             self.odom_buffer.pop()
         self.odom_buffer.push((odom_time, odom_data))
