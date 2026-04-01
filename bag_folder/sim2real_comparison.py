@@ -480,4 +480,64 @@ out = 'bag_folder/sim2real_rpm.png'
 plt.savefig(out, dpi=150); plt.close()
 print(f'\nSaved: {out}')
 
+# ═══════════════════════════════════════════════════════════
+# PLOT 5: RPM comparison – 2026_03_26_07 (REAL) vs SIM (full flight)
+# ═══════════════════════════════════════════════════════════
+print("\nLoading REAL bag (2026_03_26_07)...")
+real2 = load_common(
+    'bag_folder/2026_03_26_07/2026_03_26_07_0.db3',
+    odom_offsets=(44, 68, 388, 412)
+)
+real2_start, real2_end = find_flight_window(real2)
+print(f"REAL2 flight window: {real2_start:.1f} - {real2_end:.1f} s")
+
+fig2, axes2 = plt.subplots(6, 2, figsize=(18, 24))
+fig2.suptitle('Sim2Real: Cmd vs Actual RPM per Motor (full flight)\n'
+              'LEFT=REAL (2026_03_26_07)  RIGHT=SIM (2026_04_01_sim)', fontsize=14, fontweight='bold')
+
+print(f"\n{'='*50}")
+print(f"{'Cmd vs Actual RPM RMSE (per motor, full flight)':^50}")
+print(f"{'='*50}")
+print(f"  {'Motor':<10} {'REAL2':>12} {'SIM':>12}")
+print(f"  {'-'*34}")
+
+for col, (d, name, fs, fe) in enumerate([
+    (real2, 'REAL', real2_start, real2_end),
+    (sim, 'SIM', sim_start, sim_end),
+]):
+    rpm_mask = (d['rpm_t'] >= fs) & (d['rpm_t'] <= fe)
+    cmd_mask = (d['cmd_t'] >= fs) & (d['cmd_t'] <= fe)
+    rmse_values = []
+    for i in range(6):
+        cmd_interp = np.interp(d['rpm_t'][rpm_mask], d['cmd_t'][cmd_mask],
+                               d['cmd_rpm_raw'][cmd_mask, i])
+        rmse = np.sqrt(np.mean((cmd_interp - d['rpm_raw'][rpm_mask, i]) ** 2))
+        rmse_values.append(rmse)
+    if col == 0:
+        real2_rmse = rmse_values
+    else:
+        sim2_rmse = rmse_values
+
+    for i in range(6):
+        ax = axes2[i, col]
+        ax.plot(d['cmd_t'][cmd_mask], d['cmd_rpm_raw'][cmd_mask, i],
+                'tab:red', lw=0.6, alpha=0.8, label='Cmd RPM')
+        ax.plot(d['rpm_t'][rpm_mask], d['rpm_raw'][rpm_mask, i],
+                'tab:blue', lw=0.6, alpha=0.8, label='Actual RPM')
+        ax.set_xlim(fs, fe)
+        ax.set_ylabel('RPM')
+        ax.set_title(f'{name} - Motor {i+1} (RMSE={rmse_values[i]:.1f})')
+        ax.legend(loc='upper right', fontsize=8); ax.grid(True, alpha=0.3)
+        if i == 5:
+            ax.set_xlabel('Time (s)')
+
+for i in range(6):
+    print(f"  M{i+1:<9} {real2_rmse[i]:>12.1f} {sim2_rmse[i]:>12.1f}")
+print(f"{'='*50}")
+
+plt.tight_layout()
+out2 = 'bag_folder/sim2real_rpm_03_26_07.png'
+fig2.savefig(out2, dpi=150); plt.close(fig2)
+print(f'\nSaved: {out2}')
+
 print("\n=== Sim2Real analysis complete ===")
