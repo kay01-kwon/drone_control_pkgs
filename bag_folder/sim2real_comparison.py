@@ -427,9 +427,9 @@ plt.savefig(out, dpi=150); plt.close()
 print(f'Saved: {out}')
 
 # ═══════════════════════════════════════════════════════════
-# PLOT 4: RPM comparison (2x6: LEFT=REAL, RIGHT=SIM, per motor)
+# PLOT 4: RPM comparison (6x2: LEFT=REAL, RIGHT=SIM, per motor)
 # ═══════════════════════════════════════════════════════════
-fig, axes = plt.subplots(6, 2, figsize=(18, 20))
+fig, axes = plt.subplots(6, 2, figsize=(18, 24))
 fig.suptitle('Sim2Real: Cmd vs Actual RPM per Motor\n'
              'LEFT=REAL (2026_03_31_05)  RIGHT=SIM (2026_04_01_sim)', fontsize=14, fontweight='bold')
 
