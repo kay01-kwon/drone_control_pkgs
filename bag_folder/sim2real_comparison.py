@@ -433,9 +433,10 @@ fig, axes = plt.subplots(6, 2, figsize=(18, 24))
 fig.suptitle('Sim2Real: Cmd vs Actual RPM per Motor\n'
              'LEFT=REAL (2026_03_31_05)  RIGHT=SIM (2026_04_01_sim)', fontsize=14, fontweight='bold')
 
+rpm_duration = 3.0  # seconds from flight start
 for col, (d, name, fs, fe) in enumerate([
-    (real, 'REAL', real_start, real_end),
-    (sim, 'SIM', sim_start, sim_end),
+    (real, 'REAL', real_start, real_start + rpm_duration),
+    (sim, 'SIM', sim_start, sim_start + rpm_duration),
 ]):
     rpm_mask = (d['rpm_t'] >= fs) & (d['rpm_t'] <= fe)
     cmd_mask = (d['cmd_t'] >= fs) & (d['cmd_t'] <= fe)
