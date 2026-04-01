@@ -35,6 +35,8 @@ class RcControl():
         self.initialized = False
         self.axis_des = np.zeros((3,))
 
+        self.w_des = np.zeros((3,))
+
         # Force and moment
         self.u = np.zeros((4,))
 
@@ -63,6 +65,7 @@ class RcControl():
         dpsi_dt_des = ref[3]
         cmd_vel = np.array([vx_des, vy_des, vz_des])
         w_des = np.array([0, 0, dpsi_dt_des])
+        self.w_des = w_des.copy()
 
         p = state[0:3]
         v = state[3:6]
@@ -83,6 +86,7 @@ class RcControl():
         v_cmd_world = R @ cmd_vel
         self.p_des += v_cmd_world * dt
         self.psi_des += dpsi_dt_des * dt
+        self.axis_des = v_cmd_world.copy()
 
         # Clamp desired altitude to prevent going underground
         if self.p_des[2] < 0.0:
@@ -145,6 +149,13 @@ class RcControl():
 
     def get_control_input(self):
         return self.u
+
+    def get_ref_state(self):
+        '''
+        Return desired state: p_des(3), v_cmd_world(3), q_des(4), w_des(3)
+        '''
+        q_des = math_tool.yaw_to_quaternion(self.psi_des)
+        return self.p_des.copy(), self.axis_des.copy(), q_des, self.w_des.copy()
 
     def _accel_command_clamp(self, accelCommand):
 
