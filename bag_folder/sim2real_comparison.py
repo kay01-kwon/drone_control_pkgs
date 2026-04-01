@@ -427,30 +427,32 @@ plt.savefig(out, dpi=150); plt.close()
 print(f'Saved: {out}')
 
 # ═══════════════════════════════════════════════════════════
-# PLOT 4: RPM comparison (2x6: LEFT=REAL, RIGHT=SIM, per motor)
+# PLOT 4: RPM comparison (6x1: Real & Sim overlaid per motor)
 # ═══════════════════════════════════════════════════════════
-fig, axes = plt.subplots(6, 2, figsize=(18, 20))
+fig, axes = plt.subplots(6, 1, figsize=(16, 24))
 fig.suptitle('Sim2Real: Cmd vs Actual RPM per Motor\n'
-             'LEFT=REAL (2026_03_31_05)  RIGHT=SIM (2026_04_01_sim)', fontsize=14, fontweight='bold')
+             'REAL (2026_03_31_05) & SIM (2026_04_01_sim)', fontsize=14, fontweight='bold')
 
-for col, (d, name, fs, fe) in enumerate([
-    (real, 'REAL', real_start, real_end),
-    (sim, 'SIM', sim_start, sim_end),
-]):
-    rpm_mask = (d['rpm_t'] >= fs) & (d['rpm_t'] <= fe)
-    cmd_mask = (d['cmd_t'] >= fs) & (d['cmd_t'] <= fe)
-    for i in range(6):
-        ax = axes[i, col]
-        ax.plot(d['cmd_t'][cmd_mask], d['cmd_rpm_raw'][cmd_mask, i],
-                'tab:red', lw=0.6, alpha=0.8, label='Cmd RPM')
-        ax.plot(d['rpm_t'][rpm_mask], d['rpm_raw'][rpm_mask, i],
-                'tab:blue', lw=0.6, alpha=0.8, label='Actual RPM')
-        ax.set_ylabel('RPM')
-        ax.set_title(f'{name} - Motor {i+1}')
-        ax.legend(loc='upper right', fontsize=8); ax.grid(True, alpha=0.3)
-        if i == 5:
-            ax.set_xlabel('Time (s)')
+real_rpm_mask = (real['rpm_t'] >= real_start) & (real['rpm_t'] <= real_end)
+real_cmd_mask = (real['cmd_t'] >= real_start) & (real['cmd_t'] <= real_end)
+sim_rpm_mask = (sim['rpm_t'] >= sim_start) & (sim['rpm_t'] <= sim_end)
+sim_cmd_mask = (sim['cmd_t'] >= sim_start) & (sim['cmd_t'] <= sim_end)
 
+for i in range(6):
+    ax = axes[i]
+    ax.plot(real['cmd_t'][real_cmd_mask], real['cmd_rpm_raw'][real_cmd_mask, i],
+            'tab:red', lw=0.6, alpha=0.7, label='Real Cmd RPM')
+    ax.plot(real['rpm_t'][real_rpm_mask], real['rpm_raw'][real_rpm_mask, i],
+            'tab:blue', lw=0.6, alpha=0.7, label='Real Actual RPM')
+    ax.plot(sim['cmd_t'][sim_cmd_mask], sim['cmd_rpm_raw'][sim_cmd_mask, i],
+            'tab:orange', lw=0.6, alpha=0.7, label='Sim Cmd RPM')
+    ax.plot(sim['rpm_t'][sim_rpm_mask], sim['rpm_raw'][sim_rpm_mask, i],
+            'tab:cyan', lw=0.6, alpha=0.7, label='Sim Actual RPM')
+    ax.set_ylabel('RPM')
+    ax.set_title(f'Motor {i+1}')
+    ax.legend(loc='upper right', fontsize=8, ncol=2); ax.grid(True, alpha=0.3)
+
+axes[5].set_xlabel('Time (s)')
 plt.tight_layout()
 out = 'bag_folder/sim2real_rpm.png'
 plt.savefig(out, dpi=150); plt.close()
