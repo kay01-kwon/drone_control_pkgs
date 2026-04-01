@@ -541,4 +541,40 @@ out2 = 'bag_folder/sim2real_rpm_03_26_07.png'
 fig2.savefig(out2, dpi=150); plt.close(fig2)
 print(f'\nSaved: {out2}')
 
+# ── Diagnostic: Cmd RPM noise vs Actuator tracking error ──
+print(f"\n{'='*70}")
+print(f"{'Diagnostic: Cmd RPM std & Tracking error breakdown':^70}")
+print(f"{'='*70}")
+print(f"  {'Motor':<8} {'Cmd std(R)':>10} {'Cmd std(S)':>10} "
+      f"{'RMSE(R)':>10} {'RMSE(S)':>10} {'Odom vz std(R)':>14} {'Odom vz std(S)':>14}")
+print(f"  {'-'*68}")
+
+r2_rpm_mask = (real2['rpm_t'] >= real2_start) & (real2['rpm_t'] <= real2_end)
+r2_cmd_mask = (real2['cmd_t'] >= real2_start) & (real2['cmd_t'] <= real2_end)
+s_fe = sim_start + real2_duration
+s_rpm_mask = (sim['rpm_t'] >= sim_start) & (sim['rpm_t'] <= s_fe)
+s_cmd_mask = (sim['cmd_t'] >= sim_start) & (sim['cmd_t'] <= s_fe)
+
+for i in range(6):
+    r_cmd_std = np.std(real2['cmd_rpm_raw'][r2_cmd_mask, i])
+    s_cmd_std = np.std(sim['cmd_rpm_raw'][s_cmd_mask, i])
+    print(f"  M{i+1:<7} {r_cmd_std:>10.1f} {s_cmd_std:>10.1f} "
+          f"{real2_rmse[i]:>10.1f} {sim2_rmse[i]:>10.1f}", end='')
+    if i == 0:
+        r_odom_mask = (real2['odom_t'] >= real2_start) & (real2['odom_t'] <= real2_end)
+        s_odom_mask = (sim['odom_t'] >= sim_start) & (sim['odom_t'] <= s_fe)
+        print(f" {np.std(real2['odom_vz'][r_odom_mask]):>14.4f} {np.std(sim['odom_vz'][s_odom_mask]):>14.4f}")
+    else:
+        print()
+
+print(f"\n  Odom noise (flight window):")
+r_odom_mask = (real2['odom_t'] >= real2_start) & (real2['odom_t'] <= real2_end)
+s_odom_mask = (sim['odom_t'] >= sim_start) & (sim['odom_t'] <= s_fe)
+for key, label in [('odom_vx','vx'), ('odom_vy','vy'), ('odom_vz','vz'),
+                    ('odom_wx','wx'), ('odom_wy','wy'), ('odom_wz','wz')]:
+    r_std = np.std(real2[key][r_odom_mask])
+    s_std = np.std(sim[key][s_odom_mask])
+    print(f"    {label} std:  REAL={r_std:.4f}  SIM={s_std:.4f}  ratio={r_std/s_std:.1f}x")
+print(f"{'='*70}")
+
 print("\n=== Sim2Real analysis complete ===")
