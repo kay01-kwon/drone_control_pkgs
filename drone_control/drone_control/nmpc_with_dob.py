@@ -394,8 +394,8 @@ class NmpcWithDOBNode(Node):
                 # Just landed — reset flag
                 self.was_airborne = False
 
-            # On ground: hover thrust only, no NMPC translational force, no DOB force
-            f_comp = self.W
+            # On ground: NMPC thrust only, no DOB force
+            f_comp = u_mpc[0]
 
             if self.moment_ff_flag is True and state_body[2] < 0.01:
                 # On ground with moment feedforward: use feedforward moment without DOB compensation

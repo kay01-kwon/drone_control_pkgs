@@ -118,6 +118,14 @@ void HgdoNode::hexaActualRpmCallback(const HexaActualRpm::SharedPtr msg)
                     msg->rpm[4],
                     msg->rpm[5];
 
+    // Compute actual total thrust from RPM
+    double total_thrust = 0.0;
+    for(int i = 0; i < 6; ++i){
+        double rpm_val = static_cast<double>(rpm_data.rpm(i));
+        total_thrust += C_T_ * rpm_val * rpm_val;
+    }
+    actual_total_thrust_ = total_thrust;
+
     if(hexa_rpm_buffer_.is_full())
     {
         hexa_rpm_buffer_.pop();
@@ -207,14 +215,40 @@ void HgdoNode::dob_estimate()
     
     disturbance_estimate_ = hgdo_model_->get_disturbance_estimate();
 
+    // Track initial altitude for relative altitude computation
+    if(!initial_altitude_set_){
+        initial_altitude_ = odom_recent.position(2);
+        initial_altitude_set_ = true;
+    }
+    double relative_altitude = odom_recent.position(2) - initial_altitude_;
+    if(relative_altitude < 0.0) relative_altitude = 0.0;
+
+    // In-flight hysteresis for translational force gating
+    // Entry: actual total thrust >= weight
+    // Exit: relative altitude < 1cm AND actual total thrust < weight
+    bool airborne = actual_total_thrust_ >= W_;
+    if(airborne) was_airborne_ = true;
+    in_flight_ = airborne || (was_airborne_ && relative_altitude > 0.01);
+    if(!in_flight_ && was_airborne_) was_airborne_ = false;
+
     // Publish DOB estimate directly (no additional LPF — HGDO observer
     // already filters via eps_f / eps_tau dynamics)
-
     dob_msg_.header.stamp = this->now();
     dob_msg_.header.frame_id = "base_link";
-    dob_msg_.wrench.force.x = disturbance_estimate_(0);
-    dob_msg_.wrench.force.y = disturbance_estimate_(1);
-    dob_msg_.wrench.force.z = disturbance_estimate_(2);
+
+    if(in_flight_){
+        // In flight: publish force disturbance normally
+        dob_msg_.wrench.force.x = disturbance_estimate_(0);
+        dob_msg_.wrench.force.y = disturbance_estimate_(1);
+        dob_msg_.wrench.force.z = disturbance_estimate_(2);
+    } else {
+        // On ground: zero out force disturbance
+        dob_msg_.wrench.force.x = 0.0;
+        dob_msg_.wrench.force.y = 0.0;
+        dob_msg_.wrench.force.z = 0.0;
+    }
+
+    // Torque disturbance: always publish (non-restoring moments)
     dob_msg_.wrench.torque.x = disturbance_estimate_(3);
     dob_msg_.wrench.torque.y = disturbance_estimate_(4);
     dob_msg_.wrench.torque.z = disturbance_estimate_(5);
@@ -344,6 +378,9 @@ void HgdoNode::configure_parameters()
         linear_velocity_lpf_[i] = new LowPassFilter(lin_vel_cutoff);
         angular_velocity_lpf_[i] = new LowPassFilter(ang_vel_cutoff);
     }
+
+    W_ = m * 9.81;
+    C_T_ = motor_const;
 
     rpm_to_cmd_converter_ = new HexaRotorRpmToCmd(drone_param);
     hgdo_model_ = new HgdoModel(drone_param, hgdo_param);

@@ -84,7 +84,16 @@ class HgdoNode : public rclcpp::Node {
     LowPassFilter *linear_velocity_lpf_[3]{nullptr};
 
     Vector6d disturbance_estimate_{Vector6d::Zero()};
-    
+
+    // In-flight hysteresis for translational force gating
+    double W_{0.0};                      // weight (m*g)
+    double C_T_{0.0};                    // motor thrust constant
+    double actual_total_thrust_{0.0};
+    bool in_flight_{false};
+    bool was_airborne_{false};
+    double initial_altitude_{0.0};
+    bool initial_altitude_set_{false};
+
     nav_msgs::msg::Odometry filtered_odom_msg_;
     WrenchStamped dob_msg_;
 

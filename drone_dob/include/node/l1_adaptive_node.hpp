@@ -86,6 +86,15 @@ class L1AdaptiveNode : public rclcpp::Node {
 
     Vector6d disturbance_estimate_{Vector6d::Zero()};
 
+    // In-flight hysteresis for translational force gating
+    double W_{0.0};
+    double C_T_{0.0};
+    double actual_total_thrust_{0.0};
+    bool in_flight_{false};
+    bool was_airborne_{false};
+    double initial_altitude_{0.0};
+    bool initial_altitude_set_{false};
+
     nav_msgs::msg::Odometry filtered_odom_msg_;
     WrenchStamped dob_msg_;
 
