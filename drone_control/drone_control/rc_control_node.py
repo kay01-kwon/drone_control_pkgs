@@ -64,6 +64,7 @@ class RcControlNode(Node):
 
         # Create publisher
         self.cmd_pub = self.create_publisher(HexaCmdRaw, cmd_topic, 5)
+        self.ref_pub = self.create_publisher(Odometry, ref_topic, 5)
 
         # Create subscriber
         self.rc_in_sub = self.create_subscription(RCIn,
@@ -191,6 +192,10 @@ class RcControlNode(Node):
                                                                               self.des_rpm,
                                                                               dt)
 
+                # Publish reference state (position, velocity, orientation, angular velocity)
+                p_des, v_des, q_des, w_des = self.rc_control.get_ref_state()
+                self._publish_ref(p_des, v_des, q_des, w_des)
+
         dt = self.t_curr - self.t_prev
         filtered_rpm = self.cmd_lpf.filter(self.des_rpm, dt) if dt > 0 else self.des_rpm
         self.cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(), filtered_rpm)
@@ -198,6 +203,30 @@ class RcControlNode(Node):
         self.t_prev = self.t_curr
 
         self.cmd_pub.publish(self.cmd_msg)
+
+    def _publish_ref(self, p_des, v_des, q_des, w_des):
+        ref_msg = Odometry()
+        ref_msg.header.stamp = self.get_clock().now().to_msg()
+        ref_msg.header.frame_id = 'world'
+
+        ref_msg.pose.pose.position.x = p_des[0]
+        ref_msg.pose.pose.position.y = p_des[1]
+        ref_msg.pose.pose.position.z = p_des[2]
+
+        ref_msg.pose.pose.orientation.w = q_des[0]
+        ref_msg.pose.pose.orientation.x = q_des[1]
+        ref_msg.pose.pose.orientation.y = q_des[2]
+        ref_msg.pose.pose.orientation.z = q_des[3]
+
+        ref_msg.twist.twist.linear.x = v_des[0]
+        ref_msg.twist.twist.linear.y = v_des[1]
+        ref_msg.twist.twist.linear.z = v_des[2]
+
+        ref_msg.twist.twist.angular.x = w_des[0]
+        ref_msg.twist.twist.angular.y = w_des[1]
+        ref_msg.twist.twist.angular.z = w_des[2]
+
+        self.ref_pub.publish(ref_msg)
 
     def _get_time_now(self):
         clock_now = self.get_clock().now()

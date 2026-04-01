@@ -75,3 +75,7 @@ def skew_symm_to_vec(R):
 
 def signum(x):
     return 1 if x >= 0 else -1
+
+def yaw_to_quaternion(psi):
+    '''Convert yaw angle to quaternion [w, x, y, z]'''
+    return np.array([np.cos(psi / 2), 0.0, 0.0, np.sin(psi / 2)])
