@@ -90,6 +90,7 @@ class RcControlNode(Node):
         # Takeoff condition
         self.z_takeoff = ConstrainParam['z_takeoff']
         self.vz_cmd_takeoff = ConstrainParam['vz_cmd_takeoff']
+        self.z_init = None  # Initial z position from odometry (set on first odom)
 
         timer_period = 0.010
         self.timer = self.create_timer(timer_period, self._timer_cb)
@@ -120,6 +121,11 @@ class RcControlNode(Node):
     def _odom_cb(self, msg:Odometry):
 
         odom_time, odom_data = MsgParser.parse_odom_msg(msg)
+
+        if self.z_init is None:
+            self.z_init = odom_data[2]
+            self.get_logger().info(f'Initial z position: {self.z_init:.4f}')
+
         if self.odom_buf.is_full():
             self.odom_buf.pop()
         self.odom_buf.push((odom_time, odom_data))
@@ -166,8 +172,8 @@ class RcControlNode(Node):
             state_recent = self.odom_buf.get_latest()[1]
 
             # Landing state
-            p_des = self.rc_control.get_ref_state()[0]
-            if cmd_vel[2] < self.vz_cmd_takeoff and p_des[2] < self.z_takeoff:
+            z_rel = state_recent[2] - self.z_init
+            if cmd_vel[2] < self.vz_cmd_takeoff and z_rel < self.z_takeoff:
                 self._set_idle_rpm()
 
             # Takeoff state
