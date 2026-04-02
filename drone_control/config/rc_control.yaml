@@ -9,6 +9,9 @@
 
     gain_param:
       KpTransArray: [10.0, 10.0, 10.0]
+      KiTransArray: [0.5, 0.5, 0.5]
+      KdTransArray: [10.0, 10.0, 10.0]
+      IntegralMaxArray: [1.0, 1.0, 1.0]
       KpOriArray: [10.5, 10.5, 1.0]
       KdOriArray: [5.5, 5.5, 0.5]
       AccelMaxArray: [1.0, 1.0, 2.0]
