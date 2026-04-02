@@ -6,18 +6,12 @@ class RcControl():
     def __init__(self, GainParam, DynParam):
 
         KpTransArray = GainParam['KpTransArray']
-        KiTransArray = GainParam['KiTransArray']
-        KdTransArray = GainParam['KdTransArray']
-        IntegralMaxArray = GainParam['IntegralMaxArray']
 
         KpOriArray = GainParam['KpOriArray']
         KdOriArray = GainParam['KdOriArray']
         AccelMaxArray = GainParam['AccelMaxArray']
 
         self.KpTransDiag = np.diag(KpTransArray)
-        self.KiTransDiag = np.diag(KiTransArray)
-        self.KdTransDiag = np.diag(KdTransArray)
-        self.IntegralMaxArray = np.array(IntegralMaxArray)
         self.KpOriDiag = np.diag(KpOriArray)
         self.KdOriDiag = np.diag(KdOriArray)
 
@@ -30,97 +24,42 @@ class RcControl():
         self.g_vec = np.array([0, 0, -9.81])
 
         self.psi_des = 0.0
-        self.p_des = np.zeros((3,))
-        self.p_err_integral = np.zeros((3,))
-        self.initialized = False
         self.axis_des = np.zeros((3,))
-
-        self.w_des = np.zeros((3,))
 
         # Force and moment
         self.u = np.zeros((4,))
 
-    def reset(self, state):
-        '''
-        Reset desired position and yaw from current state.
-        Call this when entering MANUAL_STAB or after landing.
-        '''
-        self.p_des = state[0:3].copy()
-        self.p_err_integral = np.zeros((3,))
-        q = state[6:10]
-        R = math_tool.quaternion_to_rotm(q)
-        self.psi_des = np.arctan2(R[1, 0], R[0, 0])
-        self.initialized = True
 
-    def set_ref(self, ref, state, dt, f_dist_z, tau):
+    def set_ref(self, ref, state, dt ,tau):
         '''
 
         :param ref: vx_des, vy_des, vz_des, dpsi_dt_des
         :param state: p, v, q, w
-        :param f_dist_z: force disturbance along body z-axis
         :param tau: orientational disturbance
         :return: None
         '''
         vx_des, vy_des, vz_des = ref[0], ref[1], ref[2]
         dpsi_dt_des = ref[3]
+        self.psi_des += dpsi_dt_des * dt
         cmd_vel = np.array([vx_des, vy_des, vz_des])
         w_des = np.array([0, 0, dpsi_dt_des])
-        self.w_des = w_des.copy()
 
-        p = state[0:3]
         v = state[3:6]
         q = state[6:10]
         w = state[10:13]
 
         R = math_tool.quaternion_to_rotm(q)
-
-        # Initialize p_des from current state on first call
-        if not self.initialized:
-            self.p_des = p.copy()
-            self.p_err_integral = np.zeros((3,))
-            self.psi_des = np.arctan2(R[1, 0], R[0, 0])
-            self.initialized = True
-
-        # Integrate velocity command to get desired position
-        # cmd_vel is in body frame, convert to world frame for integration
-        v_cmd_world = R @ cmd_vel
-        self.p_des += v_cmd_world * dt
-        self.psi_des += dpsi_dt_des * dt
-        self.axis_des = v_cmd_world.copy()
-
-        # Clamp desired altitude to prevent going underground
-        if self.p_des[2] < 0.0:
-            self.p_des[2] = 0.0
-            self.p_err_integral[2] = 0.0
-
-        # Position error in world frame
-        p_err = p - self.p_des
-
-        # Accumulate integral of position error
-        self.p_err_integral += p_err * dt
-
-        # Anti-windup: clamp integral term
-        for i in range(3):
-            self.p_err_integral[i] = np.clip(
-                self.p_err_integral[i],
-                -self.IntegralMaxArray[i],
-                self.IntegralMaxArray[i]
-            )
-
-        # Velocity error in world frame (for damping)
         v_err_body = v - cmd_vel
         v_err = R @ v_err_body
 
-        # PID position control
-        accelCommand = -(self.KpTransDiag @ p_err
-                         + self.KiTransDiag @ self.p_err_integral
-                         + self.KdTransDiag @ v_err) / self.m
+        # P gain for velocity control
+        accelCommand = -self.KpTransDiag @ v_err / self.m
         accelCommand = self._accel_command_clamp(accelCommand)
 
         accelCommand = accelCommand - self.g_vec
 
         f_des = self.m * accelCommand
-        self.u[0] = f_des.dot(R[:,2]) - f_dist_z
+        self.u[0] = f_des.dot(R[:,2])
 
         # b1, b2, b3 : desired frame
         b3 = accelCommand/np.linalg.norm(accelCommand)
@@ -149,13 +88,6 @@ class RcControl():
 
     def get_control_input(self):
         return self.u
-
-    def get_ref_state(self):
-        '''
-        Return desired state: p_des(3), v_cmd_world(3), q_des(4), w_des(3)
-        '''
-        q_des = math_tool.yaw_to_quaternion(self.psi_des)
-        return self.p_des.copy(), self.axis_des.copy(), q_des, self.w_des.copy()
 
     def _accel_command_clamp(self, accelCommand):
 
