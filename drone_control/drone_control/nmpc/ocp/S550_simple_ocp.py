@@ -47,6 +47,10 @@ class S550_Ocp:
             R = np.diag([5.0]*6)           # u1...u6
             roll_max_deg = 15.0
             pitch_max_deg = 15.0
+            pitch_soft_Zl = 1000.0
+            pitch_soft_Zu = 1000.0
+            pitch_soft_zl = 100.0
+            pitch_soft_zu = 100.0
 
         else:
             t_horizon = MpcParam['t_horizon']
@@ -55,6 +59,10 @@ class S550_Ocp:
             R = MpcParam['R'][0]*np.eye(6)
             roll_max_deg = MpcParam.get('roll_max_deg', 15.0)
             pitch_max_deg = MpcParam.get('pitch_max_deg', 15.0)
+            pitch_soft_Zl = MpcParam.get('pitch_soft_Zl', 1000.0)
+            pitch_soft_Zu = MpcParam.get('pitch_soft_Zu', 1000.0)
+            pitch_soft_zl = MpcParam.get('pitch_soft_zl', 100.0)
+            pitch_soft_zu = MpcParam.get('pitch_soft_zu', 100.0)
 
         self.ocp = AcadosOcp()
 
@@ -130,6 +138,21 @@ class S550_Ocp:
         self.ocp.model.con_h_expr_e = cs.vertcat(sin_pitch, sin_roll_cos_pitch)
         self.ocp.constraints.lh_e = np.array([-sin_pitch_max, -sin_roll_max])
         self.ocp.constraints.uh_e = np.array([sin_pitch_max, sin_roll_max])
+
+        # 2.2 Soft constraint on pitch (index 0 in con_h_expr)
+        # Slack variable allows temporary violation with L1 + L2 penalty
+        self.ocp.constraints.idxsh = np.array([0])
+        self.ocp.cost.zl = np.array([pitch_soft_zl])     # L1 lower penalty
+        self.ocp.cost.zu = np.array([pitch_soft_zu])     # L1 upper penalty
+        self.ocp.cost.Zl = np.array([pitch_soft_Zl])     # L2 lower penalty
+        self.ocp.cost.Zu = np.array([pitch_soft_Zu])     # L2 upper penalty
+
+        # Terminal soft constraint on pitch
+        self.ocp.constraints.idxsh_e = np.array([0])
+        self.ocp.cost.zl_e = np.array([pitch_soft_zl])
+        self.ocp.cost.zu_e = np.array([pitch_soft_zu])
+        self.ocp.cost.Zl_e = np.array([pitch_soft_Zl])
+        self.ocp.cost.Zu_e = np.array([pitch_soft_Zu])
 
         # 3. Set ocp solver
         self.ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM'
