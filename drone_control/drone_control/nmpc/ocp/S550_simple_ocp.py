@@ -2,6 +2,7 @@ from acados_template import AcadosOcp, AcadosOcpSolver
 from drone_control.nmpc.model.S550_simple import S550_model
 from drone_control.utils.math_tool import quaternion_to_rotm
 from scipy.linalg import block_diag
+import casadi as cs
 import numpy as np
 
 class S550_Ocp:
@@ -44,12 +45,16 @@ class S550_Ocp:
                         8.0, 8.0, 8.0, 8.0,   # qw, qx, qy, qz
                         5.0, 5.0, 5.0])  #wx, wy ,wz
             R = np.diag([5.0]*6)           # u1...u6
+            roll_max_deg = 15.0
+            pitch_max_deg = 15.0
 
         else:
             t_horizon = MpcParam['t_horizon']
             n_nodes = MpcParam['n_nodes']
             Q = np.diag(MpcParam['QArray'])
             R = MpcParam['R'][0]*np.eye(6)
+            roll_max_deg = MpcParam.get('roll_max_deg', 15.0)
+            pitch_max_deg = MpcParam.get('pitch_max_deg', 15.0)
 
         self.ocp = AcadosOcp()
 
@@ -100,6 +105,31 @@ class S550_Ocp:
         self.ocp.constraints.lbu = np.array([u_min]*nu)
         self.ocp.constraints.ubu = np.array([u_max]*nu)
         self.ocp.constraints.idxbu = np.array([0, 1, 2, 3, 4, 5])
+
+        # 2.1 Nonlinear attitude constraints (roll/pitch)
+        # h1 = 2*(qw*qy - qx*qz) = sin(pitch)
+        # h2 = 2*(qw*qx + qy*qz) = sin(roll)*cos(pitch)
+        x = self.ocp.model.x
+        qw = x[6]
+        qx = x[7]
+        qy = x[8]
+        qz = x[9]
+
+        sin_pitch = 2 * (qw * qy - qx * qz)
+        sin_roll_cos_pitch = 2 * (qw * qx + qy * qz)
+
+        self.ocp.model.con_h_expr = cs.vertcat(sin_pitch, sin_roll_cos_pitch)
+
+        sin_pitch_max = np.sin(np.deg2rad(pitch_max_deg))
+        sin_roll_max = np.sin(np.deg2rad(roll_max_deg))
+
+        self.ocp.constraints.lh = np.array([-sin_pitch_max, -sin_roll_max])
+        self.ocp.constraints.uh = np.array([sin_pitch_max, sin_roll_max])
+
+        # Terminal attitude constraint (same bounds)
+        self.ocp.model.con_h_expr_e = cs.vertcat(sin_pitch, sin_roll_cos_pitch)
+        self.ocp.constraints.lh_e = np.array([-sin_pitch_max, -sin_roll_max])
+        self.ocp.constraints.uh_e = np.array([sin_pitch_max, sin_roll_max])
 
         # 3. Set ocp solver
         self.ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM'
