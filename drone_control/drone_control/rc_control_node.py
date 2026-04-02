@@ -166,7 +166,8 @@ class RcControlNode(Node):
             state_recent = self.odom_buf.get_latest()[1]
 
             # Landing state
-            if cmd_vel[2] < self.vz_cmd_takeoff and state_recent[2] < self.z_takeoff:
+            p_des = self.rc_control.get_ref_state()[0]
+            if cmd_vel[2] < self.vz_cmd_takeoff and p_des[2] < self.z_takeoff:
                 self._set_idle_rpm()
 
             # Takeoff state
