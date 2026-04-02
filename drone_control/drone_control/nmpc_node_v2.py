@@ -171,6 +171,8 @@ class NmpcNodeV2(Node):
         n_nodes = self.get_parameter('nmpc_param.n_nodes').value
         QArray = self.get_parameter('nmpc_param.QArray').value
         R = self.get_parameter('nmpc_param.R').value
+        roll_max_deg = self.get_parameter('nmpc_param.roll_max_deg').value
+        pitch_max_deg = self.get_parameter('nmpc_param.pitch_max_deg').value
 
         # Log parameters
         self.get_logger().info('Parameters loaded:')
@@ -180,6 +182,7 @@ class NmpcNodeV2(Node):
         self.get_logger().info(f'  Rotor const: {motor_const:.2e}')
         self.get_logger().info(f'  Thrust limits: [{rotor_min:.2f}, {rotor_max:.2f}] N')
         self.get_logger().info(f'  Horizon: {t_horizon:.2f} s, Nodes: {n_nodes}')
+        self.get_logger().info(f'  Attitude limits: roll={roll_max_deg:.1f} deg, pitch={pitch_max_deg:.1f} deg')
 
         dynamic_param = {
             'm': m,
@@ -200,7 +203,9 @@ class NmpcNodeV2(Node):
             't_horizon': t_horizon,
             'n_nodes': n_nodes,
             'QArray': QArray,
-            'R': R
+            'R': R,
+            'roll_max_deg': roll_max_deg,
+            'pitch_max_deg': pitch_max_deg
         }
 
         return dynamic_param, drone_param, nmpc_param
