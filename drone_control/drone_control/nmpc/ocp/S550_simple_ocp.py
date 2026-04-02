@@ -51,6 +51,10 @@ class S550_Ocp:
             pitch_soft_Zu = 1000.0
             pitch_soft_zl = 100.0
             pitch_soft_zu = 100.0
+            roll_soft_Zl = 1000.0
+            roll_soft_Zu = 1000.0
+            roll_soft_zl = 100.0
+            roll_soft_zu = 100.0
 
         else:
             t_horizon = MpcParam['t_horizon']
@@ -63,6 +67,10 @@ class S550_Ocp:
             pitch_soft_Zu = MpcParam.get('pitch_soft_Zu', 1000.0)
             pitch_soft_zl = MpcParam.get('pitch_soft_zl', 100.0)
             pitch_soft_zu = MpcParam.get('pitch_soft_zu', 100.0)
+            roll_soft_Zl = MpcParam.get('roll_soft_Zl', 1000.0)
+            roll_soft_Zu = MpcParam.get('roll_soft_Zu', 1000.0)
+            roll_soft_zl = MpcParam.get('roll_soft_zl', 100.0)
+            roll_soft_zu = MpcParam.get('roll_soft_zu', 100.0)
 
         self.ocp = AcadosOcp()
 
@@ -139,20 +147,20 @@ class S550_Ocp:
         self.ocp.constraints.lh_e = np.array([-sin_pitch_max, -sin_roll_max])
         self.ocp.constraints.uh_e = np.array([sin_pitch_max, sin_roll_max])
 
-        # 2.2 Soft constraint on pitch (index 0 in con_h_expr)
-        # Slack variable allows temporary violation with L1 + L2 penalty
-        self.ocp.constraints.idxsh = np.array([0])
-        self.ocp.cost.zl = np.array([pitch_soft_zl])     # L1 lower penalty
-        self.ocp.cost.zu = np.array([pitch_soft_zu])     # L1 upper penalty
-        self.ocp.cost.Zl = np.array([pitch_soft_Zl])     # L2 lower penalty
-        self.ocp.cost.Zu = np.array([pitch_soft_Zu])     # L2 upper penalty
+        # 2.2 Soft constraints on pitch (index 0) and roll (index 1) in con_h_expr
+        # Slack variables allow temporary violation with L1 + L2 penalty
+        self.ocp.constraints.idxsh = np.array([0, 1])
+        self.ocp.cost.zl = np.array([pitch_soft_zl, roll_soft_zl])     # L1 lower penalty
+        self.ocp.cost.zu = np.array([pitch_soft_zu, roll_soft_zu])     # L1 upper penalty
+        self.ocp.cost.Zl = np.array([pitch_soft_Zl, roll_soft_Zl])     # L2 lower penalty
+        self.ocp.cost.Zu = np.array([pitch_soft_Zu, roll_soft_Zu])     # L2 upper penalty
 
-        # Terminal soft constraint on pitch
-        self.ocp.constraints.idxsh_e = np.array([0])
-        self.ocp.cost.zl_e = np.array([pitch_soft_zl])
-        self.ocp.cost.zu_e = np.array([pitch_soft_zu])
-        self.ocp.cost.Zl_e = np.array([pitch_soft_Zl])
-        self.ocp.cost.Zu_e = np.array([pitch_soft_Zu])
+        # Terminal soft constraints on pitch and roll
+        self.ocp.constraints.idxsh_e = np.array([0, 1])
+        self.ocp.cost.zl_e = np.array([pitch_soft_zl, roll_soft_zl])
+        self.ocp.cost.zu_e = np.array([pitch_soft_zu, roll_soft_zu])
+        self.ocp.cost.Zl_e = np.array([pitch_soft_Zl, roll_soft_Zl])
+        self.ocp.cost.Zu_e = np.array([pitch_soft_Zu, roll_soft_Zu])
 
         # 3. Set ocp solver
         self.ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM'
