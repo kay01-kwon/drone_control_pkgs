@@ -143,8 +143,19 @@ class S550_att_ocp:
         :return: status, u(u1...u6)
         '''
 
+        # Copy ref to avoid mutating the caller's buffer
+        ref = ref.copy()
+
         if u_prev is None:
             u_prev = np.zeros((6,))
+
+        # Quaternion double-cover fix:
+        # q and -q represent the same rotation. Flip reference sign
+        # if dot product is negative to prevent unwanted full rotation.
+        q_cur = state[0:4]
+        q_ref = ref[0:4]
+        if np.dot(q_cur, q_ref) < 0.0:
+            ref[0:4] = -q_ref
 
         param = np.array([f_col])
         N = self.ocp.solver_options.N_horizon
@@ -163,7 +174,10 @@ class S550_att_ocp:
                 self.ocp_solver.set(stage, 'p', param)
 
                 if stage < N-1:
-                    prev_state = self.previous_states[stage + 1]
+                    prev_state = self.previous_states[stage + 1].copy()
+                    # Ensure quaternion sign consistency along the trajectory
+                    if np.dot(q_cur, prev_state[0:4]) < 0.0:
+                        prev_state[0:4] = -prev_state[0:4]
                     y_ref_warm = np.concatenate((prev_state, u_prev))
                     self.ocp_solver.set(stage, 'y_ref', y_ref_warm)
                 else:

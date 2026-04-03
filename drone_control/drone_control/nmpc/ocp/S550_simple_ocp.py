@@ -196,9 +196,10 @@ class S550_Ocp:
         :param u_prev: u1...u6 (Rotor thrust)
         :return: status, u(u1...u6)
         '''
-        
-        # Copy state to avoid mutating the caller's buffer
+
+        # Copy state and ref to avoid mutating the caller's buffer
         state = state.copy()
+        ref = ref.copy()
 
         # Transform velocity from body frame to world frame
         v_body = state[3:6]
@@ -206,6 +207,15 @@ class S550_Ocp:
         R_b_w = quaternion_to_rotm(q)
         v_world = R_b_w @ v_body
         state[3:6] = v_world
+
+        # Quaternion double-cover fix:
+        # q and -q represent the same rotation. If the dot product between
+        # the current quaternion and reference quaternion is negative, flip
+        # the reference sign to prevent the MPC from commanding a full rotation.
+        q_cur = state[6:10]
+        q_ref = ref[6:10]
+        if np.dot(q_cur, q_ref) < 0.0:
+            ref[6:10] = -q_ref
 
         if u_prev is None:
             u_prev = np.zeros((6,))
@@ -223,7 +233,10 @@ class S550_Ocp:
             for stage in range(self.ocp.solver_options.N_horizon):
                 if stage < self.ocp.solver_options.N_horizon - 1:
                     # Use next state from previous trajectory
-                    prev_state = self.previous_states[stage + 1]
+                    prev_state = self.previous_states[stage + 1].copy()
+                    # Ensure quaternion sign consistency along the trajectory
+                    if np.dot(q_cur, prev_state[6:10]) < 0.0:
+                        prev_state[6:10] = -prev_state[6:10]
                     y_ref_warm = np.concatenate((prev_state, u_prev))
                     self.ocp_solver.set(stage, 'y_ref', y_ref_warm)
                 else:
