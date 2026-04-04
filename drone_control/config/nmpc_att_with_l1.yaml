@@ -28,9 +28,9 @@
       vz_max: 0.3
       dpsi_dt_max: 0.2
 
-    thrust_ramp_param:
-      threshold_angle: 0.05     # rad (~2.9 deg)
-      f_dot_ramp_up: 2.0        # N/s
+    reference_param:
+      use_fixed_ref: true       # true: fixed hover ref [1,0,0,0],[0,0,0]
+                                # false: receive ref from des_odom_topic
 
     topic_names:
       cmd_topic: '/uav/cmd_raw'
@@ -38,3 +38,5 @@
       filtered_odom_topic: '/l1_adaptive/filtered_odom'
       rc_topic: '/mavros/rc/in'
       dob_wrench_topic: '/l1_adaptive/wrench'
+      des_thrust_topic: '/des_thrust'
+      des_odom_topic: '/des_odom'

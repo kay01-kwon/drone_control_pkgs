@@ -2,10 +2,11 @@
 ROS2 NMPC ATTITUDE Node with Disturbance Observer (DOB)
 
 This implements NMPC with disturbance compensation from DOB:
-- Thrust ramp function for ground disturbance estimation
+- Receives desired collective thrust (Float64) from external source
 - Receives rotational disturbances from DOB (HGDO, L1 adaptaiton, EKF/UKF)
 - Compensates control input for estimated disturbance (moment only)
-- FlightMode-based control (DISARMED: idle, ARMED: thrust ramp + NMPC)
+- Reference mode: fixed hover ref or external des_odom (Odometry)
+- FlightMode-based control (DISARMED: idle, AUTO: NMPC attitude)
 - Timer-based control loop (no manual threading)
 - SingleThreadedExecutor for predictable behavior
 
@@ -22,6 +23,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, qos_profile_
 from rclpy.executors import SingleThreadedExecutor
 
 from nav_msgs.msg import Odometry
+from std_msgs.msg import Float64
 from geometry_msgs.msg import WrenchStamped
 from mavros_msgs.msg import RCIn
 from ros2_libcanard_msgs.msg import HexaCmdRaw
@@ -41,7 +43,7 @@ class NMPCAttitudeWithDOB(Node):
     FlightMode behavior:
     - KILL: All rotors stop (0 RPM)
     - DISARMED: Idle speed (2000 RPM)
-    - AUTO: Thrust ramp with NMPC attitude control for ground calibration
+    - AUTO: NMPC attitude control with external thrust command
 
     Control loop runs at 100 Hz using ROS2 timer callback.
     """
@@ -51,7 +53,7 @@ class NMPCAttitudeWithDOB(Node):
 
         # Load parameters
         (dynamc_param, drone_param, nmpc_param,
-         rc_converter_param, thrust_ramp_param) = self._load_parameters()
+         rc_converter_param, reference_param) = self._load_parameters()
 
         # Store parameters as instance variables
         self.dynamic_param = dynamc_param
@@ -70,10 +72,8 @@ class NMPCAttitudeWithDOB(Node):
                                          -self.mg*self.x_off,
                                          0.0])
 
-
-        # Thrust ramp parameters
-        self.threshold_angle = thrust_ramp_param['threshold_angle']
-        self.f_dot_ramp_up = thrust_ramp_param['f_dot_ramp_up']
+        # Reference mode
+        self.use_fixed_ref = reference_param['use_fixed_ref']
 
         # Create RC converter
         self.rc_converter = RcConverter(rc_converter_param)
@@ -97,7 +97,7 @@ class NMPCAttitudeWithDOB(Node):
         self.rc_buffer = CircularBuffer(capacity=30)
 
         # Reference state (q, w) in 7 dim
-        # Final reference: q = (1, 0, 0, 0), w = (0, 0, 0)
+        # Default reference: q = (1, 0, 0, 0), w = (0, 0, 0)
         self.ref_state = np.zeros((7,))
         self.ref_state[0] = 1.0  # qw = 1 (Identity quaternion)
 
@@ -110,18 +110,14 @@ class NMPCAttitudeWithDOB(Node):
         self.solver_ready = False
         self.first_solve = True
 
-
         u_hover = m * 9.81 / 6.0
         self.des_rotor_thrust_mpc = u_hover * np.ones((6,))
         self.des_rotor_rpm_comp = np.zeros_like(self.des_rotor_thrust_mpc)
         self.des_rotor_rpm_comp_prev = np.zeros_like(self.des_rotor_thrust_mpc)
         self.C_T = self.drone_param['motor_const']
 
-        # Thrust ramp state
+        # Desired collective thrust (from external Float64 topic)
         self.f_col = 0.0
-        rotor_min = drone_param['rotor_min']
-        self.f_min = 6.0*self.C_T*(rotor_min)**2
-        self.thrust_locked = False
 
         # Flight mode
         self.mode = FlightMode.DISARMED
@@ -133,6 +129,7 @@ class NMPCAttitudeWithDOB(Node):
         filtered_odom_topic = self.get_parameter('topic_names.filtered_odom_topic').value
         rc_topic = self.get_parameter('topic_names.rc_topic').value
         dob_wrench_topic = self.get_parameter('topic_names.dob_wrench_topic').value
+        des_thrust_topic = self.get_parameter('topic_names.des_thrust_topic').value
 
         # Create publisher
         self.cmd_pub = self.create_publisher(HexaCmdRaw,
@@ -159,6 +156,23 @@ class NMPCAttitudeWithDOB(Node):
                                                    callback=self._wrench_dob_callback,
                                                    qos_profile=qos_profile_sensor_data)
 
+        # Desired thrust subscriber (Float64)
+        self.des_thrust_sub = self.create_subscription(
+            Float64,
+            des_thrust_topic,
+            callback=self._des_thrust_callback,
+            qos_profile=qos_profile_sensor_data)
+
+        # Desired odom subscriber (for ref quaternion + angular velocity)
+        if not self.use_fixed_ref:
+            des_odom_topic = self.get_parameter('topic_names.des_odom_topic').value
+            self.des_odom_sub = self.create_subscription(
+                Odometry,
+                des_odom_topic,
+                callback=self._des_odom_callback,
+                qos_profile=qos_profile_sensor_data)
+            self.get_logger().info(f'Des odom topic: {des_odom_topic}')
+
         # Create control timer ( 100 Hz )
         self.control_period = 0.01
         self.control_timer = self.create_timer(self.control_period,
@@ -170,15 +184,14 @@ class NMPCAttitudeWithDOB(Node):
         self.get_logger().info(f'Filtered odom topic: {filtered_odom_topic}')
         self.get_logger().info(f'RC topic: {rc_topic}')
         self.get_logger().info(f'DoB wrench topic: {dob_wrench_topic}')
+        self.get_logger().info(f'Des thrust topic: {des_thrust_topic}')
+        self.get_logger().info(f'Use fixed ref: {self.use_fixed_ref}')
         self.get_logger().info('NMPC Attitude With DOB Node initialized successfully')
         self.get_logger().info(f'Control rate: {1.0/self.control_period:.1f} Hz')
         self.get_logger().info(f'Horizon: {nmpc_param["t_horizon"]:.2f}s')
         self.get_logger().info(f'Nodes: {nmpc_param["n_nodes"]}')
         self.get_logger().info(f'Q: {nmpc_param["QArray"]}')
         self.get_logger().info(f'R: {nmpc_param["R"]}')
-        self.get_logger().info(
-            f'Thrust ramp: threshold={np.degrees(self.threshold_angle):.1f} deg, '
-            f'up={self.f_dot_ramp_up:.1f} N/s, ')
         self.get_logger().info('='*60)
 
     def _odom_callback(self, msg: Odometry):
@@ -198,7 +211,6 @@ class NMPCAttitudeWithDOB(Node):
     def _rc_callback(self, msg: RCIn):
         """
         RC callback - updates flight mode from RC switches.
-        Resets thrust ramp state on transition to ARMED.
         """
         rc_time, rc_state = MsgParser.parse_rc_msg(msg)
 
@@ -212,11 +224,6 @@ class NMPCAttitudeWithDOB(Node):
         if self.mode is not self.prev_mode:
             mode_name = RcModeStr.mode_str(self.mode)
             self.get_logger().info(f'Mode: {mode_name}')
-
-            # Reset thrust ramp on transition to ARMED
-            if self.mode == FlightMode.ARMED:
-                self.f_col = 0.0
-                self.thrust_locked = False
 
         self.prev_mode = self.mode
 
@@ -233,30 +240,28 @@ class NMPCAttitudeWithDOB(Node):
             self.wrench_buffer.pop()
         self.wrench_buffer.push((wrench_time, wrench_data))
 
-    def _compute_thrust_ramp(self, roll: float, pitch: float, dt: float):
+    def _des_thrust_callback(self, msg: Float64):
         """
-        Compute thrust ramp based on roll/pitch angles.
-
-        Uses max(|roll|, |pitch|) as the representative angle phi.
+        Desired collective thrust callback (Float64).
+        Receives total thrust [N] from external position controller.
         """
-        if self.thrust_locked:
-            self.f_col = self.f_min
-            return
+        self.f_col = msg.data
 
-        phi = max(abs(roll), abs(pitch))
-
-        if phi < self.threshold_angle:
-            f_dot = self.f_dot_ramp_up
-        else:
-            f_dot = 0.0
-
-        f_next = self.f_col + f_dot * dt
-
-        if self.f_col >= self.mg or phi >= self.threshold_angle:
-            self.f_col = self.f_min
-            self.thrust_locked = True
-        else:
-            self.f_col = max(f_next, self.f_min)
+    def _des_odom_callback(self, msg: Odometry):
+        """
+        Desired odometry callback for reference state.
+        Extracts quaternion (qw, qx, qy, qz) and angular velocity (wx, wy, wz)
+        from the Odometry message to set as NMPC reference.
+        """
+        q = msg.pose.pose.orientation
+        w = msg.twist.twist.angular
+        self.ref_state[0] = q.w
+        self.ref_state[1] = q.x
+        self.ref_state[2] = q.y
+        self.ref_state[3] = q.z
+        self.ref_state[4] = w.x
+        self.ref_state[5] = w.y
+        self.ref_state[6] = w.z
 
     def _control_callback(self):
         """
@@ -264,7 +269,7 @@ class NMPCAttitudeWithDOB(Node):
 
         KILL: 0 RPM
         DISARMED: idle 2000 RPM
-        ARMED: thrust ramp + NMPC attitude + DOB compensation
+        AUTO: NMPC attitude + DOB compensation (thrust from external topic)
         """
 
         # Check if we have data
@@ -302,21 +307,12 @@ class NMPCAttitudeWithDOB(Node):
             self.cmd_pub.publish(cmd_msg)
             return
 
-        # --- AUTO mode: thrust ramp + NMPC attitude ---
+        # --- AUTO mode: NMPC attitude with external thrust ---
         if self.mode != FlightMode.AUTO:
             return
 
         # Get the latest state (full 13-dim odom)
         _, state_full = self.odom_buffer.get_latest()
-
-        # Extract quaternion and compute roll/pitch for thrust ramp
-        qw, qx, qy, qz = state_full[6:10]
-        roll = np.arctan2(2.0 * (qw * qx + qy * qz),
-                          1.0 - 2.0 * (qx**2 + qy**2))
-        pitch = np.arcsin(np.clip(2.0 * (qw * qy - qz * qx), -1.0, 1.0))
-
-        # Compute thrust ramp
-        self._compute_thrust_ramp(roll, pitch, self.control_period)
 
         # Extract attitude state: [qw, qx, qy, qz, wx, wy, wz]
         state_att = np.concatenate((state_full[6:10], state_full[10:13]))
@@ -344,7 +340,7 @@ class NMPCAttitudeWithDOB(Node):
         _, wrench_body = self.wrench_buffer.get_latest()
         tau_dist = wrench_body[3:6]     # [tau_x, tau_y, tau_z]
 
-        # Compensate: total thrust from ramp, moments from NMPC minus DOB
+        # Compensate: total thrust from external, moments from NMPC minus DOB
         f_comp = self.f_col
 
         if self.first_trial == True:
@@ -412,7 +408,7 @@ class NMPCAttitudeWithDOB(Node):
 
         Returns:
             Tuple of (dynamic_param, drone_param, nmpc_param,
-                      rc_converter_param, thrust_ramp_param)
+                      rc_converter_param, reference_param)
         """
 
         # Dynamic parameters
@@ -441,9 +437,8 @@ class NMPCAttitudeWithDOB(Node):
         vz_max = self.get_parameter('rc_converter_param.vz_max').value
         dpsi_dt_max = self.get_parameter('rc_converter_param.dpsi_dt_max').value
 
-        # Thrust ramp parameters
-        threshold_angle = self.get_parameter('thrust_ramp_param.threshold_angle').value
-        f_dot_ramp_up = self.get_parameter('thrust_ramp_param.f_dot_ramp_up').value
+        # Reference parameters
+        use_fixed_ref = self.get_parameter('reference_param.use_fixed_ref').value
 
         # Log parameters
         self.get_logger().info('Parameters loaded:')
@@ -454,6 +449,7 @@ class NMPCAttitudeWithDOB(Node):
         self.get_logger().info(f'  Rotor const: {motor_const:.2e}')
         self.get_logger().info(f'  Rotor RPM limits: [{rotor_min:.2f}, {rotor_max:.2f}] N')
         self.get_logger().info(f'  Horizon: {t_horizon:.2f} s, Nodes: {n_nodes}')
+        self.get_logger().info(f'  Use fixed ref: {use_fixed_ref}')
 
         dynamic_param = {
             'm': m,
@@ -485,12 +481,11 @@ class NMPCAttitudeWithDOB(Node):
             'dpsi_dt_max': dpsi_dt_max
         }
 
-        thrust_ramp_param = {
-            'threshold_angle': threshold_angle,
-            'f_dot_ramp_up': f_dot_ramp_up,
+        reference_param = {
+            'use_fixed_ref': use_fixed_ref
         }
 
-        return dynamic_param, drone_param, nmpc_param, rc_converter_param, thrust_ramp_param
+        return dynamic_param, drone_param, nmpc_param, rc_converter_param, reference_param
 
 def main(args=None):
     """Main entry point"""
