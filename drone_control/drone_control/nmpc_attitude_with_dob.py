@@ -66,6 +66,9 @@ class NMPCAttitudeWithDOB(Node):
         # Reference mode
         self.use_fixed_ref = reference_param['use_fixed_ref']
 
+        # DOB compensation enable flag
+        self.use_dob_compensation = reference_param['use_dob_compensation']
+
         # Create RC converter
         self.rc_converter = RcConverter(rc_converter_param)
 
@@ -142,10 +145,11 @@ class NMPCAttitudeWithDOB(Node):
                                                callback=self._rc_callback,
                                                qos_profile=qos_profile_sensor_data)
 
-        self.wrench_sub = self.create_subscription(WrenchStamped,
-                                                   dob_wrench_topic,
-                                                   callback=self._wrench_dob_callback,
-                                                   qos_profile=qos_profile_sensor_data)
+        if self.use_dob_compensation:
+            self.wrench_sub = self.create_subscription(WrenchStamped,
+                                                       dob_wrench_topic,
+                                                       callback=self._wrench_dob_callback,
+                                                       qos_profile=qos_profile_sensor_data)
 
         # Desired thrust subscriber (Float64)
         self.des_thrust_sub = self.create_subscription(
@@ -177,6 +181,7 @@ class NMPCAttitudeWithDOB(Node):
         self.get_logger().info(f'DoB wrench topic: {dob_wrench_topic}')
         self.get_logger().info(f'Des thrust topic: {des_thrust_topic}')
         self.get_logger().info(f'Use fixed ref: {self.use_fixed_ref}')
+        self.get_logger().info(f'Use DOB compensation: {self.use_dob_compensation}')
         self.get_logger().info('NMPC Attitude With DOB Node initialized successfully')
         self.get_logger().info(f'Control rate: {1.0/self.control_period:.1f} Hz')
         self.get_logger().info(f'Horizon: {nmpc_param["t_horizon"]:.2f}s')
@@ -324,17 +329,21 @@ class NMPCAttitudeWithDOB(Node):
 
         u_mpc = self.control_allocator.compute_u_from_rotor_thrusts(self.des_rotor_thrust_mpc)
 
-        # Check if we have DOB data
-        if self.wrench_buffer.is_empty():
-            return
-
-        _, wrench_body = self.wrench_buffer.get_latest()
-        tau_dist = wrench_body[3:6]     # [tau_x, tau_y, tau_z]
-
-        # Compensate: total thrust from external, moments from NMPC minus DOB
+        # Compensate: total thrust from external, moments from NMPC (minus DOB)
         f_comp = self.f_col
 
-        M_comp = u_mpc[1:4] - tau_dist
+        if self.use_dob_compensation:
+            # Check if we have DOB data
+            if self.wrench_buffer.is_empty():
+                return
+
+            _, wrench_body = self.wrench_buffer.get_latest()
+            tau_dist = wrench_body[3:6]     # [tau_x, tau_y, tau_z]
+
+            M_comp = u_mpc[1:4] - tau_dist
+        else:
+            # No DOB compensation: use NMPC moments directly
+            M_comp = u_mpc[1:4]
 
         self.des_rotor_rpm_comp = (self.control_allocator
                                    .compute_des_rpm(f_comp, M_comp))
@@ -423,6 +432,13 @@ class NMPCAttitudeWithDOB(Node):
         # Reference parameters
         use_fixed_ref = self.get_parameter('reference_param.use_fixed_ref').value
 
+        # DOB compensation enable flag (default True for backward compat)
+        if self.has_parameter('reference_param.use_dob_compensation'):
+            use_dob_compensation = self.get_parameter(
+                'reference_param.use_dob_compensation').value
+        else:
+            use_dob_compensation = True
+
         # Log parameters
         self.get_logger().info('Parameters loaded:')
         self.get_logger().info(f'  Mass: {m:.2f} kg')
@@ -462,7 +478,8 @@ class NMPCAttitudeWithDOB(Node):
         }
 
         reference_param = {
-            'use_fixed_ref': use_fixed_ref
+            'use_fixed_ref': use_fixed_ref,
+            'use_dob_compensation': use_dob_compensation
         }
 
         return dynamic_param, drone_param, nmpc_param, rc_converter_param, reference_param
