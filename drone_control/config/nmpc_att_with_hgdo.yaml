@@ -29,6 +29,8 @@
     reference_param:
       use_fixed_ref: true       # true: fixed hover ref [1,0,0,0],[0,0,0]
                                 # false: receive ref from des_odom_topic
+      use_dob_compensation: true  # true: subtract DOB wrench from NMPC moment
+                                  # false: NMPC only (no DOB compensation)
 
     topic_names:
       cmd_topic: '/uav/cmd_raw'
