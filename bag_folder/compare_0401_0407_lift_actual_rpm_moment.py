@@ -24,14 +24,18 @@ def actual_rpm_moments(d):
     return u[:, 1], u[:, 2], u[:, 3]
 
 
-def find_lift_time(d, thresh=0.1):
-    """Return time (relative) at which odom_pz first exceeds thresh."""
-    pz = d['odom_pz']
-    t = d['odom_t']
-    idx = np.argmax(pz > thresh)
-    if idx == 0 and pz[0] <= thresh:
+def find_lift_time(d, vz_thresh=0.05):
+    """Return time (relative) at which upward velocity first exceeds vz_thresh.
+    Uses GT vz if available (smoother in SITL), else odom vz.
+    """
+    if len(d.get('gt_vz', [])) > 0:
+        vz = d['gt_vz']; t = d['gt_t']
+    else:
+        vz = d['odom_vz']; t = d['odom_t']
+    mask = vz > vz_thresh
+    if not np.any(mask):
         return t[0]
-    return t[idx]
+    return t[np.argmax(mask)]
 
 
 def load(bag):
