@@ -47,11 +47,6 @@ L1AdaptiveNode::L1AdaptiveNode()
 L1AdaptiveNode::~L1AdaptiveNode(){
     delete l1_adaptive_model_;
     delete rpm_to_cmd_converter_;
-
-    for(int i = 0; i < 3; ++i){
-        delete angular_velocity_lpf_[i];
-        delete linear_velocity_lpf_[i];
-    }
 }
 
 void L1AdaptiveNode::odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
@@ -366,26 +361,11 @@ void L1AdaptiveNode::configure_parameters()
     
     l1_adaptive_model_ = new L1AdaptationModel(drone_param, l1_adaptive_param);
 
-    // 3. Other parameters
-    this->declare_parameter("lpf.lin_vel_cutoff", 20.0);
-    double lin_cutoff_freq = this->get_parameter("lpf.lin_vel_cutoff").get_value<double>();
-
-    this->declare_parameter("lpf.ang_vel_cutoff", 60.0);
-    double ang_cutoff_freq = this->get_parameter("lpf.ang_vel_cutoff").get_value<double>();
-
-    for(int i = 0; i < 3; ++i){
-        linear_velocity_lpf_[i] = new LowPassFilter(lin_cutoff_freq);
-        angular_velocity_lpf_[i] = new LowPassFilter(ang_cutoff_freq);
-    }
-
-    print_parameters(drone_param, l1_adaptive_param, lin_cutoff_freq, ang_cutoff_freq);
-
+    print_parameters(drone_param, l1_adaptive_param);
 }
 
 void L1AdaptiveNode::print_parameters(const DroneParam &drone_param,
-                                const L1AdaptiveParam &l1_adaptive_param,
-                                const double &lin_cutoff_freq,
-                                const double &ang_cutoff_freq)
+                                const L1AdaptiveParam &l1_adaptive_param)
 {
     RCLCPP_INFO(this->get_logger(), "===== L1 DOB Node Parameters =====");
     RCLCPP_INFO(this->get_logger(), "Drone Parameters:");
@@ -413,8 +393,6 @@ void L1AdaptiveNode::print_parameters(const DroneParam &drone_param,
     RCLCPP_INFO(this->get_logger(), "Rotational Uncertainty LPF Cutoff Frequency: %.3f Hz",
     l1_adaptive_param.freq_cutoff_rot);
 
-    RCLCPP_INFO(this->get_logger(), "Low Pass Filter Cutoff Frequencies:");
-    RCLCPP_INFO(this->get_logger(), "Linear Velocity LPF Cutoff Frequency: %.3f Hz", lin_cutoff_freq);
-    RCLCPP_INFO(this->get_logger(), "Angular Velocity LPF Cutoff Frequency: %.3f Hz", ang_cutoff_freq);
+    RCLCPP_INFO(this->get_logger(), "Velocity LPF: DISABLED (raw MAVROS odom velocities)");
     RCLCPP_INFO(this->get_logger(), "==========================");
 }

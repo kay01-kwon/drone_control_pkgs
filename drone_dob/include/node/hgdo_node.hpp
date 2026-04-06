@@ -11,7 +11,6 @@
 #include "utils/math_tool.hpp"
 #include "utils/CircularBuffer.hpp"
 #include "utils/HexaRotorRpmToCmd.hpp"
-#include "utils/LowPassFilter.hpp"
 
 #include "models/hgdo_model/hgdo_model.hpp"
 
@@ -55,9 +54,7 @@ class HgdoNode : public rclcpp::Node {
     void configure_parameters();
 
     void print_parameters(const DroneParam &drone_param,
-                          const HgdoParam &hgdo_param,
-                          const double &lin_cutoff_freq,
-                          const double &ang_cutoff_freq);
+                          const HgdoParam &hgdo_param);
 
     rclcpp::TimerBase::SharedPtr control_loop_timer_;
     
@@ -79,9 +76,6 @@ class HgdoNode : public rclcpp::Node {
 
     HgdoModel *hgdo_model_{nullptr};
     HexaRotorRpmToCmd *rpm_to_cmd_converter_{nullptr};
-
-    LowPassFilter *angular_velocity_lpf_[3]{nullptr};
-    LowPassFilter *linear_velocity_lpf_[3]{nullptr};
 
     Vector6d disturbance_estimate_{Vector6d::Zero()};
 

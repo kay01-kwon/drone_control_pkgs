@@ -14,10 +14,6 @@
       freq_cutoff_trans: 2.0
       freq_cutoff_rot: 2.0
 
-    lpf:
-      lin_vel_cutoff: 100.0
-      ang_vel_cutoff: 100.0
-
     topic_names:
       odom_in: "/mavros/local_position/odom"
       filtered_odom: "/l1_adaptive/filtered_odom"

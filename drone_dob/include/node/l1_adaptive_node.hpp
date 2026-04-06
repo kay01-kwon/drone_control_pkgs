@@ -54,9 +54,7 @@ class L1AdaptiveNode : public rclcpp::Node {
     void configure_parameters();
 
     void print_parameters(const DroneParam &drone_param,
-                          const L1AdaptiveParam &l1_adaptive_param,
-                          const double &lin_cutoff_freq,
-                          const double &ang_cutoff_freq);
+                          const L1AdaptiveParam &l1_adaptive_param);
 
     rclcpp::TimerBase::SharedPtr control_loop_timer_;
 
@@ -80,9 +78,6 @@ class L1AdaptiveNode : public rclcpp::Node {
 
     L1AdaptationModel* l1_adaptive_model_{nullptr};
     HexaRotorRpmToCmd* rpm_to_cmd_converter_{nullptr};
-
-    LowPassFilter* linear_velocity_lpf_[3];
-    LowPassFilter* angular_velocity_lpf_[3];
 
     Vector6d disturbance_estimate_{Vector6d::Zero()};
 
