@@ -16,7 +16,6 @@ from drone_control.utils.circular_buffer import CircularBuffer
 from drone_control.utils.control_allocator import ControlAllocator
 from drone_control.utils import math_tool, MsgParser
 from drone_control.utils.cmd_converter import HexaCmdConverter
-from drone_control.utils.low_pass_filter import LowPassFilter
 
 class RcControlNode(Node):
     def __init__(self):
@@ -49,11 +48,6 @@ class RcControlNode(Node):
         self.wrench_buf = CircularBuffer(capacity=30)
 
         self.des_rpm = np.zeros((6,))
-
-        # LPF for cmd output
-        cmd_lpf_cutoff = self.get_parameter('drone_param.cmd_lpf_cutoff').value
-        self.cmd_lpf = LowPassFilter(cutoff_freq=cmd_lpf_cutoff)
-        self.get_logger().info(f'CMD LPF cutoff: {cmd_lpf_cutoff} Hz')
 
         # Topic name from ros param
         cmd_topic = self.get_parameter('topic_names.cmd_topic').value
@@ -193,9 +187,7 @@ class RcControlNode(Node):
                                                                               self.des_rpm,
                                                                               dt)
 
-        dt = self.t_curr - self.t_prev
-        filtered_rpm = self.cmd_lpf.filter(self.des_rpm, dt) if dt > 0 else self.des_rpm
-        self.cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(), filtered_rpm)
+        self.cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(), self.des_rpm)
 
         self.t_prev = self.t_curr
 
