@@ -111,7 +111,7 @@ class NMPCAttitudeWithDOB(Node):
         self.C_T = self.drone_param['motor_const']
 
         # Desired collective thrust (from external Float64 topic)
-        self.f_col = 0.0
+        self.f_col = 6.0
 
         # Flight mode
         self.mode = FlightMode.DISARMED
