@@ -150,23 +150,12 @@ void HgdoNode::odom_filter()
     // Implement odometry filtering if needed
 
     OdomData odom_recent;
-    OdomData odom_prev;
     odom_recent = odom_buffer_.get_latest().value();
-    odom_prev = odom_buffer_.at(odom_buffer_.size()-2).value();
 
-    double dt = odom_recent.timestamp - odom_prev.timestamp;
-
-    // Apply LPF to linear and angular velocity
-    for (int i = 0; i < 3; ++i)
-    {
-        lin_vel_filtered_(i) = 
-        linear_velocity_lpf_[i]->update(odom_recent.linear_velocity(i), 
-        dt);
-
-        ang_vel_filtered_(i) =
-        angular_velocity_lpf_[i]->update(odom_recent.angular_velocity(i),
-        dt);
-    }
+    // LPF bypassed: MAVROS odom velocities are already filtered by PX4 EKF2.
+    // Double-filtering adds phase lag and degrades HGDO disturbance estimates.
+    lin_vel_filtered_ = odom_recent.linear_velocity;
+    ang_vel_filtered_ = odom_recent.angular_velocity;
 
 
     // Publish filtered odometry
