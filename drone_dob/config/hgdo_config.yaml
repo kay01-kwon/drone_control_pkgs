@@ -12,10 +12,6 @@
       eps_f: 0.2
       eps_tau: 0.2
 
-    lpf:
-      lin_vel_cutoff: 100.0
-      ang_vel_cutoff: 100.0
-
     topic_names:
       odom_in: "/mavros/local_position/odom"
       filtered_odom: "/hgdo/filtered_odom"

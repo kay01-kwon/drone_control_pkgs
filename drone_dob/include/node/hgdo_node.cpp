@@ -48,10 +48,6 @@ HgdoNode::HgdoNode()
 HgdoNode::~HgdoNode(){
     delete hgdo_model_;
     delete rpm_to_cmd_converter_;
-    for(int i = 0; i < 3; ++i){
-        delete angular_velocity_lpf_[i];
-        delete linear_velocity_lpf_[i];
-    }
 }
 
 void HgdoNode::odomCallback(const Odometry::SharedPtr msg)
@@ -354,36 +350,18 @@ void HgdoNode::configure_parameters()
     hgdo_param.eps_tau = eps_tau;
 
 
-    // 3. Pass LPF parameters
-    this->declare_parameter<double>("lpf.lin_vel_cutoff", 20.0);
-    double lin_vel_cutoff = this->get_parameter("lpf.lin_vel_cutoff").as_double();
-
-    this->declare_parameter<double>("lpf.ang_vel_cutoff", 60.0);
-    double ang_vel_cutoff = this->get_parameter("lpf.ang_vel_cutoff").as_double();
-
-    // 4. Initialize HGDO model and other utilities
-
-    for(int i = 0; i < 3; ++i){
-        linear_velocity_lpf_[i] = new LowPassFilter(lin_vel_cutoff);
-        angular_velocity_lpf_[i] = new LowPassFilter(ang_vel_cutoff);
-    }
-
+    // 3. Initialize HGDO model and other utilities
     W_ = m * 9.81;
     C_T_ = motor_const;
 
     rpm_to_cmd_converter_ = new HexaRotorRpmToCmd(drone_param);
     hgdo_model_ = new HgdoModel(drone_param, hgdo_param);
 
-    print_parameters(drone_param,
-        hgdo_param,
-        lin_vel_cutoff,
-        ang_vel_cutoff);
+    print_parameters(drone_param, hgdo_param);
 }
 
 void HgdoNode::print_parameters(const DroneParam &drone_param,
-                                const HgdoParam &hgdo_param,
-                                const double &lin_cutoff_freq,
-                                const double &ang_cutoff_freq)
+                                const HgdoParam &hgdo_param)
 {
     RCLCPP_INFO(this->get_logger(), "===== HGDO Node Parameters =====");
     RCLCPP_INFO(this->get_logger(), "Drone Parameters:");
@@ -401,11 +379,8 @@ void HgdoNode::print_parameters(const DroneParam &drone_param,
     RCLCPP_INFO(this->get_logger(), "Epsilon for Force Estimation (eps_f): %.5f", hgdo_param.eps_f);
     RCLCPP_INFO(this->get_logger(), "Epsilon for Torque Estimation (eps_tau): %.5f", hgdo_param.eps_tau);
 
-    RCLCPP_INFO(this->get_logger(), "Low-Pass Filter Cutoff Frequencies:");
     RCLCPP_INFO(this->get_logger(),
-    "Linear Velocity LPF Cutoff Frequency: %.2f Hz", lin_cutoff_freq);
-    RCLCPP_INFO(this->get_logger(),
-    "Angular Velocity LPF Cutoff Frequency: %.2f Hz", ang_cutoff_freq);
+    "Velocity LPF: DISABLED (raw MAVROS odom velocities)");
     RCLCPP_INFO(this->get_logger(),
     "Disturbance LPF: NONE (HGDO observer dynamics provide filtering)");
     RCLCPP_INFO(this->get_logger(), "==========================");
