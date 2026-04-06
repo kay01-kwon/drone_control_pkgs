@@ -13,26 +13,22 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from plot_2026_04_01_sim import load_bag, K_forward, C_T
+from plot_2026_04_01_sim import load_bag, K_forward, C_T, W
 
 
-def actual_rpm_moments(d):
-    """Compute (Mx, My, Mz) from actual RPM using K_forward."""
+def actual_rpm_wrench(d):
+    """Compute (F_total, Mx, My, Mz) from actual RPM using K_forward."""
     rpms = d['rpm_raw']  # (N, 6)
     thrusts = C_T * rpms ** 2
     u = thrusts @ K_forward.T  # (N, 4) -> F,Mx,My,Mz
-    return u[:, 1], u[:, 2], u[:, 3]
+    return u[:, 0], u[:, 1], u[:, 2], u[:, 3]
 
 
-def find_lift_time(d, vz_thresh=0.05):
-    """Return time (relative) at which upward velocity first exceeds vz_thresh.
-    Uses GT vz if available (smoother in SITL), else odom vz.
-    """
-    if len(d.get('gt_vz', [])) > 0:
-        vz = d['gt_vz']; t = d['gt_t']
-    else:
-        vz = d['odom_vz']; t = d['odom_t']
-    mask = vz > vz_thresh
+def find_lift_time(d):
+    """First time when actual-RPM total thrust >= weight W."""
+    F = d['rpm_F']
+    t = d['rpm_t']
+    mask = F >= W
     if not np.any(mask):
         return t[0]
     return t[np.argmax(mask)]
@@ -41,7 +37,8 @@ def find_lift_time(d, vz_thresh=0.05):
 def load(bag):
     db = f'/home/user/drone_control_pkgs/bag_folder/{bag}/{bag}_0.db3'
     d = load_bag(db)
-    Mx, My, Mz = actual_rpm_moments(d)
+    F, Mx, My, Mz = actual_rpm_wrench(d)
+    d['rpm_F'] = F
     d['rpm_Mx'] = Mx
     d['rpm_My'] = My
     d['rpm_Mz'] = Mz
