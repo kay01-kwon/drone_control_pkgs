@@ -50,8 +50,10 @@ def shift(d, t0):
     """Return copies of arrays shifted by -t0 so lift is at 0."""
     return dict(
         rpm_t=d['rpm_t'] - t0,
+        mpc_t=d['mpc_t'] - t0,
         odom_t=d['odom_t'] - t0,
         rpm_Mx=d['rpm_Mx'], rpm_My=d['rpm_My'], rpm_Mz=d['rpm_Mz'],
+        mpc_Mx=d['mpc_Mx'], mpc_My=d['mpc_My'], mpc_Mz=d['mpc_Mz'],
         odom_roll=d['odom_roll'] - d['odom_roll'][0],
         odom_pitch=d['odom_pitch'],
         odom_yaw=d['odom_yaw'],
@@ -72,18 +74,20 @@ def main():
     t_min, t_max = -1.0, 5.0
 
     rows = [
-        ('Mx', 'rpm_Mx', 'Roll',  'odom_roll',  'wx', 'odom_wx'),
-        ('My', 'rpm_My', 'Pitch', 'odom_pitch', 'wy', 'odom_wy'),
-        ('Mz', 'rpm_Mz', 'Yaw',   'odom_yaw',   'wz', 'odom_wz'),
+        ('Mx', 'rpm_Mx', 'mpc_Mx', 'Roll',  'odom_roll',  'wx', 'odom_wx'),
+        ('My', 'rpm_My', 'mpc_My', 'Pitch', 'odom_pitch', 'wy', 'odom_wy'),
+        ('Mz', 'rpm_Mz', 'mpc_Mz', 'Yaw',   'odom_yaw',   'wz', 'odom_wz'),
     ]
 
     fig, axes = plt.subplots(6, 1, figsize=(14, 20), sharex=True)
 
-    for i, (m_lbl, m_key, a_lbl, a_key, w_lbl, w_key) in enumerate(rows):
+    for i, (m_lbl, m_key, mpc_key, a_lbl, a_key, w_lbl, w_key) in enumerate(rows):
         # Moment + angle
         ax1 = axes[i * 2]
-        ln1 = ax1.plot(s01['rpm_t'], s01[m_key], 'tab:blue', lw=0.9, label=f'0401 {m_lbl}')
-        ln2 = ax1.plot(s07['rpm_t'], s07[m_key], 'tab:cyan', lw=0.9, label=f'0407 {m_lbl}')
+        ln1 = ax1.plot(s01['rpm_t'], s01[m_key], 'tab:blue', lw=0.9, label=f'0401 rpm {m_lbl}')
+        ln2 = ax1.plot(s07['rpm_t'], s07[m_key], 'tab:cyan', lw=0.9, label=f'0407 rpm {m_lbl}')
+        lnM1 = ax1.plot(s01['mpc_t'], s01[mpc_key], 'tab:purple', lw=0.8, ls='--', label=f'0401 MPC {m_lbl}')
+        lnM2 = ax1.plot(s07['mpc_t'], s07[mpc_key], 'tab:pink',   lw=0.8, ls='--', label=f'0407 MPC {m_lbl}')
         ax1.set_ylabel(f'{m_lbl} (Nm)', color='tab:blue')
         ax1.tick_params(axis='y', labelcolor='tab:blue')
         ax1.grid(True, alpha=0.3)
@@ -97,14 +101,16 @@ def main():
         ax1.set_ylim(-m_max, m_max)
         a_max = max(abs(axR.get_ylim()[0]), abs(axR.get_ylim()[1]), 0.001)
         axR.set_ylim(-a_max, a_max)
-        lns = ln1 + ln2 + ln3 + ln4
-        ax1.legend(lns, [l.get_label() for l in lns], loc='upper right', fontsize=8, ncol=2)
-        ax1.set_title(f'Actual-RPM {m_lbl} + {a_lbl}  (0401 vs 0407, lift-aligned)')
+        lns = ln1 + ln2 + lnM1 + lnM2 + ln3 + ln4
+        ax1.legend(lns, [l.get_label() for l in lns], loc='upper right', fontsize=7, ncol=3)
+        ax1.set_title(f'{m_lbl} (rpm & MPC) + {a_lbl}  (0401 vs 0407, lift-aligned)')
 
         # Moment + angular velocity
         ax3 = axes[i * 2 + 1]
-        ln5 = ax3.plot(s01['rpm_t'], s01[m_key], 'tab:blue', lw=0.9, label=f'0401 {m_lbl}')
-        ln6 = ax3.plot(s07['rpm_t'], s07[m_key], 'tab:cyan', lw=0.9, label=f'0407 {m_lbl}')
+        ln5 = ax3.plot(s01['rpm_t'], s01[m_key], 'tab:blue', lw=0.9, label=f'0401 rpm {m_lbl}')
+        ln6 = ax3.plot(s07['rpm_t'], s07[m_key], 'tab:cyan', lw=0.9, label=f'0407 rpm {m_lbl}')
+        lnM3 = ax3.plot(s01['mpc_t'], s01[mpc_key], 'tab:purple', lw=0.8, ls='--', label=f'0401 MPC {m_lbl}')
+        lnM4 = ax3.plot(s07['mpc_t'], s07[mpc_key], 'tab:pink',   lw=0.8, ls='--', label=f'0407 MPC {m_lbl}')
         ax3.set_ylabel(f'{m_lbl} (Nm)', color='tab:blue')
         ax3.tick_params(axis='y', labelcolor='tab:blue')
         ax3.grid(True, alpha=0.3)
@@ -118,9 +124,9 @@ def main():
         ax3.set_ylim(-m_max, m_max)
         w_max = max(abs(axW.get_ylim()[0]), abs(axW.get_ylim()[1]), 0.001)
         axW.set_ylim(-w_max, w_max)
-        lns_w = ln5 + ln6 + ln7 + ln8
-        ax3.legend(lns_w, [l.get_label() for l in lns_w], loc='upper right', fontsize=8, ncol=2)
-        ax3.set_title(f'Actual-RPM {m_lbl} + {w_lbl}  (0401 vs 0407, lift-aligned)')
+        lns_w = ln5 + ln6 + lnM3 + lnM4 + ln7 + ln8
+        ax3.legend(lns_w, [l.get_label() for l in lns_w], loc='upper right', fontsize=7, ncol=3)
+        ax3.set_title(f'{m_lbl} (rpm & MPC) + {w_lbl}  (0401 vs 0407, lift-aligned)')
 
     axes[-1].set_xlabel('Time from lift (s)')
     axes[-1].set_xlim(t_min, t_max)
