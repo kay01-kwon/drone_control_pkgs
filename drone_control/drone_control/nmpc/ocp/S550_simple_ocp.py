@@ -1,5 +1,6 @@
 from acados_template import AcadosOcp, AcadosOcpSolver
 from drone_control.nmpc.model.S550_simple import S550_model
+from drone_control.nmpc.cs_utils import cs_math_tool
 from drone_control.utils.math_tool import quaternion_to_rotm
 from scipy.linalg import block_diag
 import casadi as cs
@@ -11,7 +12,7 @@ class S550_Ocp:
         Constructor
         :param DynParam: m, MoiArray (Jxx, Jyy, Jzz)
         :param DroneParam: arm_length, rotor_const, moment_const, T_max, T_min
-        :param MpcParam: t_horizon, n_nodes, QArray, RArray
+        :param MpcParam: t_horizon, n_nodes, QArray, RArray, tanh_k
         '''
         if DynParam is None:
             m = 3.0
@@ -41,9 +42,9 @@ class S550_Ocp:
             t_horizon = 1.0                # Time horizon
             n_nodes = 20                    # Number of nodes
             Q = np.diag([2.0, 2.0, 10.0,           # px, py, pz
-                        1.0, 1.0, 7.0,      # vx, vy, vz
-                        8.0, 8.0, 8.0, 8.0,   # qw, qx, qy, qz
-                        5.0, 5.0, 5.0])  #wx, wy ,wz
+                        1.0, 1.0, 7.0,              # vx, vy, vz
+                        8.0, 8.0, 8.0,              # q_e_x, q_e_y, q_e_z
+                        5.0, 5.0, 5.0])             # wx, wy ,wz
             R = np.diag([5.0]*6)           # u1...u6
             roll_max_deg = 15.0
             pitch_max_deg = 15.0
@@ -55,6 +56,7 @@ class S550_Ocp:
             roll_soft_Zu = 1000.0
             roll_soft_zl = 100.0
             roll_soft_zu = 100.0
+            tanh_k = 100.0
 
         else:
             t_horizon = MpcParam['t_horizon']
@@ -71,12 +73,39 @@ class S550_Ocp:
             roll_soft_Zu = MpcParam.get('roll_soft_Zu', 1000.0)
             roll_soft_zl = MpcParam.get('roll_soft_zl', 100.0)
             roll_soft_zu = MpcParam.get('roll_soft_zu', 100.0)
+            tanh_k = MpcParam.get('tanh_k', 100.0)
+
+        self.tanh_k = tanh_k
 
         self.ocp = AcadosOcp()
 
         # Instantiate model object
         model_obj = S550_model(DynParam, DroneParam)
         acados_model = model_obj.export_acados_model()
+
+        # --- Add parameters for NONLINEAR_LS cost: q_ref(4) + tanh_k(1) ---
+        q_ref_sym = cs.MX.sym('q_ref', 4)
+        tanh_k_sym = cs.MX.sym('tanh_k', 1)
+        # p = [qw_ref, qx_ref, qy_ref, qz_ref, tanh_k]
+        acados_model.p = cs.vertcat(q_ref_sym, tanh_k_sym)
+
+        # --- Quaternion error cost expression ---
+        p_pos = acados_model.x[0:3]    # position
+        v = acados_model.x[3:6]        # velocity
+        q = acados_model.x[6:10]       # quaternion
+        w = acados_model.x[10:13]      # angular velocity
+
+        # q_e = conj(q_ref) otimes q
+        q_ref_conj = cs_math_tool.conjugate(q_ref_sym)
+        q_e = cs_math_tool.otimes(q_ref_conj, q)
+
+        # Sign approximation for double cover prevention
+        sign_approx = cs.tanh(tanh_k_sym * q_e[0])
+        q_e_vec_signed = sign_approx * q_e[1:4]
+
+        # Cost residual: [p(3), v(3), q_e_vec_signed(3), w(3), u(6)] = 18-dim
+        acados_model.cost_y_expr = cs.vertcat(p_pos, v, q_e_vec_signed, w, acados_model.u)
+        acados_model.cost_y_expr_e = cs.vertcat(p_pos, v, q_e_vec_signed, w)
 
         # Put acados model into ocp model
         self.ocp.model = acados_model
@@ -91,30 +120,27 @@ class S550_Ocp:
         # Dim info
         nx = acados_model.x.rows()
         nu = acados_model.u.rows()
-        ny = nx + nu
+        n_pos = 3
+        n_vel = 3
+        n_q_e = 3   # quaternion error vector dim
+        n_w = 3
+        ny = n_pos + n_vel + n_q_e + n_w + nu     # 18
+        ny_e = n_pos + n_vel + n_q_e + n_w          # 12
 
         # 1. Cost setup
 
-        # 1.1 Declare type of cost
-        self.ocp.cost.cost_type = 'LINEAR_LS'
-        self.ocp.cost.cost_type_e = 'LINEAR_LS'
+        # 1.1 Declare type of cost: NONLINEAR_LS for quaternion error cost
+        self.ocp.cost.cost_type = 'NONLINEAR_LS'
+        self.ocp.cost.cost_type_e = 'NONLINEAR_LS'
 
-        # 1.2 Vx setup
-        self.ocp.cost.Vx = np.zeros((ny,nx))
-        self.ocp.cost.Vx[:nx,:nx] = np.eye(nx)
-        self.ocp.cost.Vx_e = np.eye(nx)
-
-        # 1.3 Vu setup
-        self.ocp.cost.Vu = np.zeros((ny,nu))
-        self.ocp.cost.Vu[-nu:,-nu:] = np.eye(nu)
-
-        # 1.4 Weight setup
+        # 1.2 Weight setup
         self.ocp.cost.W = block_diag(Q, R)
         self.ocp.cost.W_e = Q
 
-        # 1.5 Reference setup
-        self.ocp.cost.yref = np.concatenate((x0, np.zeros(nu)))
-        self.ocp.cost.yref_e = x0
+        # 1.3 Reference setup
+        # y_ref = [p_ref(3), v_ref(3), q_e_vec_ref(0,0,0), w_ref(3), u_ref(6)]
+        self.ocp.cost.yref = np.zeros(ny)
+        self.ocp.cost.yref_e = np.zeros(ny_e)
 
         # 2. Set ocp constraints
         self.ocp.constraints.x0 = x0
@@ -179,6 +205,10 @@ class S550_Ocp:
         self.ocp.solver_options.tf = t_horizon
         self.ocp.solver_options.N_horizon = n_nodes
 
+        # p0 = [qw_ref, qx_ref, qy_ref, qz_ref, tanh_k]
+        p0 = np.array([1.0, 0.0, 0.0, 0.0, tanh_k])
+        self.ocp.parameter_values = p0
+
         # self.ocp_solver = AcadosOcpSolver(self.ocp)
         # generate json file and generate cython
         self.solver_json = 'acados_ocp_' + self.ocp.model.name + '.json'
@@ -208,56 +238,63 @@ class S550_Ocp:
         v_world = R_b_w @ v_body
         state[3:6] = v_world
 
-        # Quaternion double-cover fix:
-        # q and -q represent the same rotation. If the dot product between
-        # the current quaternion and reference quaternion is negative, flip
-        # the reference sign to prevent the MPC from commanding a full rotation.
-        q_cur = state[6:10]
+        # Extract references
+        p_ref = ref[0:3]
+        v_ref = ref[3:6]
         q_ref = ref[6:10]
-        if np.dot(q_cur, q_ref) < 0.0:
-            ref[6:10] = -q_ref
+        w_ref = ref[10:13]
 
         if u_prev is None:
             u_prev = np.zeros((6,))
 
-        y_ref = np.concatenate((ref,u_prev))
-        y_ref_N = ref
+        # Parameter: [q_ref(4), tanh_k]
+        param = np.array([q_ref[0], q_ref[1], q_ref[2], q_ref[3],
+                          self.tanh_k])
+
+        # y_ref: [p_ref(3), v_ref(3), q_e_vec_ref(0,0,0), w_ref(3), u_prev(6)]
+        y_ref = np.concatenate((p_ref, v_ref, [0.0, 0.0, 0.0], w_ref, u_prev))
+        y_ref_N = np.concatenate((p_ref, v_ref, [0.0, 0.0, 0.0], w_ref))
 
         # Set constraint at the first stage
         self.ocp_solver.set(0, 'lbx', state)
         self.ocp_solver.set(0, 'ubx', state)
 
+        N = self.ocp.solver_options.N_horizon
+
         # Warm start: Use previous state trajectory as reference
         if self.previous_states is not None:
             # Shift previous trajectory forward by one step
-            for stage in range(self.ocp.solver_options.N_horizon):
-                if stage < self.ocp.solver_options.N_horizon - 1:
+            for stage in range(N):
+                self.ocp_solver.set(stage, 'p', param)
+
+                if stage < N - 1:
                     # Use next state from previous trajectory
-                    prev_state = self.previous_states[stage + 1].copy()
-                    # Ensure quaternion sign consistency along the trajectory
-                    if np.dot(q_cur, prev_state[6:10]) < 0.0:
-                        prev_state[6:10] = -prev_state[6:10]
-                    y_ref_warm = np.concatenate((prev_state, u_prev))
+                    prev_state = self.previous_states[stage + 1]
+                    p_prev = prev_state[0:3]
+                    v_prev = prev_state[3:6]
+                    w_prev = prev_state[10:13]
+                    y_ref_warm = np.concatenate((p_prev, v_prev, [0.0, 0.0, 0.0], w_prev, u_prev))
                     self.ocp_solver.set(stage, 'y_ref', y_ref_warm)
                 else:
                     # Last stage: use terminal reference
-                    y_ref_warm = np.concatenate((ref, u_prev))
-                    self.ocp_solver.set(stage, 'y_ref', y_ref_warm)
+                    self.ocp_solver.set(stage, 'y_ref', y_ref)
 
             # Set terminal reference
-            self.ocp_solver.set(self.ocp.solver_options.N_horizon, 'y_ref', ref)
+            self.ocp_solver.set(N, 'p', param)
+            self.ocp_solver.set(N, 'y_ref', y_ref_N)
         else:
             # First solve: use constant reference
-            for stage in range(self.ocp.solver_options.N_horizon):
+            for stage in range(N):
+                self.ocp_solver.set(stage, 'p', param)
                 self.ocp_solver.set(stage, 'y_ref', y_ref)
 
             # Set y ref at the terminal stage
-            self.ocp_solver.set(self.ocp.solver_options.N_horizon, 'y_ref', y_ref_N)
+            self.ocp_solver.set(N, 'p', param)
+            self.ocp_solver.set(N, 'y_ref', y_ref_N)
 
         status = self.ocp_solver.solve()
 
         # Store current state trajectory for next iteration
-        N = self.ocp.solver_options.N_horizon
         self.previous_states = []
         for stage in range(N + 1):
             x_stage = self.ocp_solver.get(stage, 'x')

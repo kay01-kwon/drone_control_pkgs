@@ -423,6 +423,7 @@ class NMPCAttitudeWithDOB(Node):
         n_nodes = self.get_parameter('nmpc_param.n_nodes').value
         QArray = self.get_parameter('nmpc_param.QArray').value
         R = self.get_parameter('nmpc_param.R').value
+        tanh_k = self.get_parameter('nmpc_param.tanh_k').value
 
         # RC converter parameters
         vxy_max = self.get_parameter('rc_converter_param.vxy_max').value
@@ -468,7 +469,8 @@ class NMPCAttitudeWithDOB(Node):
             't_horizon': t_horizon,
             'n_nodes': n_nodes,
             'QArray': QArray,
-            'R': R
+            'R': R,
+            'tanh_k': tanh_k
         }
 
         rc_converter_param = {

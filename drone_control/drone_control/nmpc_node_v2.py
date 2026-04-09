@@ -173,6 +173,7 @@ class NmpcNodeV2(Node):
         R = self.get_parameter('nmpc_param.R').value
         roll_max_deg = self.get_parameter('nmpc_param.roll_max_deg').value
         pitch_max_deg = self.get_parameter('nmpc_param.pitch_max_deg').value
+        tanh_k = self.get_parameter('nmpc_param.tanh_k').value
 
         # Log parameters
         self.get_logger().info('Parameters loaded:')
@@ -205,7 +206,8 @@ class NmpcNodeV2(Node):
             'QArray': QArray,
             'R': R,
             'roll_max_deg': roll_max_deg,
-            'pitch_max_deg': pitch_max_deg
+            'pitch_max_deg': pitch_max_deg,
+            'tanh_k': tanh_k
         }
 
         return dynamic_param, drone_param, nmpc_param
