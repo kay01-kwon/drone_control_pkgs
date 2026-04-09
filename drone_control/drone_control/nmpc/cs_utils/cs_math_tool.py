@@ -22,6 +22,14 @@ def quaternion_to_rotm(q):
     )
     return rotm
 
+def conjugate(q):
+    '''
+    Compute conjugate of a quaternion.
+    :param q: quaternion (qw, qx, qy, qz)
+    :return: conjugate quaternion
+    '''
+    return cs.vertcat(q[0], -q[1], -q[2], -q[3])
+
 def otimes(q1, q2):
     '''
     Compute multiplication of two quaternions.
