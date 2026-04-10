@@ -215,6 +215,11 @@ class MomentExcitation(Node):
 
         # --- DISARMED mode ---
         if self.mode == FlightMode.DISARMED:
+            if self.control_input_locked:
+                self.control_input_locked = False
+                self.f_fix = self.dynamic_param['m'] * 9.81 / 2.0
+                self.M = np.zeros((3,))
+                self.get_logger().info('Control input unlocked (DISARMED)')
             des_rpm = 2000.0*np.ones((6,))
             cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(
                 self.get_clock().now(),des_rpm
