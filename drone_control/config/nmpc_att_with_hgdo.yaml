@@ -36,7 +36,7 @@
     topic_names:
       cmd_topic: '/uav/cmd_raw'
       base_line_control_topic: '/nmpc_att/control'
-      filtered_odom_topic: '/hgdo/filtered_odom'
+      filtered_odom_topic: '/mavros/local_position/odom'
       rc_topic: '/mavros/rc/in'
       dob_wrench_topic: '/hgdo/wrench'
       des_thrust_topic: '/des_thrust'
