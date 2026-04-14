@@ -69,6 +69,27 @@ class NMPCAttitudeWithDOB(Node):
         # DOB compensation enable flag
         self.use_dob_compensation = reference_param['use_dob_compensation']
 
+        # DOB axis mode: which torque axis (axes) to compensate.
+        #   'x'    : roll only   (roll-axis test stand: pitch/yaw constrained)
+        #   'y'    : pitch only  (pitch-axis test stand: roll/yaw constrained)
+        #   'free' : all three   (free flight)
+        # DOB on a mechanically-constrained axis is invalid — the stand
+        # reaction torque gets interpreted as external disturbance and
+        # drifts without bound through the closed loop.
+        dob_axis_mode = reference_param['dob_axis_mode'].lower()
+        if dob_axis_mode in ('free', 'xyz'):
+            self.dob_axis_mask = np.array([1.0, 1.0, 1.0])
+        elif dob_axis_mode == 'x':
+            self.dob_axis_mask = np.array([1.0, 0.0, 0.0])
+        elif dob_axis_mode == 'y':
+            self.dob_axis_mask = np.array([0.0, 1.0, 0.0])
+        else:
+            raise ValueError(
+                f"Invalid dob_axis_mode '{dob_axis_mode}'. "
+                "Expected one of: 'x', 'y', 'free'."
+            )
+        self.dob_axis_mode = dob_axis_mode
+
         # Create RC converter
         self.rc_converter = RcConverter(rc_converter_param)
 
@@ -182,6 +203,7 @@ class NMPCAttitudeWithDOB(Node):
         self.get_logger().info(f'Des thrust topic: {des_thrust_topic}')
         self.get_logger().info(f'Use fixed ref: {self.use_fixed_ref}')
         self.get_logger().info(f'Use DOB compensation: {self.use_dob_compensation}')
+        self.get_logger().info(f'DOB axis mode: {self.dob_axis_mode}  (mask={self.dob_axis_mask.tolist()})')
         self.get_logger().info('NMPC Attitude With DOB Node initialized successfully')
         self.get_logger().info(f'Control rate: {1.0/self.control_period:.1f} Hz')
         self.get_logger().info(f'Horizon: {nmpc_param["t_horizon"]:.2f}s')
@@ -340,7 +362,9 @@ class NMPCAttitudeWithDOB(Node):
             _, wrench_body = self.wrench_buffer.get_latest()
             tau_dist = wrench_body[3:6]     # [tau_x, tau_y, tau_z]
 
-            M_comp = u_mpc[1:4] - tau_dist
+            # Apply axis mask: zero out DOB compensation on mechanically-
+            # constrained axes (e.g., pitch/yaw on roll-axis stand).
+            M_comp = u_mpc[1:4] - self.dob_axis_mask * tau_dist
         else:
             # No DOB compensation: use NMPC moments directly
             M_comp = u_mpc[1:4]
@@ -440,6 +464,13 @@ class NMPCAttitudeWithDOB(Node):
         else:
             use_dob_compensation = True
 
+        # DOB axis mode: 'x' | 'y' | 'free'   (default 'free' for backward compat)
+        if self.has_parameter('reference_param.dob_axis_mode'):
+            dob_axis_mode = self.get_parameter(
+                'reference_param.dob_axis_mode').value
+        else:
+            dob_axis_mode = 'free'
+
         # Log parameters
         self.get_logger().info('Parameters loaded:')
         self.get_logger().info(f'  Mass: {m:.2f} kg')
@@ -481,7 +512,8 @@ class NMPCAttitudeWithDOB(Node):
 
         reference_param = {
             'use_fixed_ref': use_fixed_ref,
-            'use_dob_compensation': use_dob_compensation
+            'use_dob_compensation': use_dob_compensation,
+            'dob_axis_mode': dob_axis_mode,
         }
 
         return dynamic_param, drone_param, nmpc_param, rc_converter_param, reference_param
