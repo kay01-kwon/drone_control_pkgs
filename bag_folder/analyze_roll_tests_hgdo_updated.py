@@ -252,13 +252,19 @@ def per_bag_plot(name, d, out):
 
     fig, ax = plt.subplots(8, 1, figsize=(15, 22), sharex=True)
 
-    ax[0].plot(d['Tm'], d['Rm'], 'tab:red',   lw=1.0, label='roll (mocap)')
-    ax[0].plot(d['Tm'], d['Pm'], 'tab:blue',  lw=1.0, label='pitch (mocap)')
-    ax[0].plot(d['Tm'], d['Ym'], 'tab:green', lw=1.0, label='yaw (mocap)')
+    # Primary: EKF2 (mavros/local_position/odom) since that is what the
+    # NMPC actually closes the loop on. Mocap overlaid (dashed, lighter)
+    # for ground-truth reference.
+    ax[0].plot(d['T'],  d['R'], 'tab:red',   lw=1.0, label='roll  (EKF2)')
+    ax[0].plot(d['T'],  d['P'], 'tab:blue',  lw=1.0, label='pitch (EKF2)')
+    ax[0].plot(d['T'],  d['Y'], 'tab:green', lw=1.0, label='yaw   (EKF2)')
+    ax[0].plot(d['Tm'], d['Rm'], 'tab:red',   lw=0.6, ls='--', alpha=0.45, label='roll  (mocap)')
+    ax[0].plot(d['Tm'], d['Pm'], 'tab:blue',  lw=0.6, ls='--', alpha=0.45, label='pitch (mocap)')
+    ax[0].plot(d['Tm'], d['Ym'], 'tab:green', lw=0.6, ls='--', alpha=0.45, label='yaw   (mocap)')
     ax[0].axvspan(t0, t1, color='yellow', alpha=0.1, label=f'flight {t0:.1f}-{t1:.1f}s')
     ax[0].axhline(0, color='k', lw=0.4)
     ax[0].set_ylabel('deg')
-    ax[0].set_title(f'{name}   Attitude   [{LABEL[name]}]   (axis-mode=x)')
+    ax[0].set_title(f'{name}   Attitude  (EKF2 solid / mocap dashed)   [{LABEL[name]}]   (axis-mode=x)')
     ax[0].legend(ncol=4, fontsize=8); ax[0].grid(alpha=0.3)
 
     ax[1].plot(d['T'], d['WX'], 'tab:red',   lw=0.6, label='wx')
@@ -331,7 +337,8 @@ def window_stats(d, frac_end=0.5):
     t_b = t1 - 0.5
     res = {}
     pairs = [
-        ('Rm', 'Tm'), ('Pm', 'Tm'), ('Ym', 'Tm'),
+        ('R',  'T'),  ('P',  'T'),  ('Y',  'T'),     # EKF2 (what NMPC sees)
+        ('Rm', 'Tm'), ('Pm', 'Tm'), ('Ym', 'Tm'),    # mocap (ground truth)
         ('WX', 'T'),  ('WY', 'T'),  ('WZ', 'T'),
         ('Mxc', 'Tc'), ('Myc', 'Tc'), ('Mzc', 'Tc'),
         ('Mxr', 'Tr'), ('Myr', 'Tr'), ('Mzr', 'Tr'),
@@ -403,11 +410,12 @@ def mask_identity_check(d):
 def compare_plot(data, out):
     fig, ax = plt.subplots(6, 1, figsize=(15, 20), sharex=False)
 
-    ax[0].set_title('Roll (mocap)    (axis-mode=x for both)')
+    ax[0].set_title('Roll (EKF2 solid / mocap dashed)    (axis-mode=x for both)')
     for n, d in data.items():
-        ax[0].plot(d['Tm'], d['Rm'], color=COLOR[n], lw=0.8, label=f'{n}  [{LABEL[n]}]')
+        ax[0].plot(d['T'],  d['R'],  color=COLOR[n], lw=0.9, label=f'{n}  [{LABEL[n]}]  EKF2')
+        ax[0].plot(d['Tm'], d['Rm'], color=COLOR[n], lw=0.6, ls='--', alpha=0.45, label=f'{n} mocap')
     ax[0].axhline(0, color='k', lw=0.4); ax[0].set_ylabel('roll (deg)')
-    ax[0].legend(fontsize=9); ax[0].grid(alpha=0.3)
+    ax[0].legend(fontsize=8, ncol=2); ax[0].grid(alpha=0.3)
 
     ax[1].set_title('Body roll rate wx')
     for n, d in data.items():
@@ -474,20 +482,24 @@ def main():
     # Steady-state stats
     print()
     print('=== Steady-state stats (last 50% of flight window) ===')
+    print('   ekf2 = roll from /mavros/local_position/odom (closed-loop feedback)')
+    print('   mocap = /S550/pose (ground truth reference)')
     hdr = (f'{"bag":<34} | {"win":<13} | '
-           f'{"roll_μ(°)":>9} {"roll_σ(°)":>9} {"wx_σ":>6} | '
+           f'{"rollE2_μ":>9} {"rollE2_σ":>9} | '
+           f'{"rollMC_μ":>9} {"rollMC_σ":>9} | '
+           f'{"wx_σ":>6} | '
            f'{"τ̂x_μ(mNm)":>10} {"τ̂x_σ(mNm)":>10} | '
-           f'{"cmdMx_μ":>9} {"cmdMx_σ":>9} | '
-           f'{"actMx_μ":>9}')
+           f'{"cmdMx_μ":>9} {"cmdMx_σ":>9}')
     print(hdr); print('-' * len(hdr))
     for n, d in data.items():
         s = window_stats(d)
         ta, tb = s['win']
         print(f'{n:<34} | {ta:5.1f}-{tb:5.1f}s | '
-              f'{s["Rm"][0]:9.3f} {s["Rm"][1]:9.3f} {s["WX"][1]:6.3f} | '
+              f'{s["R"][0]:9.3f} {s["R"][1]:9.3f} | '
+              f'{s["Rm"][0]:9.3f} {s["Rm"][1]:9.3f} | '
+              f'{s["WX"][1]:6.3f} | '
               f'{s["Htx"][0]*1000:10.3f} {s["Htx"][1]*1000:10.3f} | '
-              f'{s["Mxc"][0]*1000:9.3f} {s["Mxc"][1]*1000:9.3f} | '
-              f'{s["Mxr"][0]*1000:9.3f}')
+              f'{s["Mxc"][0]*1000:9.3f} {s["Mxc"][1]*1000:9.3f}')
 
     # Convergence
     print()
