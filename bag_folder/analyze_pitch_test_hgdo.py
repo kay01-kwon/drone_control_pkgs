@@ -2,16 +2,23 @@
 """Analyze the pitch-axis HGDO test (dob_axis_mode='y').
 
 Stand orientation flipped to free the pitch axis; roll & yaw constrained.
-Q tuning has also been softened (Q_att 20 → 2, Q_rate 5 → 0.5, R 10 → 5).
+
+Settings (both bags, R=1.0 normalised):
+    Q_att = [20, 20, 10]        (yaml stores 5× as [100, 100, 50] with R=5)
+    eps_tau = 0.05              (HGDO bandwidth ~20 rad/s)
+    dob_axis_mode = 'y'         (pitch-axis feedback only)
+
+    Test 01:   Q_w = [0.3, 0.3, 0.125]    (ζ_pred ≈ 0.87, just below ideal)
+    Test 02:   Q_w = [0.6, 0.6, 0.125]    (ζ_pred ≈ 1.01, near-critical)
 
 Mask identity expected:
     cmd_Mx = u_nmpc_x            (mask=0)
     cmd_My = u_nmpc_y - τ̂_y      (mask=1)   ← active axis
     cmd_Mz = u_nmpc_z            (mask=0)
 
-User noted that the airframe has a known pitch-axis eccentricity, so
-τ̂_y should settle to a clearly nonzero bias (much larger than the
-roll trim of ~-10 mNm). No hand-disturbance was applied this time.
+The airframe has a known pitch-axis eccentricity, so τ̂_y should settle
+to a clearly nonzero bias.  Test 02 vs Test 01 lets us see whether the
+extra ζ damps wy σ (at the cost of slightly slower pitch tracking).
 """
 
 import sqlite3
@@ -377,7 +384,13 @@ def eccentricity_estimate(ty_final_Nm, mass_kg=3.188, g=9.81):
 # -------------------------------------------------------------- main
 def main():
     base = '/home/user/drone_control_pkgs/bag_folder'
-    bags = [('pitch_test_hgdo_eps_01', 'eps_tau=0.1  (BW ~1.6 Hz)')]
+    bags = [
+        ('2026_04_15_pitch_test_01',
+         'Q_w=[0.3,0.3,0.125], eps_tau=0.05  (ζ≈0.87)'),
+        ('2026_04_15_pitch_test_02',
+         'Q_w=[0.6,0.6,0.125], eps_tau=0.05  (ζ≈1.01)'),
+    ]
+    summary = {}
     for n, label in bags:
         db = f'{base}/{n}/{n}_0.db3'
         print(f'load {n}')
@@ -422,6 +435,39 @@ def main():
         print(f'   rx (cmd_Mx - u_nmpc_x)         rms = {mc["rx_rms"]*1000:6.3f} mNm   max = {mc["rx_max"]*1000:6.3f}')
         print(f'   ry (cmd_My - (u_nmpc_y-τ̂_y))   rms = {mc["ry_rms"]*1000:6.3f} mNm   max = {mc["ry_max"]*1000:6.3f}')
         print(f'   rz (cmd_Mz - u_nmpc_z)         rms = {mc["rz_rms"]*1000:6.3f} mNm   max = {mc["rz_max"]*1000:6.3f}')
+
+        summary[n] = dict(label=label, stats=s, init=r, drift=dr, mask=mc)
+
+    # ----------------------------------------------------------- comparison
+    print()
+    print('=' * 72)
+    print('COMPARISON   (Test 01 → Test 02)')
+    print('=' * 72)
+    hdr = f'{"metric":35s} {"Test 01":>14s} {"Test 02":>14s} {"Δ":>10s}'
+    print(hdr); print('-' * len(hdr))
+    def row(lbl, a, b, fmt='{:+.3f}', unit=''):
+        try:
+            d = b - a
+            print(f'{lbl:35s} {fmt.format(a)+unit:>14s} {fmt.format(b)+unit:>14s} '
+                  f'{fmt.format(d)+unit:>10s}')
+        except Exception:
+            print(f'{lbl:35s} {"-":>14s} {"-":>14s} {"-":>10s}')
+    s1 = summary['2026_04_15_pitch_test_01']['stats']
+    s2 = summary['2026_04_15_pitch_test_02']['stats']
+    row('σ(pitch) EKF2 [deg]',       s1['P'][1],        s2['P'][1])
+    row('σ(pitch) mocap [deg]',      s1['Pm'][1],       s2['Pm'][1])
+    row('σ(wy) [rad/s]',             s1['WY'][1],       s2['WY'][1])
+    row('σ(wx) [rad/s] (constr.)',   s1['WX'][1],       s2['WX'][1])
+    row('σ(wz) [rad/s] (constr.)',   s1['WZ'][1],       s2['WZ'][1])
+    row('μ(τ̂_y) [mNm]',              s1['Hty'][0]*1e3,  s2['Hty'][0]*1e3)
+    row('σ(τ̂_y) [mNm]',              s1['Hty'][1]*1e3,  s2['Hty'][1]*1e3)
+    row('σ(cmd_My) [mNm]',           s1['Myc'][1]*1e3,  s2['Myc'][1]*1e3)
+    row('σ(u_nmpc_y) [mNm]',         s1['Nmy'][1]*1e3,  s2['Nmy'][1]*1e3)
+    i1 = summary['2026_04_15_pitch_test_01']['init']
+    i2 = summary['2026_04_15_pitch_test_02']['init']
+    if i1 and i2:
+        row('τ̂_y settle [s]',        i1['t_settle'],    i2['t_settle'])
+        row('τ̂_y final [mNm]',       i1['ty_final']*1e3, i2['ty_final']*1e3)
 
 
 if __name__ == '__main__':
