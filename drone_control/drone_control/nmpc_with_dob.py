@@ -20,10 +20,10 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, qos_profile_sensor_data
 from rclpy.executors import SingleThreadedExecutor
 
-from nav_msgs.msg import Odometry
+from nav_msgs.msg import Odometry, Path
+from geometry_msgs.msg import PoseStamped, WrenchStamped
 from drone_msgs.msg import Ref
 from mavros_msgs.msg import RCIn
-from geometry_msgs.msg import WrenchStamped
 from ros2_libcanard_msgs.msg import HexaCmdRaw
 from ros2_libcanard_msgs.msg import HexaActualRpm
 
@@ -120,10 +120,16 @@ class NmpcWithDOBNode(Node):
         self.py_offset = None
         self.pz_offset = None
 
+        # Publish NMPC predicted trajectory as Path (configurable)
+        self.publish_state = nmpc_param.get('publish_state', False)
+        self.n_nodes = nmpc_param['n_nodes']
+        self.dt_horizon = nmpc_param['t_horizon'] / nmpc_param['n_nodes']
+
         # Topic name from ros param
         cmd_topic = self.get_parameter('topic_names.cmd_topic').value
         rc_topic = self.get_parameter('topic_names.rc_topic').value
         nmpc_topic = self.get_parameter('topic_names.base_line_control_topic').value
+        state_topic = self.get_parameter('topic_names.state_topic').value
         filtered_odom_topic = self.get_parameter('topic_names.filtered_odom_topic').value
         ref_topic = self.get_parameter('topic_names.ref_topic').value
         dob_wrench_topic = self.get_parameter('topic_names.dob_wrench_topic').value
@@ -136,6 +142,11 @@ class NmpcWithDOBNode(Node):
         self.nmpc_pub = self.create_publisher(WrenchStamped,
                                               nmpc_topic,
                                               qos_profile=5)
+
+        if self.publish_state:
+            self.state_pub = self.create_publisher(Path,
+                                                   state_topic,
+                                                   qos_profile=5)
 
         # Create subscribers
         self.odom_sub = self.create_subscription(Odometry,
@@ -421,6 +432,9 @@ class NmpcWithDOBNode(Node):
         self.cmd_pub.publish(cmd_msg)
         self.nmpc_pub.publish(nmpc_msg)
 
+        if self.publish_state and self.nmpc_solver.previous_states is not None:
+            self._publish_predicted_path()
+
         self.des_rotor_rpm_comp_prev = self.des_rotor_rpm_comp
 
         # Update statistics
@@ -448,6 +462,31 @@ class NmpcWithDOBNode(Node):
                 f'odom_age = {odom_age*1000:.1f} ms'
             )
 
+
+    def _publish_predicted_path(self):
+        now = self.get_clock().now()
+        sec, nsec = now.seconds_nanoseconds()
+
+        path_msg = Path()
+        path_msg.header.stamp = now.to_msg()
+        path_msg.header.frame_id = 'world'
+
+        for i, x in enumerate(self.nmpc_solver.previous_states):
+            ps = PoseStamped()
+            t_offset_ns = int(i * self.dt_horizon * 1e9)
+            ps.header.stamp.sec = sec + (nsec + t_offset_ns) // 1_000_000_000
+            ps.header.stamp.nanosec = (nsec + t_offset_ns) % 1_000_000_000
+            ps.header.frame_id = 'world'
+            ps.pose.position.x = x[0]
+            ps.pose.position.y = x[1]
+            ps.pose.position.z = x[2]
+            ps.pose.orientation.w = x[6]
+            ps.pose.orientation.x = x[7]
+            ps.pose.orientation.y = x[8]
+            ps.pose.orientation.z = x[9]
+            path_msg.poses.append(ps)
+
+        self.state_pub.publish(path_msg)
 
     def _get_time_now(self) -> float:
         """Get the current ROS time as float (seconds)"""
@@ -495,6 +534,7 @@ class NmpcWithDOBNode(Node):
         acc_min = self.get_parameter('drone_param.acc_min').value
 
         # NMPC parameters
+        publish_state = self.get_parameter('nmpc_param.publish_state').value
         t_horizon = self.get_parameter('nmpc_param.t_horizon').value
         n_nodes = self.get_parameter('nmpc_param.n_nodes').value
         QArray = self.get_parameter('nmpc_param.QArray').value
@@ -533,6 +573,7 @@ class NmpcWithDOBNode(Node):
         }
 
         nmpc_param = {
+            'publish_state': publish_state,
             't_horizon': t_horizon,
             'n_nodes': n_nodes,
             'QArray': QArray,

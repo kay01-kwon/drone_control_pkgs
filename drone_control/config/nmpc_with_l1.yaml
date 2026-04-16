@@ -15,11 +15,8 @@
       acc_max: 15000.0    # Acc 15 krpm/s
       acc_min: 15000.0    # Dec 15 krpm/s
 
-    integral_param:
-      Ki_xy: 0.5              # XY position integral gain [1/s]
-      anti_windup_xy: 1.0     # XY integral anti-windup limit [m]
-
     nmpc_param:
+      publish_state: true
       t_horizon: 1.0
       n_nodes: 20
       QArray: [ 0.4, 0.4, 0.7,        # px, py, pz
@@ -47,6 +44,7 @@
       cmd_topic: '/uav/cmd_raw'
       rc_topic: '/mavros/rc/in'
       base_line_control_topic: '/nmpc/control'
+      state_topic: '/nmpc/state'
       filtered_odom_topic: '/mavros/local_position/odom'
       ref_topic: '/nmpc/ref'
       dob_wrench_topic: '/l1_adaptive/wrench'
