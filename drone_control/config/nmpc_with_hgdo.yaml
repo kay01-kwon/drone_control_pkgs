@@ -15,10 +15,6 @@
       acc_max: 15000.0    # Acc 15 krpm/s
       acc_min: 15000.0    # Dec 15 krpm/s
 
-    integral_param:
-      Ki_xy: 0.5              # XY position integral gain [1/s]
-      anti_windup_xy: 1.0     # XY integral anti-windup limit [m]
-
     nmpc_param:
       t_horizon: 1.0
       n_nodes: 20
