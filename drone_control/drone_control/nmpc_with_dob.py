@@ -115,11 +115,6 @@ class NmpcWithDOBNode(Node):
         self.actual_total_thrust = 0.0
         self.was_airborne = False
 
-        # XY position integral for steady-state error rejection
-        self.Ki_xy = self.get_parameter('integral_param.Ki_xy').value
-        self.anti_windup_xy = self.get_parameter('integral_param.anti_windup_xy').value
-        self.p_integral_xy = np.zeros(2)
-
         # Initial pz offset (from mocap)
         self.px_offset = None
         self.py_offset = None
@@ -180,7 +175,6 @@ class NmpcWithDOBNode(Node):
         self.get_logger().info(f'Reference topic: {ref_topic}')
         self.get_logger().info(f'DoB wrench topic: {dob_wrench_topic}')
         self.get_logger().info('NMPC With DOB Node initialized successfully')
-        self.get_logger().info(f'Ki_xy: {self.Ki_xy:.2f}, anti_windup_xy: {self.anti_windup_xy:.2f}')
         self.get_logger().info(f'Control rate: {1.0/self.control_period:.1f} Hz')
         self.get_logger().info(f'Horizon: {nmpc_param["t_horizon"]:.2f}s')
         self.get_logger().info(f'Nodes: {nmpc_param["n_nodes"]}')
@@ -288,11 +282,9 @@ class NmpcWithDOBNode(Node):
 
         if self.mode == FlightMode.KILL:
             self._set_rpm_zero()
-            self.p_integral_xy[:] = 0.0
             return
         elif self.mode == FlightMode.DISARMED:
             self._set_rpm_zero()
-            self.p_integral_xy[:] = 0.0
             return
         elif self.mode == FlightMode.ARMED:
             self.get_logger().info(f'LANDING state')
@@ -323,7 +315,6 @@ class NmpcWithDOBNode(Node):
             # On ground: skip solver, fix thrust at 1N/rotor (6N total)
             self.des_rotor_thrust_mpc = 1.0 * np.ones(6)
             self.nmpc_solver.previous_states = None  # reset warm-start
-            self.p_integral_xy[:] = 0.0
 
             f_comp = 1.0 * 6.0
             if self.moment_ff_flag is True:
@@ -356,21 +347,11 @@ class NmpcWithDOBNode(Node):
             self.des_rotor_rpm_comp_prev = self.des_rotor_rpm_comp
             return
 
-        # XY integral: accumulate position error for steady-state rejection
-        e_xy = state_body[0:2] - self.ref_state[0:2]
-        self.p_integral_xy += self.Ki_xy * e_xy * self.control_period
-        self.p_integral_xy = np.clip(self.p_integral_xy,
-                                     -self.anti_windup_xy,
-                                      self.anti_windup_xy)
-
-        ref_adjusted = self.ref_state.copy()
-        ref_adjusted[0:2] -= self.p_integral_xy
-
         # In flight or takeoff: solve NMPC
         solve_start = time.time()
         status, rotor_thrust_nmpc = self.nmpc_solver.solve(
             state = state_body,
-            ref = ref_adjusted,
+            ref = self.ref_state,
             u_prev = self.des_rotor_thrust_mpc
         )
         solve_end = time.time()
@@ -464,8 +445,7 @@ class NmpcWithDOBNode(Node):
             self.get_logger().info(
                 f'Stats: solve = {avg_solve_time:.2f} ms, '
                 f'success = {success_rate:.1f} %, '
-                f'odom_age = {odom_age*1000:.1f} ms, '
-                f'int_xy = [{self.p_integral_xy[0]:.3f}, {self.p_integral_xy[1]:.3f}]'
+                f'odom_age = {odom_age*1000:.1f} ms'
             )
 
 
