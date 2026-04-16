@@ -120,11 +120,6 @@ class NmpcWithDOBNode(Node):
         self.py_offset = None
         self.pz_offset = None
 
-        # LPF for cmd output
-        cmd_lpf_cutoff = self.get_parameter('drone_param.cmd_lpf_cutoff').value
-        self.cmd_lpf = LowPassFilter(cutoff_freq=cmd_lpf_cutoff)
-        self.get_logger().info(f'CMD LPF cutoff: {cmd_lpf_cutoff} Hz')
-
         # Topic name from ros param
         cmd_topic = self.get_parameter('topic_names.cmd_topic').value
         rc_topic = self.get_parameter('topic_names.rc_topic').value
@@ -464,7 +459,6 @@ class NmpcWithDOBNode(Node):
         """Set the cmd rpm to zero"""
         zero_rpm = np.zeros((6,))
         self.des_rotor_rpm_comp_prev[:] = 0
-        self.cmd_lpf.reset(zero_rpm)
         cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
                                                   zero_rpm)
         self.cmd_pub.publish(cmd_msg)
@@ -473,7 +467,6 @@ class NmpcWithDOBNode(Node):
         """Set the idle rpm"""
         idle_rpm = 2000.0 * np.ones((6,))
         self.des_rotor_rpm_comp_prev[:] = 2000
-        self.cmd_lpf.reset(idle_rpm)
         cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
                                                   idle_rpm)
         self.cmd_pub.publish(cmd_msg)
