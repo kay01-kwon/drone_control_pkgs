@@ -469,14 +469,14 @@ class NmpcWithDOBNode(Node):
 
         path_msg = Path()
         path_msg.header.stamp = now.to_msg()
-        path_msg.header.frame_id = 'world'
+        path_msg.header.frame_id = 'S550/odom'
 
         for i, x in enumerate(self.nmpc_solver.previous_states):
             ps = PoseStamped()
             t_offset_ns = int(i * self.dt_horizon * 1e9)
             ps.header.stamp.sec = sec + (nsec + t_offset_ns) // 1_000_000_000
             ps.header.stamp.nanosec = (nsec + t_offset_ns) % 1_000_000_000
-            ps.header.frame_id = 'world'
+            ps.header.frame_id = 'S550/odom'
             ps.pose.position.x = x[0]
             ps.pose.position.y = x[1]
             ps.pose.position.z = x[2]
