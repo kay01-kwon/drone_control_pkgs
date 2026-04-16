@@ -18,8 +18,8 @@
     nmpc_param:
       t_horizon: 1.0
       n_nodes: 20
-      QArray: [ 0.4, 0.4, 0.8,        # px, py, pz
-                0.1, 0.1, 0.2,        # vx, vy, vz
+      QArray: [ 4.0, 4.0, 4.0,        # px, py, pz
+                0.5, 0.5, 0.5,        # vx, vy, vz
                 20.0, 20.0, 10.0,        # q_e_x, q_e_y, q_e_z
                 0.3, 0.3, 0.15]        # wx, wy, wz
       R: [1.0]     # u1...u6
