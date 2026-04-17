@@ -71,17 +71,13 @@ void L1AdaptationModel::update(const double &t_prev,
         for(size_t i = 0; i < 6; ++i)
         {
             lpf_sigma_hat_[i]->update(sigma_hat_(i), dt);
-
-            if (i < 4)
-            {
-                u_L1_(i) = lpf_sigma_hat_[i]->getOutput();
-            }
+            u_L1_(i) = lpf_sigma_hat_[i]->getOutput();
         }
     }
     
 }
 
-Vector4d L1AdaptationModel::get_u_L1() const
+Vector6d L1AdaptationModel::get_u_L1() const
 {
     return u_L1_;
 }

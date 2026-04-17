@@ -205,7 +205,14 @@ void L1AdaptiveNode::dob_estimate()
                                state_meas,
                                u_med);
 
-    disturbance_estimate_.tail<4>() = l1_adaptive_model_->get_u_L1();
+    Vector6d u_l1 = l1_adaptive_model_->get_u_L1();
+    // Remap L1 output [Fz, Mx, My, Mz, Fx, Fy] to wrench order [Fx, Fy, Fz, Mx, My, Mz]
+    disturbance_estimate_(0) = u_l1(4);  // Fx (mismatched)
+    disturbance_estimate_(1) = u_l1(5);  // Fy (mismatched)
+    disturbance_estimate_(2) = u_l1(0);  // Fz (matched)
+    disturbance_estimate_(3) = u_l1(1);  // Mx (matched)
+    disturbance_estimate_(4) = u_l1(2);  // My (matched)
+    disturbance_estimate_(5) = u_l1(3);  // Mz (matched)
 
     // Track initial altitude for relative altitude computation
     if(!initial_altitude_set_){
@@ -226,8 +233,8 @@ void L1AdaptiveNode::dob_estimate()
     dob_msg_.header.frame_id = "base_link";
 
     if(in_flight_){
-        dob_msg_.wrench.force.x = 0.0;
-        dob_msg_.wrench.force.y = 0.0;
+        dob_msg_.wrench.force.x = disturbance_estimate_(0);
+        dob_msg_.wrench.force.y = disturbance_estimate_(1);
         dob_msg_.wrench.force.z = disturbance_estimate_(2);
     } else {
         dob_msg_.wrench.force.x = 0.0;
