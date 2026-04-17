@@ -30,6 +30,7 @@ setup(
             'nmpc_with_dob = drone_control.nmpc_with_dob:main',
             'msg_parser_node = drone_control.msg_parser_node:main',
             'nmpc_att_with_dob = drone_control.nmpc_attitude_with_dob:main',
+            'pd_nmpc_att_with_dob = drone_control.pd_nmpc_att_with_dob:main',
             'moment_excitation = drone_control.moment_excitation:main'
         ],
     },
