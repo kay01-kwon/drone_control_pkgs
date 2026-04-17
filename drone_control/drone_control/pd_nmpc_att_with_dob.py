@@ -331,11 +331,11 @@ class PdNmpcAttWithDOBNode(Node):
         take_off_cond = self.ref_p[2] >= 0.01 or state[2] >= 0.01
 
         if not take_off_cond:
-            self.des_rotor_thrust_mpc = (self.W / 6.0) * np.ones(6)
+            self.des_rotor_thrust_mpc = 6.0 * np.ones(6)
             self.nmpc_solver.previous_states = None
             self.p_integral[:] = 0.0
 
-            f_comp = self.W
+            f_comp = 6.0
             if self.moment_ff_flag:
                 M_comp = self.M_ff.copy()
             else:
