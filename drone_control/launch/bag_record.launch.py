@@ -34,7 +34,8 @@ def _launch_bag_record(context):
         '/nmpc/control',
         '/hgdo/wrench',
         '/l1_adaptive/wrench',
-        '/S550/pose'
+        '/S550/pose',
+        '/nmpc/state'
     ]
 
     bag_name = LaunchConfiguration('bag_name').perform(context)
