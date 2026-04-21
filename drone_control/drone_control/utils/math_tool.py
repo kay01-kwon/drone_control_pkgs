@@ -79,3 +79,14 @@ def signum(x):
 def yaw_to_quaternion(psi):
     '''Convert yaw angle to quaternion [w, x, y, z]'''
     return np.array([np.cos(psi / 2), 0.0, 0.0, np.sin(psi / 2)])
+
+def rpy_to_quaternion(roll, pitch, yaw):
+    '''Convert roll, pitch, yaw [rad] (ZYX convention) to quaternion [w, x, y, z]'''
+    cr, sr = np.cos(roll / 2), np.sin(roll / 2)
+    cp, sp = np.cos(pitch / 2), np.sin(pitch / 2)
+    cy, sy = np.cos(yaw / 2), np.sin(yaw / 2)
+    qw = cr * cp * cy + sr * sp * sy
+    qx = sr * cp * cy - cr * sp * sy
+    qy = cr * sp * cy + sr * cp * sy
+    qz = cr * cp * sy - sr * sp * cy
+    return np.array([qw, qx, qy, qz])
