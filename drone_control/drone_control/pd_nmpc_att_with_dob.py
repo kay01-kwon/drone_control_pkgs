@@ -423,6 +423,8 @@ class PdNmpcAttWithDOBNode(Node):
         if in_flight:
             f_comp_final = f_col
             M_comp = u_mpc[1:4] - tau_dist
+            # # Limit yaw moment to prevent excessive spinning
+            # M_comp[2] = np.clip(M_comp[2], -0.05, 0.05)
         else:
             if self.was_airborne:
                 self.was_airborne = False
