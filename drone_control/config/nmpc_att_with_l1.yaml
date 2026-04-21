@@ -32,6 +32,7 @@
                                 # false: receive ref from rpy_ref_topic (RpyRef)
       use_dob_compensation: true  # true: subtract DOB wrench from NMPC moment
                                   # false: NMPC only (no DOB compensation)
+      dpsi_dt_max: 0.5            # Yaw rate limit for ref ramping [rad/s]
       dob_axis_mode: 'free'        # which torque axis (axes) to compensate:
                                 #   'x'    : roll only   (roll-axis test stand)
                                 #   'y'    : pitch only  (pitch-axis test stand)
