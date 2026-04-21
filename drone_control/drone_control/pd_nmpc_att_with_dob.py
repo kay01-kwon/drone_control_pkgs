@@ -377,7 +377,7 @@ class PdNmpcAttWithDOBNode(Node):
         # ── Outer loop: PD position → desired force ──
 
         e_p = self.ref_p - p
-        e_v = self.ref_v - v
+        e_v = self.ref_v - R_wb @ v
 
         # Integral with anti-windup
         self.p_integral += self.Ki * e_p * self.control_period
