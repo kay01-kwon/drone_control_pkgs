@@ -33,7 +33,9 @@ from drone_control.utils.circular_buffer import CircularBuffer
 from drone_control.utils.control_allocator import ControlAllocator
 from drone_control.utils.cmd_converter import HexaCmdConverter
 from drone_control.utils import MsgParser, math_tool, cleanup_acados_files
-from drone_control.utils.math_tool import rpy_to_quaternion
+from drone_control.utils.math_tool import (
+    rpy_to_quaternion, wrap_pi, quaternion_to_yaw,
+)
 from drone_control.nmpc.ocp.S550_att_ocp import S550_att_ocp
 from drone_control.rc_control import RcConverter, FlightMode, RcModeStr
 
@@ -91,6 +93,18 @@ class NMPCAttitudeWithDOB(Node):
                 "Expected one of: 'x', 'y', 'free'."
             )
         self.dob_axis_mode = dob_axis_mode
+
+        # Yaw rate limit — hexarotor Mz authority (k_m*6*Δu ≈ 0.2 Nm) is
+        # an order of magnitude below Mx/My. A yaw step pushes rotors to
+        # their bounds (alternating u_max/u_min), consuming the actuator
+        # headroom that roll/pitch would otherwise use → full attitude
+        # instability. Rate-limit the yaw reference so the NMPC never has
+        # to demand more Mz than the allocator can deliver without saturation.
+        self.dpsi_dt_max = reference_param['dpsi_dt_max']
+        self.ref_roll = 0.0
+        self.ref_pitch = 0.0
+        self.ref_yaw = 0.0
+        self.ref_yaw_filtered = 0.0
 
         # Create RC converter
         self.rc_converter = RcConverter(rc_converter_param)
@@ -206,6 +220,7 @@ class NMPCAttitudeWithDOB(Node):
         self.get_logger().info(f'Use fixed ref: {self.use_fixed_ref}')
         self.get_logger().info(f'Use DOB compensation: {self.use_dob_compensation}')
         self.get_logger().info(f'DOB axis mode: {self.dob_axis_mode}  (mask={self.dob_axis_mask.tolist()})')
+        self.get_logger().info(f'dpsi_dt_max: {self.dpsi_dt_max} rad/s')
         self.get_logger().info('NMPC Attitude With DOB Node initialized successfully')
         self.get_logger().info(f'Control rate: {1.0/self.control_period:.1f} Hz')
         self.get_logger().info(f'Horizon: {nmpc_param["t_horizon"]:.2f}s')
@@ -270,17 +285,13 @@ class NMPCAttitudeWithDOB(Node):
     def _rpy_ref_callback(self, msg: RpyRef):
         """
         RPY reference callback for attitude reference.
-        Converts roll/pitch/yaw [rad] to quaternion and sets as NMPC reference.
-        Angular velocity reference is held at zero.
+        Stores roll/pitch/yaw [rad] target; quaternion is recomputed every
+        control cycle from (roll, pitch, yaw_filtered) where yaw_filtered
+        is rate-limited toward yaw.
         """
-        q = rpy_to_quaternion(msg.roll, msg.pitch, msg.yaw)
-        self.ref_state[0] = q[0]
-        self.ref_state[1] = q[1]
-        self.ref_state[2] = q[2]
-        self.ref_state[3] = q[3]
-        self.ref_state[4] = 0.0
-        self.ref_state[5] = 0.0
-        self.ref_state[6] = 0.0
+        self.ref_roll = msg.roll
+        self.ref_pitch = msg.pitch
+        self.ref_yaw = msg.yaw
 
     def _control_callback(self):
         """
@@ -310,12 +321,17 @@ class NMPCAttitudeWithDOB(Node):
                     throttle_duration_sec = 1.0
                 )
 
+        # Get the latest state (full 13-dim odom)
+        _, state_full = self.odom_buffer.get_latest()
+        current_psi = quaternion_to_yaw(state_full[6:10])
+
         # --- KILL mode ---
         if self.mode == FlightMode.KILL:
             des_rpm = np.zeros((6,))
             cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(
                 self.get_clock().now(), des_rpm)
             self.cmd_pub.publish(cmd_msg)
+            self.ref_yaw_filtered = current_psi
             return
 
         # --- DISARMED mode ---
@@ -324,17 +340,36 @@ class NMPCAttitudeWithDOB(Node):
             cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(
                 self.get_clock().now(), des_rpm)
             self.cmd_pub.publish(cmd_msg)
+            self.ref_yaw_filtered = current_psi
             return
 
         # --- AUTO mode: NMPC attitude with external thrust ---
         if self.mode != FlightMode.AUTO:
             return
 
-        # Get the latest state (full 13-dim odom)
-        _, state_full = self.odom_buffer.get_latest()
-
         # Extract attitude state: [qw, qx, qy, qz, wx, wy, wz]
         state_att = np.concatenate((state_full[6:10], state_full[10:13]))
+
+        # Rate-limit yaw reference to keep NMPC off the rotor saturation edge
+        if not self.use_fixed_ref:
+            err_psi = wrap_pi(self.ref_yaw - self.ref_yaw_filtered)
+            max_step = self.dpsi_dt_max * self.control_period
+            if err_psi > max_step:
+                self.ref_yaw_filtered = wrap_pi(self.ref_yaw_filtered + max_step)
+                ref_psi_dot_eff = self.dpsi_dt_max
+            elif err_psi < -max_step:
+                self.ref_yaw_filtered = wrap_pi(self.ref_yaw_filtered - max_step)
+                ref_psi_dot_eff = -self.dpsi_dt_max
+            else:
+                self.ref_yaw_filtered = self.ref_yaw
+                ref_psi_dot_eff = 0.0
+
+            q_ref = rpy_to_quaternion(self.ref_roll, self.ref_pitch,
+                                       self.ref_yaw_filtered)
+            self.ref_state[0:4] = q_ref
+            self.ref_state[4] = 0.0
+            self.ref_state[5] = 0.0
+            self.ref_state[6] = ref_psi_dot_eff
 
         # Solve NMPC with collective thrust constraint
         solve_start = time.time()
@@ -472,6 +507,10 @@ class NMPCAttitudeWithDOB(Node):
         else:
             dob_axis_mode = 'free'
 
+        # Yaw rate limit [rad/s]
+        dpsi_dt_max = self.get_parameter(
+            'reference_param.dpsi_dt_max').value
+
         # Log parameters
         self.get_logger().info('Parameters loaded:')
         self.get_logger().info(f'  Mass: {m:.2f} kg')
@@ -515,6 +554,7 @@ class NMPCAttitudeWithDOB(Node):
             'use_fixed_ref': use_fixed_ref,
             'use_dob_compensation': use_dob_compensation,
             'dob_axis_mode': dob_axis_mode,
+            'dpsi_dt_max': dpsi_dt_max,
         }
 
         return dynamic_param, drone_param, nmpc_param, rc_converter_param, reference_param
