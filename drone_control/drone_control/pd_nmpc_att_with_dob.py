@@ -447,6 +447,8 @@ class PdNmpcAttWithDOBNode(Node):
         nmpc_msg = WrenchStamped()
         nmpc_msg.header.stamp = self.get_clock().now().to_msg()
         nmpc_msg.header.frame_id = 'pd_nmpc_att'
+        nmpc_msg.wrench.force.x = F_des[0]
+        nmpc_msg.wrench.force.y = F_des[1]
         nmpc_msg.wrench.force.z = f_col
         nmpc_msg.wrench.torque.x = u_mpc[1]
         nmpc_msg.wrench.torque.y = u_mpc[2]
