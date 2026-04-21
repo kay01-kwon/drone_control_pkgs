@@ -178,7 +178,7 @@ class RcControlNode(Node):
                 self.rc_control.set_ref(cmd_vel,
                                     state_recent,
                                     dt,
-                                    wrench_recent[0],
+                                    wrench_recent[0:3],
                                     wrench_recent[3:])
 
                 u = self.rc_control.get_control_input()

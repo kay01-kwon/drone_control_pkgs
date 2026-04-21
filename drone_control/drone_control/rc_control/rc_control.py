@@ -52,12 +52,12 @@ class RcControl():
         self.psi_des = np.arctan2(R[1, 0], R[0, 0])
         self.initialized = True
 
-    def set_ref(self, ref, state, dt, f_dist_z, tau):
+    def set_ref(self, ref, state, dt, f_dist, tau):
         '''
 
         :param ref: vx_des, vy_des, vz_des, dpsi_dt_des
         :param state: p, v, q, w
-        :param f_dist_z: force disturbance along body z-axis
+        :param f_dist: force disturbance along body x, y, z axes
         :param tau: orientational disturbance
         :return: None
         '''
@@ -119,8 +119,8 @@ class RcControl():
 
         accelCommand = accelCommand - self.g_vec
 
-        f_des = self.m * accelCommand
-        self.u[0] = f_des.dot(R[:,2]) - f_dist_z
+        f_des = self.m * accelCommand - f_dist
+        self.u[0] = f_des.dot(R[:,2])
 
         # b1, b2, b3 : desired frame
         b3 = accelCommand/np.linalg.norm(accelCommand)
