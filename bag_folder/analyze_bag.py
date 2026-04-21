@@ -7,7 +7,9 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-DB_PATH = 'bag_folder/2026_04_22_sim/2026_04_22_sim_0.db3'
+_HERE = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(_HERE, '2026_04_22_sim/2026_04_22_sim_0.db3')
+os.chdir(_HERE)
 
 conn = sqlite3.connect(DB_PATH)
 c = conn.cursor()
