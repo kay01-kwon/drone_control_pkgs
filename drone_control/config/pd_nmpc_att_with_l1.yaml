@@ -38,4 +38,5 @@
       state_topic: '/nmpc/state'
       filtered_odom_topic: '/mavros/local_position/odom'
       ref_topic: '/nmpc/ref'
+      rpy_ref_topic: '/nmpc/rpy_ref'
       dob_wrench_topic: '/l1_adaptive/wrench'

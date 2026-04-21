@@ -26,7 +26,7 @@ from rclpy.executors import SingleThreadedExecutor
 
 from nav_msgs.msg import Odometry, Path
 from geometry_msgs.msg import PoseStamped, WrenchStamped
-from drone_msgs.msg import Ref
+from drone_msgs.msg import Ref, RpyRef
 from mavros_msgs.msg import RCIn
 from ros2_libcanard_msgs.msg import HexaCmdRaw
 from ros2_libcanard_msgs.msg import HexaActualRpm
@@ -104,6 +104,18 @@ def force_to_attitude(F_des, psi):
     return q_des, f_col
 
 
+def rpy_to_quat(roll, pitch, yaw):
+    """Convert roll, pitch, yaw [rad] to quaternion [qw, qx, qy, qz]."""
+    cr, sr = np.cos(roll / 2), np.sin(roll / 2)
+    cp, sp = np.cos(pitch / 2), np.sin(pitch / 2)
+    cy, sy = np.cos(yaw / 2), np.sin(yaw / 2)
+    qw = cr * cp * cy + sr * sp * sy
+    qx = sr * cp * cy - cr * sp * sy
+    qy = cr * sp * cy + sr * cp * sy
+    qz = cr * cp * sy - sr * sp * cy
+    return np.array([qw, qx, qy, qz])
+
+
 class PdNmpcAttWithDOBNode(Node):
     """
     Cascaded PD Position + NMPC Attitude Node with DOB.
@@ -169,6 +181,13 @@ class PdNmpcAttWithDOBNode(Node):
         self.ref_psi = 0.0
         self.ref_psi_dot = 0.0
 
+        # RPY direct reference mode
+        self.use_rpy_ref = False
+        self.rpy_ref_roll = 0.0
+        self.rpy_ref_pitch = 0.0
+        self.rpy_ref_yaw = 0.0
+        self.rpy_ref_thrust = self.W
+
         # Statistics
         self.solve_count = 0
         self.failure_count = 0
@@ -222,6 +241,10 @@ class PdNmpcAttWithDOBNode(Node):
         self.ref_sub = self.create_subscription(
             Ref, ref_topic,
             self._ref_callback, 10)
+        rpy_ref_topic = self.get_parameter('topic_names.rpy_ref_topic').value
+        self.rpy_ref_sub = self.create_subscription(
+            RpyRef, rpy_ref_topic,
+            self._rpy_ref_callback, 10)
         self.wrench_sub = self.create_subscription(
             WrenchStamped, dob_wrench_topic,
             self._wrench_dob_callback, qos_profile_sensor_data)
@@ -280,6 +303,14 @@ class PdNmpcAttWithDOBNode(Node):
         self.ref_v[0:3] = msg.v
         self.ref_psi = msg.psi
         self.ref_psi_dot = msg.psi_dot
+        self.use_rpy_ref = False
+
+    def _rpy_ref_callback(self, msg: RpyRef):
+        self.rpy_ref_roll = msg.roll
+        self.rpy_ref_pitch = msg.pitch
+        self.rpy_ref_yaw = msg.yaw
+        self.rpy_ref_thrust = msg.thrust if msg.thrust > 0.0 else self.W
+        self.use_rpy_ref = True
 
     def _wrench_dob_callback(self, msg: WrenchStamped):
         wrench_time, wrench_data = MsgParser.parse_wrench_msg(msg)
@@ -364,37 +395,48 @@ class PdNmpcAttWithDOBNode(Node):
             self.des_rotor_rpm_comp_prev = self.des_rotor_rpm_comp
             return
 
-        # ── Outer loop: PD position → desired force ──
-
-        e_p = self.ref_p - p
-        e_v = self.ref_v - v
-
-        # Integral with anti-windup
-        self.p_integral += self.Ki * e_p * self.control_period
-        self.p_integral = np.clip(self.p_integral,
-                                   -self.anti_windup,
-                                    self.anti_windup)
-
-        a_des = self.Kp * e_p + self.Kd * e_v + self.p_integral
-        a_des[2] += self.g
-
-        F_des = self.m * a_des
-
-        # DOB force compensation (body → world)
+        # DOB wrench
         if not self.wrench_buffer.is_empty():
             _, wrench_body = self.wrench_buffer.get_latest()
             f_dist = wrench_body[0:3]
             tau_dist = wrench_body[3:6]
-            F_des -= R_wb @ f_dist
         else:
+            f_dist = np.zeros(3)
             tau_dist = np.zeros(3)
 
-        # Force → desired attitude + thrust
-        q_des, f_col = force_to_attitude(F_des, self.ref_psi)
+        if self.use_rpy_ref:
+            # ── Direct RPY attitude reference mode ──
+            q_des = rpy_to_quat(self.rpy_ref_roll,
+                                self.rpy_ref_pitch,
+                                self.rpy_ref_yaw)
+            f_col = self.rpy_ref_thrust
+            ref_att = np.array([q_des[0], q_des[1], q_des[2], q_des[3],
+                                0.0, 0.0, 0.0])
+        else:
+            # ── Outer loop: PD position → desired force ──
+            e_p = self.ref_p - p
+            e_v = self.ref_v - v
 
-        # Desired angular velocity reference (yaw rate only)
-        ref_att = np.array([q_des[0], q_des[1], q_des[2], q_des[3],
-                            0.0, 0.0, self.ref_psi_dot])
+            # Integral with anti-windup
+            self.p_integral += self.Ki * e_p * self.control_period
+            self.p_integral = np.clip(self.p_integral,
+                                       -self.anti_windup,
+                                        self.anti_windup)
+
+            a_des = self.Kp * e_p + self.Kd * e_v + self.p_integral
+            a_des[2] += self.g
+
+            F_des = self.m * a_des
+
+            # DOB force compensation (body → world)
+            F_des -= R_wb @ f_dist
+
+            # Force → desired attitude + thrust
+            q_des, f_col = force_to_attitude(F_des, self.ref_psi)
+
+            # Desired angular velocity reference (yaw rate only)
+            ref_att = np.array([q_des[0], q_des[1], q_des[2], q_des[3],
+                                0.0, 0.0, self.ref_psi_dot])
 
         # ── Inner loop: NMPC attitude ──
 
