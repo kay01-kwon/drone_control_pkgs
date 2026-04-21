@@ -39,10 +39,6 @@
                                 # DOB on a constrained axis is invalid — the
                                 # stand reaction torque is absorbed as "disturbance"
                                 # and drifts without bound through the closed loop.
-      dpsi_dt_max: 0.5          # Max yaw rate [rad/s] — ramp yaw ref to
-                                # prevent NMPC from saturating rotors on
-                                # yaw step and losing roll/pitch authority
-
     topic_names:
       cmd_topic: '/uav/cmd_raw'
       base_line_control_topic: '/nmpc/control'
