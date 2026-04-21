@@ -297,6 +297,81 @@ plt.tight_layout()
 plt.savefig('bag_correlation.png', dpi=150)
 print('Saved bag_correlation.png')
 
+# ── Position error & Velocity error plots ──
+
+# Interpolate ref onto odom timestamps (ref is 1 Hz step)
+ref_p_interp = np.zeros((len(odom), 3))
+ref_v_interp = np.zeros((len(odom), 3))
+for ax_i in range(3):
+    ref_p_interp[:, ax_i] = np.interp(odom_t, ref_t, ref[:, ax_i])
+    ref_v_interp[:, ax_i] = np.interp(odom_t, ref_t, ref[:, 3 + ax_i])
+
+e_p = ref_p_interp - odom[:, 0:3]   # position error
+e_v = ref_v_interp - v_world         # velocity error (world frame)
+
+fig4, axes4 = plt.subplots(4, 1, figsize=(16, 16), sharex=True)
+
+ax = axes4[0]
+ax.plot(odom_t, e_p[:, 0], 'r', alpha=0.8, label='e_px')
+ax.plot(odom_t, e_p[:, 1], 'g', alpha=0.8, label='e_py')
+ax.plot(odom_t, e_p[:, 2], 'b', alpha=0.8, label='e_pz')
+ax.set_ylabel('Position Error [m]')
+ax.set_title('Position Error (ref - odom)')
+ax.legend(loc='upper right')
+ax.grid(True, alpha=0.3)
+
+ax = axes4[1]
+ax.plot(odom_t, e_v[:, 0], 'r', alpha=0.8, label='e_vx')
+ax.plot(odom_t, e_v[:, 1], 'g', alpha=0.8, label='e_vy')
+ax.plot(odom_t, e_v[:, 2], 'b', alpha=0.8, label='e_vz')
+ax.set_ylabel('Velocity Error [m/s]')
+ax.set_title('Velocity Error (ref_v - R@v_body, world frame)')
+ax.legend(loc='upper right')
+ax.grid(True, alpha=0.3)
+
+# Zoomed: t=27~42s
+ax = axes4[2]
+ax.plot(odom_t[mask_o], e_p[mask_o, 0], 'r', alpha=0.8, label='e_px')
+ax.plot(odom_t[mask_o], e_p[mask_o, 1], 'g', alpha=0.8, label='e_py')
+ax.plot(odom_t[mask_o], e_p[mask_o, 2], 'b', alpha=0.8, label='e_pz')
+ax.set_ylabel('Position Error [m]')
+ax.set_title('Position Error — zoom ψ=1.5 step (t=27~42s)')
+ax.legend(loc='upper right')
+ax.grid(True, alpha=0.3)
+
+ax = axes4[3]
+ax.plot(odom_t[mask_o], e_v[mask_o, 0], 'r', alpha=0.8, label='e_vx')
+ax.plot(odom_t[mask_o], e_v[mask_o, 1], 'g', alpha=0.8, label='e_vy')
+ax.plot(odom_t[mask_o], e_v[mask_o, 2], 'b', alpha=0.8, label='e_vz')
+ax.set_ylabel('Velocity Error [m/s]')
+ax.set_xlabel('Time [s]')
+ax.set_title('Velocity Error — zoom ψ=1.5 step (t=27~42s)')
+ax.legend(loc='upper right')
+ax.grid(True, alpha=0.3)
+
+for ax in axes4:
+    ax.axvline(x=15.0, color='gray', linestyle=':', alpha=0.5)
+    ax.axvline(x=29.33, color='gray', linestyle=':', alpha=0.5)
+
+plt.tight_layout()
+plt.savefig('bag_error.png', dpi=150)
+print('Saved bag_error.png')
+
+# ── Print error statistics ──
+print("\n=== Position / Velocity Error around ψ=1.5 step (t=29~42s) ===")
+mask_post = (odom_t >= 29.3) & (odom_t <= 42)
+for i, lbl in enumerate(['x', 'y', 'z']):
+    print(f"e_p{lbl} range: [{e_p[mask_post,i].min():+.4f}, {e_p[mask_post,i].max():+.4f}] m")
+for i, lbl in enumerate(['x', 'y', 'z']):
+    print(f"e_v{lbl} range: [{e_v[mask_post,i].min():+.4f}, {e_v[mask_post,i].max():+.4f}] m/s")
+
+print("\n=== Position / Velocity Error around ψ=0.5 step (t=15~28s) ===")
+mask_05 = (odom_t >= 15.0) & (odom_t <= 28)
+for i, lbl in enumerate(['x', 'y', 'z']):
+    print(f"e_p{lbl} range: [{e_p[mask_05,i].min():+.4f}, {e_p[mask_05,i].max():+.4f}] m")
+for i, lbl in enumerate(['x', 'y', 'z']):
+    print(f"e_v{lbl} range: [{e_v[mask_05,i].min():+.4f}, {e_v[mask_05,i].max():+.4f}] m/s")
+
 # ── Print key statistics ──
 print("\n=== Statistics around ψ=1.5 step (t=29~42s) ===")
 mask_post = (odom_t >= 29.3) & (odom_t <= 42)
