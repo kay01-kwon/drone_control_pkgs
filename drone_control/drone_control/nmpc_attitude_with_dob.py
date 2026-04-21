@@ -33,9 +33,7 @@ from drone_control.utils.circular_buffer import CircularBuffer
 from drone_control.utils.control_allocator import ControlAllocator
 from drone_control.utils.cmd_converter import HexaCmdConverter
 from drone_control.utils import MsgParser, math_tool, cleanup_acados_files
-from drone_control.utils.math_tool import (
-    rpy_to_quaternion, quaternion_to_rpy, wrap_pi, quaternion_to_yaw,
-)
+from drone_control.utils.math_tool import rpy_to_quaternion, quaternion_to_rpy
 from drone_control.nmpc.ocp.S550_att_ocp import S550_att_ocp
 from drone_control.rc_control import RcConverter, FlightMode, RcModeStr
 
@@ -93,15 +91,6 @@ class NMPCAttitudeWithDOB(Node):
                 "Expected one of: 'x', 'y', 'free'."
             )
         self.dob_axis_mode = dob_axis_mode
-
-        # Yaw ramp: ref_yaw_ramped advances toward ref_yaw at ±dpsi_dt_max,
-        # so the effective yaw rate is a time ramp (piecewise constant slope)
-        # rather than a step. Keeps NMPC Mz demand within actuator budget.
-        self.dpsi_dt_max = reference_param['dpsi_dt_max']
-        self.ref_roll = 0.0
-        self.ref_pitch = 0.0
-        self.ref_yaw = 0.0
-        self.ref_yaw_ramped = 0.0
 
         # Create RC converter
         self.rc_converter = RcConverter(rc_converter_param)
@@ -217,7 +206,6 @@ class NMPCAttitudeWithDOB(Node):
         self.get_logger().info(f'Use fixed ref: {self.use_fixed_ref}')
         self.get_logger().info(f'Use DOB compensation: {self.use_dob_compensation}')
         self.get_logger().info(f'DOB axis mode: {self.dob_axis_mode}  (mask={self.dob_axis_mask.tolist()})')
-        self.get_logger().info(f'dpsi_dt_max: {self.dpsi_dt_max} rad/s (yaw ref ramp)')
         self.get_logger().info('NMPC Attitude With DOB Node initialized successfully')
         self.get_logger().info(f'Control rate: {1.0/self.control_period:.1f} Hz')
         self.get_logger().info(f'Horizon: {nmpc_param["t_horizon"]:.2f}s')
@@ -280,10 +268,9 @@ class NMPCAttitudeWithDOB(Node):
         self.f_col = msg.data
 
     def _rpy_ref_callback(self, msg: RpyRef):
-        # Store targets; quaternion is rebuilt each cycle with yaw ramp.
-        self.ref_roll = msg.roll
-        self.ref_pitch = msg.pitch
-        self.ref_yaw = msg.yaw
+        q_ref = rpy_to_quaternion(msg.roll, msg.pitch, msg.yaw)
+        self.ref_state[0:4] = q_ref
+        self.ref_state[4:7] = [0.0, 0.0, 0.0]
 
     def _control_callback(self):
         """
@@ -315,7 +302,6 @@ class NMPCAttitudeWithDOB(Node):
 
         # Get the latest state (full 13-dim odom)
         _, state_full = self.odom_buffer.get_latest()
-        current_yaw = quaternion_to_yaw(state_full[6:10])
 
         # --- KILL mode ---
         if self.mode == FlightMode.KILL:
@@ -323,7 +309,6 @@ class NMPCAttitudeWithDOB(Node):
             cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(
                 self.get_clock().now(), des_rpm)
             self.cmd_pub.publish(cmd_msg)
-            self.ref_yaw_ramped = current_yaw
             return
 
         # --- DISARMED mode ---
@@ -332,7 +317,6 @@ class NMPCAttitudeWithDOB(Node):
             cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(
                 self.get_clock().now(), des_rpm)
             self.cmd_pub.publish(cmd_msg)
-            self.ref_yaw_ramped = current_yaw
             return
 
         # --- AUTO mode: NMPC attitude with external thrust ---
@@ -341,27 +325,6 @@ class NMPCAttitudeWithDOB(Node):
 
         # Extract attitude state: [qw, qx, qy, qz, wx, wy, wz]
         state_att = np.concatenate((state_full[6:10], state_full[10:13]))
-
-        # Yaw-ref ramp: advance ref_yaw_ramped toward ref_yaw at ±dpsi_dt_max
-        if not self.use_fixed_ref:
-            err_yaw = wrap_pi(self.ref_yaw - self.ref_yaw_ramped)
-            max_step = self.dpsi_dt_max * self.control_period
-            if err_yaw > max_step:
-                self.ref_yaw_ramped = wrap_pi(self.ref_yaw_ramped + max_step)
-                ref_yaw_dot_eff = self.dpsi_dt_max
-            elif err_yaw < -max_step:
-                self.ref_yaw_ramped = wrap_pi(self.ref_yaw_ramped - max_step)
-                ref_yaw_dot_eff = -self.dpsi_dt_max
-            else:
-                self.ref_yaw_ramped = self.ref_yaw
-                ref_yaw_dot_eff = 0.0
-
-            q_ref = rpy_to_quaternion(self.ref_roll, self.ref_pitch,
-                                       self.ref_yaw_ramped)
-            self.ref_state[0:4] = q_ref
-            self.ref_state[4] = 0.0
-            self.ref_state[5] = 0.0
-            self.ref_state[6] = ref_yaw_dot_eff
 
         # Solve NMPC with collective thrust constraint
         solve_start = time.time()
@@ -504,10 +467,6 @@ class NMPCAttitudeWithDOB(Node):
         else:
             dob_axis_mode = 'free'
 
-        # Yaw rate ramp slope [rad/s]
-        dpsi_dt_max_ref = self.get_parameter(
-            'reference_param.dpsi_dt_max').value
-
         # Log parameters
         self.get_logger().info('Parameters loaded:')
         self.get_logger().info(f'  Mass: {m:.2f} kg')
@@ -551,7 +510,6 @@ class NMPCAttitudeWithDOB(Node):
             'use_fixed_ref': use_fixed_ref,
             'use_dob_compensation': use_dob_compensation,
             'dob_axis_mode': dob_axis_mode,
-            'dpsi_dt_max': dpsi_dt_max_ref,
         }
 
         return dynamic_param, drone_param, nmpc_param, rc_converter_param, reference_param
