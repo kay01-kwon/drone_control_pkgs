@@ -132,10 +132,8 @@ class PdNmpcAttWithDOBNode(Node):
         self.anti_windup = np.array(pd_param['anti_windup'])
         self.p_integral = np.zeros(3)
 
-        # COM offset for velocity correction
+        # COM offset for moment feedforward
         com_offset = dynamic_param['com_offset']
-        self.r_offset = np.array([com_offset[0], com_offset[1], 0.0])
-        self.use_vel_correction = dynamic_param.get('vel_correction', False)
 
         # Moment feedforward
         self.moment_ff_flag = dynamic_param['moment_ff']
@@ -240,7 +238,6 @@ class PdNmpcAttWithDOBNode(Node):
         self.get_logger().info(f'PD + NMPC Attitude with DOB')
         self.get_logger().info(f'Kp: {self.Kp.tolist()}, Kd: {self.Kd.tolist()}')
         self.get_logger().info(f'Ki: {self.Ki.tolist()}, anti_windup: {self.anti_windup.tolist()}')
-        self.get_logger().info(f'Vel correction: {self.use_vel_correction}, r_offset: {self.r_offset.tolist()}')
         self.get_logger().info(f'Moment FF: {self.moment_ff_flag}')
         self.get_logger().info(f'Att MPC Q: {nmpc_param["QArray"]}, R: {nmpc_param["R"]}')
         self.get_logger().info(f'Control rate: {1.0/self.control_period:.1f} Hz')
@@ -328,11 +325,6 @@ class PdNmpcAttWithDOBNode(Node):
         w = state[10:13]   # [wx, wy, wz] body frame
 
         R_wb = quaternion_to_rotm(q)
-
-        # Velocity correction for COM offset
-        if self.use_vel_correction:
-            v_correction = R_wb @ np.cross(w, self.r_offset)
-            v = v + v_correction
 
         take_off_cond = self.ref_p[2] >= 0.01 or state[2] >= 0.01
 
@@ -536,7 +528,6 @@ class PdNmpcAttWithDOBNode(Node):
         MoiArray = self.get_parameter('dynamic_param.MoiArray').value
         moment_ff = self.get_parameter('dynamic_param.moment_ff').value
         com_offset = self.get_parameter('dynamic_param.com_offset').value
-        vel_correction = self.get_parameter('dynamic_param.vel_correction').value
 
         # Drone parameters
         arm_length = self.get_parameter('drone_param.arm_length').value
@@ -572,7 +563,6 @@ class PdNmpcAttWithDOBNode(Node):
         dynamic_param = {
             'm': m, 'MoiArray': MoiArray,
             'moment_ff': moment_ff, 'com_offset': com_offset,
-            'vel_correction': vel_correction,
         }
         drone_param = {
             'arm_length': arm_length, 'motor_const': motor_const,

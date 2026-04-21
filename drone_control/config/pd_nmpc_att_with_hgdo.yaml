@@ -5,7 +5,7 @@
       MoiArray: [0.06, 0.06, 0.08]
       moment_ff: false
       com_offset: [-0.01043,0.00496]
-      vel_correction: false
+
 
     drone_param:
       arm_length: 0.265
