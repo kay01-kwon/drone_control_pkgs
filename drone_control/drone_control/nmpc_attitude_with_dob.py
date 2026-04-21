@@ -365,7 +365,7 @@ class NMPCAttitudeWithDOB(Node):
             # No DOB compensation: use NMPC moments directly
             M_comp = u_mpc[1:4]
             
-        M_comp[2] = np.clip(M_comp[2], -0.1, 0.1)   # Limit yaw moment to prevent excessive spinning
+        # M_comp[2] = np.clip(M_comp[2], -0.1, 0.1)   # Limit yaw moment to prevent excessive spinning
 
         self.des_rotor_rpm_comp = (self.control_allocator
                                    .compute_des_rpm(f_comp, M_comp))
