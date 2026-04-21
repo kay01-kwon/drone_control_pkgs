@@ -28,7 +28,7 @@
       dpsi_dt_max: 0.2
 
     reference_param:
-      use_fixed_ref: true       # true: fixed hover ref [1,0,0,0],[0,0,0]
+      use_fixed_ref: false       # true: fixed hover ref [1,0,0,0],[0,0,0]
                                 # false: receive ref from rpy_ref_topic (RpyRef)
       use_dob_compensation: true  # true: subtract DOB wrench from NMPC moment
                                   # false: NMPC only (no DOB compensation)
