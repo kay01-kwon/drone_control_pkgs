@@ -411,7 +411,8 @@ class NMPCAttitudeWithDOB(Node):
                 f'[NMPC] RPY: [{rpy_deg[0]:+6.1f}, {rpy_deg[1]:+6.1f}, {rpy_deg[2]:+6.1f}] deg | '
                 f'M_comp: [{M_comp[0]:+.3f}, {M_comp[1]:+.3f}, {M_comp[2]:+.3f}] Nm | '
                 f'solve: {avg_solve_time:.2f} ms | '
-                f'f_col: {self.f_col:.2f} N'
+                f'f_col: {self.f_col:.2f} N',
+                flush=True
             )
 
     def _get_time_now(self) -> float:
