@@ -364,6 +364,8 @@ class NMPCAttitudeWithDOB(Node):
         else:
             # No DOB compensation: use NMPC moments directly
             M_comp = u_mpc[1:4]
+            
+        M_comp[2] = np.clip(M_comp[2], -0.1, 0.1)   # Limit yaw moment to prevent excessive spinning
 
         self.des_rotor_rpm_comp = (self.control_allocator
                                    .compute_des_rpm(f_comp, M_comp))
@@ -407,7 +409,8 @@ class NMPCAttitudeWithDOB(Node):
                 f'Stats: solve = {avg_solve_time:.2f} ms, '
                 f'success = {success_rate:.1f} %, '
                 f'odom_age = {odom_age*1000:.1f} ms, '
-                f'f_col = {self.f_col:.2f} N'
+                f'f_col = {self.f_col:.2f} N, '
+                f'M_comp = [{M_comp[0]:.3f}, {M_comp[1]:.3f}, {M_comp[2]:.3f}] Nm'
             )
 
     def _get_time_now(self) -> float:
