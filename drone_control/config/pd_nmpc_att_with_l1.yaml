@@ -21,8 +21,6 @@
       Kd: [2.83, 2.83, 4.0]       # Velocity D gain [1/s] (critically damped)
       Ki: [0.5, 0.5, 0.0]         # Integral gain [1/s^3]
       anti_windup: [1.0, 1.0, 1.0] # Integral anti-windup limit [m/s^2]
-      dpsi_dt_max: 0.5            # Max yaw rate [rad/s] — ramps yaw ref
-                                  # linearly to avoid NMPC Mz surge
 
     nmpc_param:
       publish_state: true
