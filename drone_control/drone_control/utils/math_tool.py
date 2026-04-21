@@ -90,3 +90,12 @@ def rpy_to_quaternion(roll, pitch, yaw):
     qy = cr * sp * cy + sr * cp * sy
     qz = cr * cp * sy - sr * sp * cy
     return np.array([qw, qx, qy, qz])
+
+def wrap_pi(angle):
+    '''Wrap angle to [-pi, pi]'''
+    return np.arctan2(np.sin(angle), np.cos(angle))
+
+def quaternion_to_yaw(q):
+    '''Extract yaw angle [rad] from quaternion [w, x, y, z] (ZYX convention)'''
+    qw, qx, qy, qz = q[0], q[1], q[2], q[3]
+    return np.arctan2(2.0 * (qw * qz + qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz))
