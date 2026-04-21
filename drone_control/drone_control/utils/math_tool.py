@@ -99,3 +99,17 @@ def quaternion_to_yaw(q):
     '''Extract yaw angle [rad] from quaternion [w, x, y, z] (ZYX convention)'''
     qw, qx, qy, qz = q[0], q[1], q[2], q[3]
     return np.arctan2(2.0 * (qw * qz + qx * qy), 1.0 - 2.0 * (qy * qy + qz * qz))
+
+def quaternion_to_rpy(q):
+    '''Convert quaternion [w, x, y, z] to [roll, pitch, yaw] rad (ZYX convention)'''
+    qw, qx, qy, qz = q[0], q[1], q[2], q[3]
+    sinr_cosp = 2.0 * (qw * qx + qy * qz)
+    cosr_cosp = 1.0 - 2.0 * (qx * qx + qy * qy)
+    roll = np.arctan2(sinr_cosp, cosr_cosp)
+    sinp = 2.0 * (qw * qy - qz * qx)
+    sinp = np.clip(sinp, -1.0, 1.0)
+    pitch = np.arcsin(sinp)
+    siny_cosp = 2.0 * (qw * qz + qx * qy)
+    cosy_cosp = 1.0 - 2.0 * (qy * qy + qz * qz)
+    yaw = np.arctan2(siny_cosp, cosy_cosp)
+    return np.array([roll, pitch, yaw])

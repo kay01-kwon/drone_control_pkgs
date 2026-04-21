@@ -33,7 +33,7 @@ from drone_control.utils.circular_buffer import CircularBuffer
 from drone_control.utils.control_allocator import ControlAllocator
 from drone_control.utils.cmd_converter import HexaCmdConverter
 from drone_control.utils import MsgParser, math_tool, cleanup_acados_files
-from drone_control.utils.math_tool import rpy_to_quaternion
+from drone_control.utils.math_tool import rpy_to_quaternion, quaternion_to_rpy
 from drone_control.nmpc.ocp.S550_att_ocp import S550_att_ocp
 from drone_control.rc_control import RcConverter, FlightMode, RcModeStr
 
@@ -405,12 +405,13 @@ class NMPCAttitudeWithDOB(Node):
             avg_solve_time = self.total_solve_time / self.solve_count
             success_rate = (1.0 - self.failure_count / self.solve_count) * 100.0
 
-            self.get_logger().info(
-                f'Stats: solve = {avg_solve_time:.2f} ms, '
-                f'success = {success_rate:.1f} %, '
-                f'odom_age = {odom_age*1000:.1f} ms, '
-                f'f_col = {self.f_col:.2f} N, '
-                f'M_comp = [{M_comp[0]:.3f}, {M_comp[1]:.3f}, {M_comp[2]:.3f}] Nm'
+            rpy = quaternion_to_rpy(state_full[6:10])
+            rpy_deg = np.degrees(rpy)
+            print(
+                f'[NMPC] RPY: [{rpy_deg[0]:+6.1f}, {rpy_deg[1]:+6.1f}, {rpy_deg[2]:+6.1f}] deg | '
+                f'M_comp: [{M_comp[0]:+.3f}, {M_comp[1]:+.3f}, {M_comp[2]:+.3f}] Nm | '
+                f'solve: {avg_solve_time:.2f} ms | '
+                f'f_col: {self.f_col:.2f} N'
             )
 
     def _get_time_now(self) -> float:
