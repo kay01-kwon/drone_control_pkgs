@@ -191,11 +191,14 @@ void HgdoNode::dob_estimate()
     Vector4d u_prev = rpm_to_cmd_converter_->convert(rpm_prev);
     Vector4d u_med = 0.5 * (u_prev + u_recent);
 
-    hgdo_model_->update(odom_prev.timestamp, 
-                        odom_recent.timestamp, 
-                        lin_vel_filtered_, 
+    Matrix3x3d R_wb = odom_recent.orientation.toRotationMatrix();
+    Vector3d lin_vel_world = R_wb * lin_vel_filtered_;
+
+    hgdo_model_->update(odom_prev.timestamp,
+                        odom_recent.timestamp,
+                        lin_vel_world,
                         ang_vel_filtered_,
-                        odom_recent.orientation, 
+                        odom_recent.orientation,
                         u_med);
     
     disturbance_estimate_ = hgdo_model_->get_disturbance_estimate();
