@@ -27,11 +27,13 @@ from std_msgs.msg import Float64
 from geometry_msgs.msg import WrenchStamped
 from mavros_msgs.msg import RCIn
 from ros2_libcanard_msgs.msg import HexaCmdRaw
+from drone_msgs.msg import RpyRef
 
 from drone_control.utils.circular_buffer import CircularBuffer
 from drone_control.utils.control_allocator import ControlAllocator
 from drone_control.utils.cmd_converter import HexaCmdConverter
 from drone_control.utils import MsgParser, math_tool, cleanup_acados_files
+from drone_control.utils.math_tool import rpy_to_quaternion
 from drone_control.nmpc.ocp.S550_att_ocp import S550_att_ocp
 from drone_control.rc_control import RcConverter, FlightMode, RcModeStr
 
@@ -179,15 +181,15 @@ class NMPCAttitudeWithDOB(Node):
             callback=self._des_thrust_callback,
             qos_profile=qos_profile_sensor_data)
 
-        # Desired odom subscriber (for ref quaternion + angular velocity)
+        # RPY reference subscriber (roll, pitch, yaw) — converted to quaternion
         if not self.use_fixed_ref:
-            des_odom_topic = self.get_parameter('topic_names.des_odom_topic').value
-            self.des_odom_sub = self.create_subscription(
-                Odometry,
-                des_odom_topic,
-                callback=self._des_odom_callback,
+            rpy_ref_topic = self.get_parameter('topic_names.rpy_ref_topic').value
+            self.rpy_ref_sub = self.create_subscription(
+                RpyRef,
+                rpy_ref_topic,
+                callback=self._rpy_ref_callback,
                 qos_profile=qos_profile_sensor_data)
-            self.get_logger().info(f'Des odom topic: {des_odom_topic}')
+            self.get_logger().info(f'RPY ref topic: {rpy_ref_topic}')
 
         # Create control timer ( 100 Hz )
         self.control_period = 0.01
@@ -265,21 +267,20 @@ class NMPCAttitudeWithDOB(Node):
         """
         self.f_col = msg.data
 
-    def _des_odom_callback(self, msg: Odometry):
+    def _rpy_ref_callback(self, msg: RpyRef):
         """
-        Desired odometry callback for reference state.
-        Extracts quaternion (qw, qx, qy, qz) and angular velocity (wx, wy, wz)
-        from the Odometry message to set as NMPC reference.
+        RPY reference callback for attitude reference.
+        Converts roll/pitch/yaw [rad] to quaternion and sets as NMPC reference.
+        Angular velocity reference is held at zero.
         """
-        q = msg.pose.pose.orientation
-        w = msg.twist.twist.angular
-        self.ref_state[0] = q.w
-        self.ref_state[1] = q.x
-        self.ref_state[2] = q.y
-        self.ref_state[3] = q.z
-        self.ref_state[4] = w.x
-        self.ref_state[5] = w.y
-        self.ref_state[6] = w.z
+        q = rpy_to_quaternion(msg.roll, msg.pitch, msg.yaw)
+        self.ref_state[0] = q[0]
+        self.ref_state[1] = q[1]
+        self.ref_state[2] = q[2]
+        self.ref_state[3] = q[3]
+        self.ref_state[4] = 0.0
+        self.ref_state[5] = 0.0
+        self.ref_state[6] = 0.0
 
     def _control_callback(self):
         """

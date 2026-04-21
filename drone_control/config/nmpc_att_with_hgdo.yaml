@@ -29,7 +29,7 @@
 
     reference_param:
       use_fixed_ref: true       # true: fixed hover ref [1,0,0,0],[0,0,0]
-                                # false: receive ref from des_odom_topic
+                                # false: receive ref from rpy_ref_topic (RpyRef)
       use_dob_compensation: true  # true: subtract DOB wrench from NMPC moment
                                   # false: NMPC only (no DOB compensation)
       dob_axis_mode: 'free'        # which torque axis (axes) to compensate:
@@ -47,4 +47,4 @@
       rc_topic: '/mavros/rc/in'
       dob_wrench_topic: '/hgdo/wrench'
       des_thrust_topic: '/des_thrust'
-      des_odom_topic: '/des_odom'
+      rpy_ref_topic: '/des_rpy'
