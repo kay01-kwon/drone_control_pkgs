@@ -38,7 +38,7 @@ from drone_control.utils.circular_buffer import CircularBuffer
 from drone_control.utils.control_allocator import ControlAllocator
 from drone_control.utils.cmd_converter import HexaCmdConverter
 from drone_control.utils import MsgParser, cleanup_acados_files
-from drone_control.utils.math_tool import quaternion_to_rotm
+from drone_control.utils.math_tool import quaternion_to_rotm, wrap_pi, quaternion_to_yaw
 from drone_control.nmpc.ocp.S550_att_ocp import S550_att_ocp
 
 
@@ -166,8 +166,12 @@ class PdNmpcAttWithDOBNode(Node):
         # Reference state: [px, py, pz, vx, vy, vz, psi, psi_dot]
         self.ref_p = np.zeros(3)
         self.ref_v = np.zeros(3)
-        self.ref_psi = 0.0
-        self.ref_psi_dot = 0.0
+        self.ref_psi = 0.0        # target yaw from /nmpc/ref
+        self.ref_psi_dot = 0.0    # target yaw rate from /nmpc/ref
+        # Ramped yaw ref: piecewise-linear ramp of psi at dpsi_dt_max
+        # toward ref_psi; the effective ref_psi_dot during ramp is ±dpsi_dt_max.
+        self.dpsi_dt_max = pd_param['dpsi_dt_max']
+        self.ref_psi_ramped = 0.0
 
         # Statistics
         self.solve_count = 0
@@ -238,6 +242,7 @@ class PdNmpcAttWithDOBNode(Node):
         self.get_logger().info(f'PD + NMPC Attitude with DOB')
         self.get_logger().info(f'Kp: {self.Kp.tolist()}, Kd: {self.Kd.tolist()}')
         self.get_logger().info(f'Ki: {self.Ki.tolist()}, anti_windup: {self.anti_windup.tolist()}')
+        self.get_logger().info(f'dpsi_dt_max: {self.dpsi_dt_max} rad/s (yaw ref ramp)')
         self.get_logger().info(f'Vel correction: {self.use_vel_correction}, r_offset: {self.r_offset.tolist()}')
         self.get_logger().info(f'Moment FF: {self.moment_ff_flag}')
         self.get_logger().info(f'Att MPC Q: {nmpc_param["QArray"]}, R: {nmpc_param["R"]}')
@@ -297,13 +302,17 @@ class PdNmpcAttWithDOBNode(Node):
         if self.odom_buffer.is_empty():
             return
 
+        _, state_latest = self.odom_buffer.get_latest()
+
         if self.mode == FlightMode.KILL:
             self._set_rpm_zero()
             self.p_integral[:] = 0.0
+            self.ref_psi_ramped = quaternion_to_yaw(state_latest[6:10])
             return
         elif self.mode == FlightMode.DISARMED:
             self._set_rpm_zero()
             self.p_integral[:] = 0.0
+            self.ref_psi_ramped = quaternion_to_yaw(state_latest[6:10])
             return
         elif self.mode in (FlightMode.ARMED, FlightMode.MANUAL_STAB):
             self.ref_p[2] = 0.0
@@ -334,6 +343,7 @@ class PdNmpcAttWithDOBNode(Node):
             self.des_rotor_thrust_mpc = 6.0 * np.ones(6)
             self.nmpc_solver.previous_states = None
             self.p_integral[:] = 0.0
+            self.ref_psi_ramped = quaternion_to_yaw(q)
 
             f_comp = 6.0
             if self.moment_ff_flag:
@@ -389,12 +399,27 @@ class PdNmpcAttWithDOBNode(Node):
         else:
             tau_dist = np.zeros(3)
 
+        # Yaw-ref ramp: advance ref_psi_ramped toward ref_psi at ±dpsi_dt_max.
+        # ref_psi_dot_eff is the ramp slope (constant during the ramp).
+        err_psi = wrap_pi(self.ref_psi - self.ref_psi_ramped)
+        max_step = self.dpsi_dt_max * self.control_period
+        if err_psi > max_step:
+            self.ref_psi_ramped = wrap_pi(self.ref_psi_ramped + max_step)
+            ref_psi_dot_eff = self.dpsi_dt_max
+        elif err_psi < -max_step:
+            self.ref_psi_ramped = wrap_pi(self.ref_psi_ramped - max_step)
+            ref_psi_dot_eff = -self.dpsi_dt_max
+        else:
+            self.ref_psi_ramped = self.ref_psi
+            ref_psi_dot_eff = np.clip(self.ref_psi_dot,
+                                       -self.dpsi_dt_max, self.dpsi_dt_max)
+
         # Force → desired attitude + thrust
-        q_des, f_col = force_to_attitude(F_des, self.ref_psi)
+        q_des, f_col = force_to_attitude(F_des, self.ref_psi_ramped)
 
         # Desired angular velocity reference (yaw rate only)
         ref_att = np.array([q_des[0], q_des[1], q_des[2], q_des[3],
-                            0.0, 0.0, self.ref_psi_dot])
+                            0.0, 0.0, ref_psi_dot_eff])
 
         # ── Inner loop: NMPC attitude ──
 
@@ -546,6 +571,7 @@ class PdNmpcAttWithDOBNode(Node):
         Kd = self.get_parameter('pd_param.Kd').value
         Ki = self.get_parameter('pd_param.Ki').value
         anti_windup = self.get_parameter('pd_param.anti_windup').value
+        dpsi_dt_max = self.get_parameter('pd_param.dpsi_dt_max').value
         self.get_logger().info('Parameters loaded:')
         self.get_logger().info(f'  Mass: {m:.2f} kg')
         self.get_logger().info(f'  Inertia: {MoiArray}')
@@ -570,6 +596,7 @@ class PdNmpcAttWithDOBNode(Node):
         }
         pd_param = {
             'Kp': Kp, 'Kd': Kd, 'Ki': Ki, 'anti_windup': anti_windup,
+            'dpsi_dt_max': dpsi_dt_max,
         }
         return dynamic_param, drone_param, nmpc_param, pd_param
 
