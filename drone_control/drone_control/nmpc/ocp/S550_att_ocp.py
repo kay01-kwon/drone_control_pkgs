@@ -193,10 +193,15 @@ class S550_att_ocp:
         self.ocp_solver.set(0, 'ubx', state)
 
         if self.previous_states is not None:
-            # Warm start: use previous trajectory for angular velocity reference
+            # Warm start: use previous trajectory for per-stage q_ref and w_ref
             for stage in range(N):
 
-                self.ocp_solver.set(stage, 'p', param)
+                # Per-stage q_ref from shifted previous trajectory
+                prev_q = self.previous_states[min(stage + 1, N)][0:4]
+                param_stage = np.array([f_col,
+                                        prev_q[0], prev_q[1], prev_q[2], prev_q[3],
+                                        self.tanh_k])
+                self.ocp_solver.set(stage, 'p', param_stage)
 
                 if stage < N-1:
                     prev_w = self.previous_states[stage + 1][4:7]
@@ -205,6 +210,7 @@ class S550_att_ocp:
                 else:
                     self.ocp_solver.set(stage, 'y_ref', y_ref)
 
+            # Final stage: actual target q_ref
             self.ocp_solver.set(N, 'p', param)
             self.ocp_solver.set(N, 'y_ref', y_ref_N)
 
