@@ -356,7 +356,19 @@ class NMPCAttitudeWithDOB(Node):
         solve_end = time.time()
         solve_time = (solve_end - solve_start)*1e3  # ms
 
-        # Update control input
+        self.solve_count += 1
+        self.total_solve_time += solve_time
+
+        if status != 0:
+            self.failure_count += 1
+            if self.solve_count % 10 == 0:
+                self.get_logger().warn(
+                    f'Solver failed! Status: {status}',
+                    throttle_duration_sec = 1.0
+                )
+            return
+
+        # Update control input only on successful solve
         self.des_rotor_thrust_mpc = rotor_thrust_nmpc
 
         u_mpc = self.control_allocator.compute_u_from_rotor_thrusts(self.des_rotor_thrust_mpc)
@@ -379,7 +391,7 @@ class NMPCAttitudeWithDOB(Node):
             # No DOB compensation: use NMPC moments directly
             M_comp = u_mpc[1:4]
         # Limit yaw moment to prevent excessive spinning
-        M_comp[2] = np.clip(M_comp[2], -0.05, 0.05)   
+        M_comp[2] = np.clip(M_comp[2], -0.05, 0.05)
 
         self.des_rotor_rpm_comp = (self.control_allocator
                                    .compute_des_rpm(f_comp, M_comp))
@@ -400,19 +412,6 @@ class NMPCAttitudeWithDOB(Node):
 
         self.cmd_pub.publish(cmd_msg)
         self.nmpc_pub.publish(nmpc_msg)
-
-        # Update statistics
-        self.solve_count += 1
-        self.total_solve_time += solve_time
-
-        if status != 0:
-            self.failure_count += 1
-            if self.solve_count % 10 == 0:
-                self.get_logger().warn(
-                    f'Solver failed! Status: {status}',
-                    throttle_duration_sec = 1.0
-                )
-            return
 
         # Log statistics periodically (every 100 iterations = 1 second at 100 Hz)
         if self.solve_count % 100 == 0:

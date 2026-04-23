@@ -173,6 +173,12 @@ class S550_att_ocp:
         if u_prev is None:
             u_prev = np.zeros((6,))
 
+        if f_col is None or not np.isfinite(f_col):
+            return 1, u_prev.copy()
+
+        if not np.all(np.isfinite(state)) or not np.all(np.isfinite(ref)):
+            return 1, u_prev.copy()
+
         # Extract q_ref and w_ref from ref
         q_ref = ref[0:4]
         w_ref = ref[4:7]
