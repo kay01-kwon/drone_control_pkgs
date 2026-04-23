@@ -414,6 +414,17 @@ class PdNmpcAttWithDOBNode(Node):
         solve_end = time.time()
         solve_time = (solve_end - solve_start) * 1e3
 
+        self.solve_count += 1
+        self.total_solve_time += solve_time
+
+        if status != 0:
+            self.failure_count += 1
+            if self.solve_count % 10 == 0:
+                self.get_logger().warn(
+                    f'Solver failed! Status: {status}',
+                    throttle_duration_sec=1.0)
+            return
+
         self.des_rotor_thrust_mpc = rotor_thrust_nmpc
         u_mpc = self.control_allocator.compute_u_from_rotor_thrusts(
             self.des_rotor_thrust_mpc)
@@ -427,8 +438,6 @@ class PdNmpcAttWithDOBNode(Node):
         if in_flight:
             f_comp_final = f_col
             M_comp = u_mpc[1:4] - tau_dist
-            # # Limit yaw moment to prevent excessive spinning
-            # M_comp[2] = np.clip(M_comp[2], -0.05, 0.05)
         else:
             if self.was_airborne:
                 self.was_airborne = False
@@ -465,18 +474,6 @@ class PdNmpcAttWithDOBNode(Node):
             self._publish_predicted_path()
 
         self.des_rotor_rpm_comp_prev = self.des_rotor_rpm_comp
-
-        # Statistics
-        self.solve_count += 1
-        self.total_solve_time += solve_time
-
-        if status != 0:
-            self.failure_count += 1
-            if self.solve_count % 10 == 0:
-                self.get_logger().warn(
-                    f'Solver failed! Status: {status}',
-                    throttle_duration_sec=1.0)
-            return
 
         if self.solve_count % 100 == 0:
             avg_solve_time = self.total_solve_time / self.solve_count
