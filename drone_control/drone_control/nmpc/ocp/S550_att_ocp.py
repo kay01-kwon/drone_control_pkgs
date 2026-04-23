@@ -192,36 +192,14 @@ class S550_att_ocp:
         self.ocp_solver.set(0, 'lbx', state)
         self.ocp_solver.set(0, 'ubx', state)
 
-        if self.previous_states is not None:
-            # Warm start: use previous trajectory for per-stage q_ref and w_ref
-            for stage in range(N):
+        # Set target reference at all stages
+        # (acados SQP_RTI retains previous solution as internal warm start)
+        for stage in range(N):
+            self.ocp_solver.set(stage, 'p', param)
+            self.ocp_solver.set(stage, 'y_ref', y_ref)
 
-                # Per-stage q_ref from shifted previous trajectory
-                prev_q = self.previous_states[min(stage + 1, N)][0:4]
-                param_stage = np.array([f_col,
-                                        prev_q[0], prev_q[1], prev_q[2], prev_q[3],
-                                        self.tanh_k])
-                self.ocp_solver.set(stage, 'p', param_stage)
-
-                if stage < N-1:
-                    prev_w = self.previous_states[stage + 1][4:7]
-                    y_ref_warm = np.concatenate(([0.0, 0.0, 0.0], prev_w, u_prev))
-                    self.ocp_solver.set(stage, 'y_ref', y_ref_warm)
-                else:
-                    self.ocp_solver.set(stage, 'y_ref', y_ref)
-
-            # Final stage: actual target q_ref
-            self.ocp_solver.set(N, 'p', param)
-            self.ocp_solver.set(N, 'y_ref', y_ref_N)
-
-        else:
-            # Just set the final reference as reference
-            for stage in range(N):
-                self.ocp_solver.set(stage, 'p', param)
-                self.ocp_solver.set(stage, 'y_ref', y_ref)
-
-            self.ocp_solver.set(N, 'p', param)
-            self.ocp_solver.set(N, 'y_ref', y_ref_N)
+        self.ocp_solver.set(N, 'p', param)
+        self.ocp_solver.set(N, 'y_ref', y_ref_N)
 
         status = self.ocp_solver.solve()
 
