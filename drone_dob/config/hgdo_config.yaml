@@ -9,8 +9,8 @@
 
     dob:
       dob_looptime: 0.010
-      eps_f: 0.05
-      eps_tau: 0.05
+      eps_f: 0.1
+      eps_tau: 0.1
 
     topic_names:
       odom_in: "/mavros/local_position/odom"
