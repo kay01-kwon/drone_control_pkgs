@@ -17,7 +17,7 @@
       AccelMaxArray: [1.0, 1.0, 2.0]
 
     dynamic_param:
-      m: 2.9
+      m: 3.188
       MoiArray: [0.06, 0.06, 0.08]
 
     drone_param:
