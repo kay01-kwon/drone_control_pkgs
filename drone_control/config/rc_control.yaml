@@ -9,12 +9,12 @@
 
     gain_param:
       KpTransArray: [2.0, 2.0, 4.0]
-      KiTransArray: [0.5, 0.5, 0.5]
+      KiTransArray: [0.0, 0.0, 0.0]
       KdTransArray: [1.5, 1.5, 3.0]
       IntegralMaxArray: [1.0, 1.0, 1.0]
-      KpOriArray: [10.5, 10.5, 1.0]
-      KdOriArray: [5.5, 5.5, 0.5]
-      AccelMaxArray: [1.0, 1.0, 2.0]
+      KpOriArray: [1.6, 1.6, 0.1]
+      KdOriArray: [0.6, 0.6, 0.05]
+      AccelMaxArray: [0.5, 0.5, 2.0]
 
     dynamic_param:
       m: 3.188
