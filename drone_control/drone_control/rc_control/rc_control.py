@@ -87,6 +87,8 @@ class RcControl():
         self.p_des += v_cmd_world * dt
         self.psi_des += dpsi_dt_des * dt
         self.axis_des = v_cmd_world.copy()
+        
+        print(f"p_des: {self.p_des}, psi_des: {self.psi_des}", flush=True)
 
         # Clamp desired altitude to prevent going underground
         if self.p_des[2] < 0.0:

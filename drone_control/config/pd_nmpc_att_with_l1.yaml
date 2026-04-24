@@ -3,7 +3,7 @@
     dynamic_param:
       m: 3.146
       MoiArray: [0.06, 0.06, 0.08]
-      moment_ff: true
+      moment_ff: false
       com_offset: [-0.01043,0.00496]
 
 
@@ -19,7 +19,7 @@
     pd_param:
       Kp: [2.0, 2.0, 4.0]         # Position P gain [1/s^2]
       Kd: [1.5, 1.5, 3.0]       # Velocity D gain [1/s] (critically damped)
-      Ki: [0.5, 0.5, 0.0]         # Integral gain [1/s^3]
+      Ki: [0.0, 0.0, 0.0]         # Integral gain [1/s^3]
       anti_windup: [1.0, 1.0, 1.0] # Integral anti-windup limit [m/s^2]
       dpsi_dt_max: 0.5             # Yaw rate limit [rad/s]
 

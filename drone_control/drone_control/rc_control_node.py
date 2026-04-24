@@ -169,7 +169,7 @@ class RcControlNode(Node):
             z_rel = state_recent[2] - self.z_init
             if cmd_vel[2] < self.vz_cmd_takeoff and z_rel < self.z_takeoff:
                 self._set_idle_rpm()
-                self.get_logger().info(f'Landing state: z_rel={z_rel:.4f} m, cmd_vz={cmd_vel[2]:.4f} m/s')
+                # self.get_logger().info(f'Landing state: z_rel={z_rel:.4f} m, cmd_vz={cmd_vel[2]:.4f} m/s')
 
             # Takeoff state
             else:
