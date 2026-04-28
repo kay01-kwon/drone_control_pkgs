@@ -12,12 +12,12 @@
       KiTransArray: [0.0, 0.0, 0.0]
       KdTransArray: [1.5, 1.5, 3.0]
       IntegralMaxArray: [1.0, 1.0, 1.0]
-      KpOriArray: [1.6, 1.6, 0.1]
-      KdOriArray: [0.6, 0.6, 0.05]
+      KpOriArray: [27.0, 27.0, 0.84]
+      KdOriArray: [10.3, 10.3, 0.58]
       AccelMaxArray: [0.5, 0.5, 2.0]
 
     dynamic_param:
-      m: 3.188
+      m: 3.146
       MoiArray: [0.06, 0.06, 0.08]
       moment_ff: false
       com_offset: [-0.01043, 0.00496]
