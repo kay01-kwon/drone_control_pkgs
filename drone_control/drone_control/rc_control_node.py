@@ -8,6 +8,7 @@ from nav_msgs.msg import Odometry
 from mavros_msgs.msg import RCIn
 from geometry_msgs.msg import WrenchStamped
 from ros2_libcanard_msgs.msg import HexaCmdRaw
+from ros2_libcanard_msgs.msg import HexaActualRpm
 
 from drone_control.rc_control import RcControl, RcConverter
 from drone_control.rc_control import FlightMode, RcModeStr
@@ -75,6 +76,10 @@ class RcControlNode(Node):
                                                 self._do_cb,
                                                 qos_profile_sensor_data)
 
+        self.actual_rpm_sub = self.create_subscription(
+            HexaActualRpm, '/uav/actual_rpm',
+            self._actual_rpm_cb, qos_profile_sensor_data)
+
         # Log designated topic names, respectively
         self.get_logger().info(f'Command topic: {cmd_topic}')
         self.get_logger().info(f'Filtered odom topic: {filtered_odom_topic}')
@@ -84,9 +89,27 @@ class RcControlNode(Node):
         # Takeoff condition
         self.z_takeoff = ConstrainParam['z_takeoff']
         self.vz_cmd_takeoff = ConstrainParam['vz_cmd_takeoff']
-        self.z_init = None  # Initial z position from odometry (set on first odom)
+
+        # Initial position offset (from mocap)
+        self.px_offset = None
+        self.py_offset = None
+        self.pz_offset = None
+
+        # Airborne detection
+        self.C_T = droneParam['motor_const']
+        self.W = dynParam['m'] * 9.81
+        self.actual_total_thrust = 0.0
+        self.was_airborne = False
+
+        # COM moment feedforward
+        self.moment_ff_flag = dynParam['moment_ff']
+        com_offset = dynParam['com_offset']
+        self.M_ff = np.array([self.W * com_offset[1],
+                              -self.W * com_offset[0],
+                              0.0])
 
         timer_period = 0.010
+        self.control_period = timer_period
         self.timer = self.create_timer(timer_period, self._timer_cb)
 
         self.cmd_msg = HexaCmdRaw()
@@ -113,12 +136,22 @@ class RcControlNode(Node):
         self.prev_mode = self.mode
 
     def _odom_cb(self, msg:Odometry):
-
         odom_time, odom_data = MsgParser.parse_odom_msg(msg)
 
-        if self.z_init is None:
-            self.z_init = odom_data[2]
-            self.get_logger().info(f'Initial z position: {self.z_init:.4f}')
+        if self.px_offset is None:
+            self.px_offset = odom_data[0]
+            self.py_offset = odom_data[1]
+            self.pz_offset = odom_data[2]
+            self.get_logger().info(
+                f'Initial offset: {self.px_offset:.4f}, '
+                f'{self.py_offset:.4f}, {self.pz_offset:.4f} m')
+
+        odom_data[0] -= self.px_offset
+        odom_data[1] -= self.py_offset
+        odom_data[2] -= self.pz_offset
+
+        if odom_data[2] < 0.0:
+            odom_data[2] = 0.0
 
         if self.odom_buf.is_full():
             self.odom_buf.pop()
@@ -130,6 +163,10 @@ class RcControlNode(Node):
         if self.wrench_buf.is_full():
             self.wrench_buf.pop()
         self.wrench_buf.push((do_time, do_state))
+
+    def _actual_rpm_cb(self, msg: HexaActualRpm):
+        rpms = np.array(msg.rpm, dtype=np.float64)
+        self.actual_total_thrust = self.C_T * np.sum(rpms ** 2)
 
     def _timer_cb(self):
 
@@ -149,43 +186,74 @@ class RcControlNode(Node):
             self.mode = FlightMode.KILL
 
         if self.mode == FlightMode.KILL:
-            for i in range(len(self.des_rpm)):
-                self.des_rpm[i] = 0
+            self._set_rpm_zero()
+            self.rc_control.initialized = False
+            self.rc_control.p_err_integral[:] = 0.0
         elif self.mode == FlightMode.DISARMED:
-            for i in range(len(self.des_rpm)):
-                self.des_rpm[i] = 0
+            self._set_rpm_zero()
+            self.rc_control.initialized = False
+            self.rc_control.p_err_integral[:] = 0.0
         elif self.mode == FlightMode.ARMED:
-            for i in range(len(self.des_rpm)):
-                self.des_rpm[i] = 2000
+            self._set_idle_rpm()
+            self.rc_control.initialized = False
+            self.rc_control.p_err_integral[:] = 0.0
         elif self.mode == FlightMode.MANUAL_STAB:
             cmd_vel = self.rc_state_buf.get_latest()[1]
+            state_recent = self.odom_buf.get_latest()[1]
+
             if self.wrench_buf.is_empty():
                 wrench_recent = np.zeros((6,))
             else:
                 wrench_recent = self.wrench_buf.get_latest()[1]
-            state_recent = self.odom_buf.get_latest()[1]
 
-            # Landing state
-            z_rel = state_recent[2] - self.z_init
-            if cmd_vel[2] < self.vz_cmd_takeoff and z_rel < self.z_takeoff:
-                self._set_idle_rpm()
-                # self.get_logger().info(f'Landing state: z_rel={z_rel:.4f} m, cmd_vz={cmd_vel[2]:.4f} m/s')
+            z = state_recent[2]
+            take_off_cond = (cmd_vel[2] >= self.vz_cmd_takeoff
+                             or z >= self.z_takeoff)
 
-            # Takeoff state
-            else:
+            if not take_off_cond:
+                f_comp = 6.0
+                if self.moment_ff_flag:
+                    M_comp = self.M_ff.copy()
+                else:
+                    M_comp = np.zeros(3)
+                M_comp[2] = 0.0
 
                 dt = self.t_curr - self.t_prev
+                self.des_rpm = self.control_allocator.compute_relaxed_des_rpm(
+                    f_comp, M_comp, self.des_rpm, dt)
+
+                self.rc_control.initialized = False
+                self.rc_control.p_err_integral[:] = 0.0
+            else:
+                dt = self.t_curr - self.t_prev
                 self.rc_control.set_ref(cmd_vel,
-                                    state_recent,
-                                    dt,
-                                    wrench_recent[0:3],
-                                    wrench_recent[3:])
+                                        state_recent,
+                                        dt,
+                                        wrench_recent[0:3],
+                                        wrench_recent[3:])
 
                 u = self.rc_control.get_control_input()
-                self.des_rpm = self.control_allocator.compute_relaxed_des_rpm(u[0],
-                                                                              u[1:],
-                                                                              self.des_rpm,
-                                                                              dt)
+
+                airborne = self.actual_total_thrust >= self.W
+                if airborne:
+                    self.was_airborne = True
+                in_flight = airborne or (self.was_airborne and z > 0.01)
+
+                if in_flight:
+                    f_comp = u[0]
+                    M_comp = u[1:].copy()
+                else:
+                    if self.was_airborne:
+                        self.was_airborne = False
+                    f_comp = u[0]
+                    if self.moment_ff_flag and z < 0.01:
+                        M_comp = self.M_ff.copy()
+                    else:
+                        M_comp = u[1:].copy()
+                        M_comp[2] = 0.0
+
+                self.des_rpm = self.control_allocator.compute_relaxed_des_rpm(
+                    f_comp, M_comp, self.des_rpm, dt)
 
         self.cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(), self.des_rpm)
 
@@ -199,9 +267,11 @@ class RcControlNode(Node):
         time_now = sec + nsec*1e-9
         return time_now
 
+    def _set_rpm_zero(self):
+        self.des_rpm[:] = 0.0
+
     def _set_idle_rpm(self):
-        for i in range(len(self.des_rpm)):
-            self.des_rpm[i] = 2000
+        self.des_rpm[:] = 2000.0
 
     def _config(self):
         self.get_logger().info(f'{self.get_name()}: Initializing...')
@@ -234,6 +304,8 @@ class RcControlNode(Node):
         # Get dynamic parameters
         m = self.get_parameter('dynamic_param.m').value
         MoiArray = self.get_parameter('dynamic_param.MoiArray').value
+        moment_ff = self.get_parameter('dynamic_param.moment_ff').value
+        com_offset = self.get_parameter('dynamic_param.com_offset').value
 
         # Get drone parameter
         arm_length = self.get_parameter('drone_param.arm_length').value
@@ -253,7 +325,9 @@ class RcControlNode(Node):
                      'AccelMaxArray': AccelMaxArray}
 
         dynParam = {'m': m,
-                    'MoiArray': MoiArray}
+                    'MoiArray': MoiArray,
+                    'moment_ff': moment_ff,
+                    'com_offset': com_offset}
 
         droneParam = {'arm_length': arm_length,
                       'motor_const': motor_const,
