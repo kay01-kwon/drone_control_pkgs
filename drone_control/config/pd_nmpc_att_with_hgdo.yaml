@@ -11,7 +11,7 @@
       arm_length: 0.265
       motor_const: 1.386e-07
       moment_const: 0.01569
-      rotor_max: 8000.0
+      rotor_max: 7300.0
       rotor_min: 2000.0
       acc_max: 15000.0
       acc_min: 15000.0
@@ -27,9 +27,9 @@
       publish_state: true
       t_horizon: 1.0
       n_nodes: 20
-      QArray: [ 70.0, 70.0, 0.2,      # q_e_x, q_e_y, q_e_z
-                0.1, 0.1, 0.02]       # wx, wy, wz  (ω_n_rp≈10.1 rad/s, ζ≈0.707)
-      R: [0.1]     # u1...u6
+      QArray: [ 50.0, 50.0, 0.2,      # q_e_x, q_e_y, q_e_z
+                0.1, 0.1, 0.02]       # wx, wy, wz  (ω_n_rp≈7.0 rad/s, ζ≈0.707)
+      R: [0.3]     # u1...u6
       tanh_k: 100.0
 
     topic_names:
