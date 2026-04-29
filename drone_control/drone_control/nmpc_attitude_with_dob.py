@@ -317,6 +317,7 @@ class NMPCAttitudeWithDOB(Node):
                 self.get_clock().now(), des_rpm)
             self.cmd_pub.publish(cmd_msg)
             self.ref_yaw_ramped = quaternion_to_yaw(state_full[6:10])
+            self.des_rotor_rpm_comp_prev = des_rpm
             return
 
         # --- DISARMED mode ---
@@ -326,6 +327,7 @@ class NMPCAttitudeWithDOB(Node):
                 self.get_clock().now(), des_rpm)
             self.cmd_pub.publish(cmd_msg)
             self.ref_yaw_ramped = quaternion_to_yaw(state_full[6:10])
+            self.des_rotor_rpm_comp_prev = des_rpm
             return
 
         # --- AUTO mode: NMPC attitude with external thrust ---
@@ -394,7 +396,10 @@ class NMPCAttitudeWithDOB(Node):
         M_comp[2] = np.clip(M_comp[2], -0.05, 0.05)
 
         self.des_rotor_rpm_comp = (self.control_allocator
-                                   .compute_des_rpm(f_comp, M_comp))
+                                   .compute_relaxed_des_rpm(
+                                       f_comp, M_comp,
+                                       self.des_rotor_rpm_comp_prev,
+                                       self.control_period))
 
         # Convert to RPM and publish
         cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(self.get_clock().now(),
@@ -412,6 +417,7 @@ class NMPCAttitudeWithDOB(Node):
 
         self.cmd_pub.publish(cmd_msg)
         self.nmpc_pub.publish(nmpc_msg)
+        self.des_rotor_rpm_comp_prev = self.des_rotor_rpm_comp
 
         # Log statistics periodically (every 100 iterations = 1 second at 100 Hz)
         if self.solve_count % 100 == 0:
