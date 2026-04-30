@@ -22,6 +22,8 @@
       Ki: [0.0, 0.0, 0.0]         # Integral gain [1/s^3]
       anti_windup: [1.0, 1.0, 1.0] # Integral anti-windup limit [m/s^2]
       dpsi_dt_max: 0.5             # Yaw rate limit [rad/s]
+      a_xy_max: 5.0                # Horizontal accel limit [m/s^2]
+      a_z_max: 3.0                 # Vertical accel limit [m/s^2]
 
     nmpc_param:
       publish_state: true
