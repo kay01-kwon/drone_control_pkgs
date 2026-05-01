@@ -194,6 +194,11 @@ class S550_att_ocp:
         y_ref = np.concatenate(([0.0, 0.0, 0.0], w_ref, u_prev))
         y_ref_N = np.concatenate(([0.0, 0.0, 0.0], w_ref))
 
+        # Initialize warm start with current state on first solve or after reset
+        if self.previous_states is None:
+            for stage in range(N + 1):
+                self.ocp_solver.set(stage, 'x', state)
+
         #Set constraint at the first stage
         self.ocp_solver.set(0, 'lbx', state)
         self.ocp_solver.set(0, 'ubx', state)
