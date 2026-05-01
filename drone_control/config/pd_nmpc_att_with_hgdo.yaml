@@ -24,6 +24,7 @@
       dpsi_dt_max: 0.5             # Yaw rate limit [rad/s]
       a_xy_max: 5.0                # Horizontal accel limit [m/s^2]
       a_z_max: 3.0                 # Vertical accel limit [m/s^2]
+      dob_force_comp: true         # DOB force compensation (disable for sim)
 
     nmpc_param:
       publish_state: true
