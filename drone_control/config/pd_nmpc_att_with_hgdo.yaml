@@ -28,7 +28,7 @@
     nmpc_param:
       publish_state: true
       t_horizon: 1.0
-      n_nodes: 20
+      n_nodes: 10
       QArray: [ 70.0, 70.0, 0.2,      # q_e_x, q_e_y, q_e_z  (ω_n_rp≈10 rad/s)
                 1.4, 1.4, 0.02]       # wx, wy, wz           (ζ_rp≈1.0)
       R: [0.1]     # u1...u6
