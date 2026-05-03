@@ -4,7 +4,7 @@
       m: 3.146
       l: 0.265
       MoiArray: [0.060, 0.060, 0.080]
-      motor_const: 1.2885e-07
+      motor_const: 1.2895e-07
       moment_const: 0.01569
 
     dob:
