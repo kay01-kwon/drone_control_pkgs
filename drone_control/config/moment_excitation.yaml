@@ -6,7 +6,7 @@
 
     drone_param:
       arm_length: 0.265
-      motor_const: 1.386e-7
+      motor_const: 1.2895e-7
       moment_const: 0.0156
       rotor_min: 2000.0
       rotor_max: 7300.0
