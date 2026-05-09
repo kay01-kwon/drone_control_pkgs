@@ -1,0 +1,47 @@
+/**:
+  ros__parameters:
+    constraint:
+      vxy_max: 0.3               # 0.1 m/s
+      vz_max: 0.3                # 0.3 m/s
+      dpsi_dt_max: 0.2           # 0.2 rad/s
+      z_takeoff: 0.05            # 5 cm
+      vz_cmd_takeoff: 0.2        # 0.2 m/s
+
+    gain_param:
+      KpTransArray: [2.0, 2.0, 4.0]
+      KiTransArray: [0.0, 0.0, 0.0]
+      KdTransArray: [1.5, 1.5, 3.0]
+      IntegralMaxArray: [1.0, 1.0, 1.0]
+      KpOriArray: [27.0, 27.0, 0.84]
+      KdOriArray: [10.3, 10.3, 0.58]
+      AccelMaxArray: [0.5, 0.5, 2.0]
+
+    dynamic_param:
+      m: 3.146
+      MoiArray: [0.06, 0.06, 0.08]
+      moment_ff: false
+      com_offset: [-0.01043, 0.00496]
+
+    drone_param:
+      arm_length: 0.265
+      motor_const: 1.2895e-07
+      moment_const: 0.01569
+      rotor_max: 7300.0     # Maximum RPM
+      rotor_min: 2000.0     # Minimum RPM
+      acc_max: 15000.0    # Acc 15 krpm/s
+      acc_min: 15000.0    # Dec 15 krpm/s
+      cmd_lpf_cutoff: 100.0  # LPF cutoff frequency [Hz] for cmd output
+
+    sensor_time_param:
+      timeout:
+        rc: 0.10
+        odom: 0.10
+        do: 0.10
+
+    topic_names:
+      cmd_topic: '/uav/cmd_raw'
+      base_line_control_topic: '/nmpc/control'
+      rc_topic: '/mavros/rc/in'
+      filtered_odom_topic: '/mavros/local_position/odom'
+      ref_topic: '/nmpc/ref'
+      dob_wrench_topic: '/hgdo/wrench'

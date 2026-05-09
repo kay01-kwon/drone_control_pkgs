@@ -1,0 +1,24 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${workspaceFolder}/.vscode/browse.vc.db",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/kay/ros2_ws/install/ros2_libcanard_msgs/include/**",
+        "/home/kay/optitrack_ws/install/natnet_ros2/include/**",
+        "/opt/ros/humble/include/**",
+        "/home/kay/rotors_sim_ws/src/drone_control_pkgs/drone_msgs/include/**",
+        "include/**",
+        "/usr/include/**"
+      ],
+      "name": "ros2",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++17"
+    }
+  ],
+  "version": 4
+}
