@@ -13,9 +13,9 @@ EKF velocity noise  -->  e_v variation  -->  des RP variation
         +---- position oscillation  <----  attitude delay
 ```
 
-The desired roll and pitch angles are derived from the desired force vector F_des, which depends directly on measured position and velocity. Measurement noise in these quantities propagates into aggressive, high-frequency des RP commands that exceed the motor bandwidth, creating a sustained oscillation.
+The desired roll and pitch angles are derived from the desired force vector F_des, which depends on the desired acceleration command u. In standard backstepping, u contains the measured velocity v (which is noisy) directly through alpha_1_dot. This noise propagates into aggressive, high-frequency des RP commands that exceed the motor bandwidth, creating a sustained oscillation.
 
-**Command Filtered Backstepping (CFB)** addresses this by inserting a second-order filter on the virtual control signal (desired velocity), which contains the noisy position measurement. The filter:
+**Command Filtered Backstepping (CFB)** addresses this by inserting a second-order filter on the virtual control signal alpha_1 (desired velocity). By obtaining the derivative alpha_1_f_dot from the filter's internal state rather than computing alpha_1_dot analytically (which requires the noisy velocity v), the filter:
 
 1. Smooths the virtual control, limiting the rate of change of des RP
 2. Provides the derivative of the filtered signal analytically (no numerical differentiation)
@@ -27,7 +27,7 @@ A natural first attempt is to apply the command filter to the reference position
 
 $$\ddot{p}_c = -2\zeta\omega_n \dot{p}_c - \omega_n^2(p_c - p_{des})$$
 
-**Problem:** During hover, p_des is constant. After the filter transient decays, p_c -> p_des and v_c -> 0. The steady-state tracking error becomes p - p_des, identical to the unfiltered case. Since the noise originates from the measured position p and velocity v (not from p_des), filtering a constant reference provides no noise attenuation.
+**Problem:** During hover, p_des is constant. After the filter transient decays, p_c -> p_des and v_c -> 0. The steady-state tracking error becomes p - p_des, identical to the unfiltered case. Since the noise originates from the measured velocity v (not from p_des or the position p, which is clean from motion capture), filtering a constant reference provides no noise attenuation.
 
 **The filter must be applied to a signal that contains the actual measured state.**
 
@@ -92,7 +92,7 @@ $$\ddot{\alpha}_{1,f} = -2\zeta\omega_n \, \dot{\alpha}_{1,f} - \omega_n^2 (\alp
 - alpha_{1,f}: filtered desired velocity (smooth)
 - alpha_1_f_dot: filtered desired acceleration (smooth, used as feedforward)
 
-The filter acts as a second-order low-pass filter on the virtual control. Since alpha_1 contains the noisy measured position, the filter attenuates high-frequency noise while preserving the low-frequency control intent.
+The filter acts as a second-order low-pass filter on the virtual control. The key benefit is that alpha_1_f_dot is obtained from the filter's internal dynamics — this **avoids computing alpha_1_dot analytically**, which would require the noisy measured velocity v. The filter provides a smooth desired acceleration (alpha_1_f_dot) while preserving the low-frequency control intent.
 
 ### 5.2 Error Definitions
 
@@ -299,7 +299,7 @@ By LaSalle's invariance principle, (varepsilon_1, varepsilon_2) -> (0, 0) as t -
   p (measured) -------->  |                  |--> alpha_1 = p_ref_dot - K_p * e_1
   p_ref_dot  --------->  +------------------+
                                   |
-                                  v  (noisy, contains measured p)
+                                  |  (alpha_1 itself is clean, but alpha_1_dot needs noisy v)
                       +------------------------+
                       |    Command Filter      |
                       |  2nd order, (wn, zeta) |
@@ -352,8 +352,8 @@ The natural frequency of the position loop (without filter) is sqrt(K_p), and th
 | Aspect | Filter on p_des (original) | Filter on alpha_1 (corrected) |
 |--------|---------------------------|-------------------------------|
 | Filter input | p_des (constant in hover) | alpha_1 = -K_p(p - p_ref) (contains measured p) |
-| Hover steady state | p_c -> p_des, no filtering | alpha_{1,f} smooths noisy position error |
-| Noise attenuation | None (filtering a constant) | Yes (filters measured position noise) |
+| Hover steady state | p_c -> p_des, no filtering | alpha_{1,f} smooth, alpha_1_f_dot avoids noisy v |
+| Noise attenuation | None (filtering a constant) | Yes (avoids direct use of noisy velocity in u) |
 | Des RP smoothing | No effect | Effective |
 | Stability | Lyapunov guaranteed | Lyapunov guaranteed |
 
@@ -381,7 +381,7 @@ In CFB, the virtual control alpha_1 is the "raw" desired velocity:
 
 $$\alpha_1 = \dot{p}_{ref} - K_p(p - p_{ref}) = -K_p(p - p_{ref}) \quad \text{(hover)}$$
 
-This signal is noisy because it contains the measured position p. The command filter smooths it:
+While alpha_1 itself is relatively clean (position p from motion capture has low noise), the real problem is that computing alpha_1_dot analytically requires the noisy measured velocity v. The command filter bypasses this by smoothing alpha_1 and providing alpha_1_f_dot from its internal state:
 
 $$\ddot{\alpha}_{1,f} = -2\zeta\omega_n \, \dot{\alpha}_{1,f} - \omega_n^2(\alpha_{1,f} - \alpha_1)$$
 
@@ -419,7 +419,7 @@ Both approaches achieve the same goal: providing smooth feedforward signals so t
 
 For hover, the CFB approach is more appropriate because:
 1. No trajectory planner is needed
-2. The filter directly acts on the noisy quantity (position error)
+2. The filter provides smooth alpha_1_f_dot without using noisy velocity v
 3. The filter bandwidth limits how fast des RP can change, matching motor capability
 
 ### 10.4 Intuitive Interpretation
