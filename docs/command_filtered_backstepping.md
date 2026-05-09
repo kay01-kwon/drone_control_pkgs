@@ -76,13 +76,13 @@ The control law:
 
 $$u = \dot{\alpha}_1 - K_v \, e_2 - e_1$$
 
-**Problem:** Computing alpha_1_dot requires differentiating the measured velocity v (to obtain the acceleration), or equivalently differentiating alpha_1 which contains the measured position p. This **amplifies measurement noise**, producing aggressive acceleration commands and noisy des RP.
+**Problem:** alpha_1_dot = p_ddot_ref - K_p(v - p_dot_ref) directly depends on the **measured velocity v** (which is noisy) and the reference acceleration p_ddot_ref. No differentiation is required — the noisy velocity v enters the desired acceleration command u **directly** through alpha_1_dot. This causes noisy F_des and aggressive des RP commands, even without any explicit differentiation step.
 
 ## 5. Command Filtered Backstepping
 
 ### 5.1 Command Filter on the Virtual Control
 
-Instead of differentiating alpha_1 analytically, pass it through a second-order command filter:
+Instead of using alpha_1_dot directly (which contains noisy v), pass alpha_1 through a second-order command filter:
 
 $$\ddot{\alpha}_{1,f} = -2\zeta\omega_n \, \dot{\alpha}_{1,f} - \omega_n^2 (\alpha_{1,f} - \alpha_1)$$
 
