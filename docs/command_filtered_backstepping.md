@@ -131,25 +131,99 @@ where:
 - K_v e_2: velocity error feedback
 - varepsilon_1: compensated position error
 
-### 5.4 Desired Force Computation
+### 5.4 Desired Force and Attitude Computation (Two-Stage)
 
-From the control input u (desired acceleration), compute the desired force:
+The desired attitude is computed in two stages: first from the CFB nominal control (smooth), then adjusted with HGDO disturbance compensation to obtain the final desired attitude.
 
-$$F_{des} = m(u + g \, e_3)$$
+#### Stage 1: Nominal Force from CFB (Smooth)
 
-Extract the desired attitude and collective thrust:
+The CFB control law produces a smooth nominal acceleration:
+
+$$u_{cfb} = \dot{\alpha}_{1,f} - K_v \, e_2 - \varepsilon_1$$
+
+The nominal desired force (without disturbance compensation):
+
+$$F_{nom} = m(u_{cfb} + g \, e_3)$$
+
+Since u_cfb is derived from the filtered alpha_{1,f} and alpha_1_f_dot, F_nom is smooth and its rate of change is limited by the filter bandwidth.
+
+Extract the nominal collective thrust and body z-axis:
+
+$$F_{col,nom} = \| F_{nom} \|$$
+
+$$z_{nom} = \frac{F_{nom}}{\| F_{nom} \|}$$
+
+Combined with the yaw reference, z_nom determines the nominal desired rotation R_nom, from which the **nominal desired roll and pitch** are obtained. These are smooth and within the motor bandwidth.
+
+#### Stage 2: Final Desired Force with Disturbance Compensation
+
+The HGDO estimates the disturbance force d_hgdo in the body frame. Convert to world-frame force:
+
+$$d_{world} = R \, d_{hgdo,f}$$
+
+The final desired force including disturbance compensation:
+
+$$F_{des} = F_{nom} - d_{world} = m(u_{cfb} + g \, e_3) - R \, d_{hgdo,f}$$
+
+From the final F_des, extract the **final desired attitude**:
 
 $$F_{col} = \| F_{des} \|$$
 
 $$z_{des} = \frac{F_{des}}{\| F_{des} \|}$$
 
-Combined with the yaw reference, z_des determines the desired rotation matrix R_des, from which the desired roll and pitch are obtained.
+This z_des, combined with the yaw reference, gives the final R_des and the **final desired roll and pitch** that are sent to the attitude controller.
 
-**Key benefit:** Since u is derived from the filtered alpha_{1,f} and alpha_1_f_dot, the resulting F_des is smooth. Therefore, des RP changes are limited by the filter bandwidth, ensuring the motor can track the commanded attitude.
+#### Why Two Stages?
+
+| Stage | Signal | Smooth? | Purpose |
+|-------|--------|---------|---------|
+| 1. F_nom | CFB output only | Yes (filtered) | Baseline attitude command within motor BW |
+| 2. F_des | F_nom + HGDO comp | Less smooth | Actual attitude setpoint with disturbance rejection |
+
+The HGDO force compensation (d_world) is intentionally **not filtered** by the command filter. This is because:
+
+1. **HGDO bandwidth (1.6 Hz) is already comparable to the command filter bandwidth (~1.5 Hz)**, so the HGDO output is already band-limited.
+2. The HGDO force contribution to des RP is relatively small (~0.5 deg std) compared to the total (~1.5 deg std in the current unfiltered system). With CFB smoothing the dominant component (position feedback), the HGDO contribution becomes an even smaller fraction.
+3. Filtering the HGDO output would delay disturbance rejection, reducing its effectiveness.
+
+If the HGDO contribution is still found to cause issues after CFB implementation, the HGDO bandwidth can be reduced by increasing eps_tau (currently 0.1, giving 1.6 Hz).
+
+#### Dynamics Perspective
+
+The actual dynamics with disturbance:
+
+$$\dot{v} = u + a_d$$
+
+With HGDO compensation applied (hat_a_d = (1/m) R d_hgdo,f):
+
+$$\dot{v} = u_{cfb} + a_d - \hat{a}_d = u_{cfb} + \tilde{a}_d$$
+
+where tilde_a_d = a_d - hat_a_d is the residual disturbance. If the HGDO is accurate, tilde_a_d approx 0 and the system behaves as the nominal v_dot = u_cfb, for which the CFB Lyapunov stability is guaranteed.
+
+#### Control Architecture Flow
+
+```
+Position level (CFB):
+  e_1, v  -->  alpha_1  -->  [Command Filter]  -->  alpha_{1,f}, alpha_1_f_dot
+                                                          |
+                                                    u_cfb (smooth)
+                                                          |
+                                                    F_nom = m(u_cfb + g*e3)
+                                                          |  (smooth)
+                                                          v
+                                              F_des = F_nom - R * d_hgdo_f
+                                                          |  (HGDO adjusted)
+                                                          v
+                                               F_col, R_des (final des attitude)
+                                                          |
+                                                          v
+Attitude level (PD + HGDO torque):
+  R, omega  -->  PD controller  +  HGDO torque comp  -->  M_des  -->  motor cmd
+```
 
 ### 5.5 Tilt Constraint
 
-After computing F_des, a tilt angle constraint can be applied:
+After computing the final F_des, a tilt angle constraint can be applied:
 
 $$\theta = \arccos\left(\frac{F_{des,z}}{\|F_{des}\|}\right)$$
 
