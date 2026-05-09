@@ -283,7 +283,100 @@ The natural frequency of the position loop (without filter) is sqrt(K_p), and th
 | Des RP smoothing | No effect | Effective |
 | Stability | Lyapunov guaranteed | Lyapunov guaranteed |
 
-## 10. Implementation Notes
+## 10. Implicit Trajectory Generation Without a Trajectory Planner
+
+A key advantage of CFB is that the command filter **implicitly generates a smooth trajectory** (desired velocity and desired acceleration) even when only a constant setpoint p_ref is given, without an explicit trajectory planner.
+
+### 10.1 The Problem Without a Trajectory
+
+In standard PD or NMPC control for hover, the reference is:
+
+$$p_{ref} = \text{const}, \quad \dot{p}_{ref} = 0, \quad \ddot{p}_{ref} = 0$$
+
+There is no desired velocity profile. The controller directly computes:
+
+$$F_{des} = m \big( -K_p(p - p_{ref}) - K_v \, v + g \, e_3 \big)$$
+
+The entire control effort comes from feedback on measured (p, v). Any noise in these measurements directly appears in F_des and therefore in des RP.
+
+With an explicit trajectory planner (e.g., PX4's jerk-limited generator), the planner provides smooth (p_ref(t), v_ref(t), a_ref(t)), and the feedback gains K_p, K_v can be kept small because the feedforward a_ref does most of the work. But this requires a trajectory generator.
+
+### 10.2 How the Command Filter Generates v_des and a_des
+
+In CFB, the virtual control alpha_1 is the "raw" desired velocity:
+
+$$\alpha_1 = \dot{p}_{ref} - K_p(p - p_{ref}) = -K_p(p - p_{ref}) \quad \text{(hover)}$$
+
+This signal is noisy because it contains the measured position p. The command filter smooths it:
+
+$$\ddot{\alpha}_{1,f} = -2\zeta\omega_n \, \dot{\alpha}_{1,f} - \omega_n^2(\alpha_{1,f} - \alpha_1)$$
+
+The filter outputs serve as implicit trajectory references:
+
+| Filter Output | Role | Equivalent Trajectory Quantity |
+|---|---|---|
+| alpha_{1,f} | Smoothed desired velocity | v_des(t) |
+| alpha_1_f_dot | Smoothed desired acceleration | a_des(t) (feedforward) |
+
+### 10.3 Comparison with Explicit Trajectory Generation
+
+```
+Explicit trajectory planner:
+  p_ref(t) --[jerk-limited generator]--> p_des(t), v_des(t), a_des(t)
+  u = a_des + K_p(p_des - p) + K_v(v_des - v)
+       ^^^^                      ^^^^
+    feedforward                small feedback
+
+CFB (no trajectory planner):
+  p_ref = const
+  alpha_1 = -K_p(p - p_ref)  (noisy)
+  alpha_1 --[command filter]--> alpha_{1,f} = v_des(t),  alpha_1_f_dot = a_des(t)
+                                               ^^^^^                      ^^^^^
+                                          smooth v_des                smooth a_des
+  u = a_des - K_v(v - v_des) - varepsilon_1
+       ^^^^                     
+    feedforward from filter    
+```
+
+Both approaches achieve the same goal: providing smooth feedforward signals so that the feedback terms are small and noise is attenuated. The difference is:
+
+- **Explicit trajectory planner:** smooths the reference independently of the actual state
+- **CFB command filter:** smooths a signal derived from the actual state (position error)
+
+For hover, the CFB approach is more appropriate because:
+1. No trajectory planner is needed
+2. The filter directly acts on the noisy quantity (position error)
+3. The filter bandwidth limits how fast des RP can change, matching motor capability
+
+### 10.4 Intuitive Interpretation
+
+The command filter converts a **static setpoint** into a **dynamic reference trajectory**:
+
+- When the drone is displaced from p_ref, alpha_1 = -K_p * e_1 commands a velocity toward the setpoint
+- The filter smooths this into a gradual, bandwidth-limited velocity profile alpha_{1,f}
+- The filter derivative alpha_1_f_dot provides the corresponding smooth acceleration
+- The controller uses alpha_1_f_dot as feedforward, with only small corrections from velocity feedback
+
+Even without an explicit trajectory generator, the CFB controller behaves as if it has one. The filter bandwidth omega_n determines how aggressively the "implicit trajectory" drives the drone back to the setpoint:
+
+- High omega_n: fast return, but des RP changes quickly (may exceed motor BW)
+- Low omega_n: slow return, but des RP stays smooth (within motor BW)
+
+Setting omega_n below the motor bandwidth (~2.5 Hz) ensures that the implicit trajectory is always physically realizable.
+
+### 10.5 Hover Steady State
+
+At hover equilibrium (p = p_ref, v = 0):
+
+$$\alpha_1 = 0, \quad \alpha_{1,f} = 0, \quad \dot{\alpha}_{1,f} = 0$$
+
+$$u = 0 - K_v(0) - 0 = 0$$
+
+$$F_{des} = m \, g \, e_3$$
+
+The controller outputs pure hover thrust with zero horizontal force, and des RP = 0. Any deviation from equilibrium produces a smooth, filtered response through the command filter.
+
+## 11. Implementation Notes
 
 1. **State variables to maintain:**
    - alpha_{1,f} in R^3 (filtered virtual control)
