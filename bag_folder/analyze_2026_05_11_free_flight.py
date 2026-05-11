@@ -251,6 +251,30 @@ plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, '2026_05_11_des_vs_act_rp.png'), dpi=120)
 plt.close()
 
+# ─────────── PLOT 6: Torque decomposition (NMPC raw vs HGDO vs motor cmd) ───────────
+#   /nmpc/control.torque = u_mpc  (NMPC raw, BEFORE HGDO compensation)
+#   /hgdo/wrench.torque  = tau_dist
+#   motor cmd torque     = u_mpc - tau_dist  (post-DOB, what actually drives rotors)
+hgdo_tau_at_ctrl = np.column_stack([
+    np.interp(ctrl_t, hgdo_t, hgdo[:, 3]),
+    np.interp(ctrl_t, hgdo_t, hgdo[:, 4]),
+    np.interp(ctrl_t, hgdo_t, hgdo[:, 5])])
+motor_tau = ctrl[:, 3:6] - hgdo_tau_at_ctrl
+
+fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
+labels_axis = ['Mx', 'My', 'Mz']
+for k in range(3):
+    axes[k].plot(ctrl_t, ctrl[:, 3 + k],  'k', lw=1.4, label=f'{labels_axis[k]}  /nmpc/control (NMPC raw, pre-DOB)')
+    axes[k].plot(hgdo_t, hgdo[:, 3 + k],  'r', alpha=0.85, label=f'{labels_axis[k]}  /hgdo/wrench (HGDO)')
+    axes[k].plot(ctrl_t, motor_tau[:, k], 'b', alpha=0.85, label=f'{labels_axis[k]}  motor cmd = nmpc − hgdo')
+    axes[k].set_ylabel(f'{labels_axis[k]} [N·m]'); axes[k].grid(alpha=0.3)
+    axes[k].legend(loc='upper right', fontsize=9)
+axes[0].set_title('Torque decomposition: NMPC raw (/nmpc/control) vs HGDO vs motor command')
+axes[-1].set_xlabel('Time [s]')
+plt.tight_layout()
+plt.savefig(os.path.join(OUT_DIR, '2026_05_11_torque_decomp.png'), dpi=120)
+plt.close()
+
 # ─────────── PLOT 5: PD-only vs HGDO-only vs total desired vs actual (per axis) ───────────
 fig, axes = plt.subplots(2, 1, figsize=(14, 9), sharex=True)
 axes[0].plot(ctrl_t, np.degrees(des_rp[:, 0]),       'k',  lw=1.6, label='Roll des total (/nmpc/control)')
@@ -321,6 +345,16 @@ print('-- PD-only (pos/vel) equivalent desired tilt --')
 stats('roll_pd',  pd_rp[:, 0])
 stats('pitch_pd', pd_rp[:, 1])
 
+# Torque stats (N·m, not deg)
+def stats_lin(name, x, unit='N·m'):
+    print(f'  {name:18s}  std={np.std(x):7.4f} {unit}   min={np.min(x):8.4f}   max={np.max(x):8.4f}')
+
+print('\n-- Torque (Mx, My, Mz) [N·m] --')
+for k, ax in enumerate(['Mx', 'My', 'Mz']):
+    stats_lin(f'{ax}_nmpc',  ctrl[:, 3 + k])
+    stats_lin(f'{ax}_hgdo',  hgdo[:, 3 + k])
+    stats_lin(f'{ax}_motor', motor_tau[:, k])
+
 # Contribution share: std(hgdo_rp) / std(total_des_rp) on aligned time grid
 des_roll_on_hgdo  = np.interp(hgdo_t, ctrl_t, des_rp[:, 0])
 des_pitch_on_hgdo = np.interp(hgdo_t, ctrl_t, des_rp[:, 1])
@@ -339,3 +373,4 @@ print('  - 2026_05_11_pos_vel_world.png')
 print('  - 2026_05_11_des_vs_act_rp.png')
 print('  - 2026_05_11_hgdo_des_rp.png')
 print('  - 2026_05_11_rp_decomp.png')
+print('  - 2026_05_11_torque_decomp.png')
