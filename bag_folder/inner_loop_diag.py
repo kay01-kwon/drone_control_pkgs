@@ -33,7 +33,7 @@ if not db_path:
     raise SystemExit(f'No .db3 in {BAG_DIR}')
 DB = db_path[0]
 OUT_DIR = os.path.join(_HERE, DATE_DIR)
-TAG = f'{DATE_DIR}_{BAG_SUBDIR}'
+TAG = BAG_SUBDIR
 print(f'Analyzing: {DB}')
 
 
