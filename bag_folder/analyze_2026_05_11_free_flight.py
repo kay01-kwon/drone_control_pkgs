@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Analyze a 2026_05_11_free_flight bag (default: eps_f_0p5).
-Usage:  python3 analyze_2026_05_11_free_flight.py [<bag_subdir>]
-Each output PNG is suffixed with the bag subdir name.
+"""Analyze a flight bag.
+Usage:
+  python3 analyze_2026_05_11_free_flight.py [<bag_subdir> [<date_dir>]]
+Defaults: bag_subdir = eps_f_0p5,  date_dir = 2026_05_11_free_flight.
+Each output PNG is suffixed with <date_dir>_<bag_subdir>.
 """
 
 import os, sys, sqlite3, struct, glob
@@ -12,13 +14,14 @@ import matplotlib.pyplot as plt
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 BAG_SUBDIR = sys.argv[1] if len(sys.argv) > 1 else 'eps_f_0p5'
-BAG_DIR = os.path.join(_HERE, '2026_05_11_free_flight', BAG_SUBDIR)
+DATE_DIR   = sys.argv[2] if len(sys.argv) > 2 else '2026_05_11_free_flight'
+BAG_DIR = os.path.join(_HERE, DATE_DIR, BAG_SUBDIR)
 db_candidates = glob.glob(os.path.join(BAG_DIR, '*.db3'))
 if not db_candidates:
     raise SystemExit(f'No .db3 found in {BAG_DIR}')
 DB_PATH = db_candidates[0]
-OUT_DIR = os.path.join(_HERE, '2026_05_11_free_flight')
-TAG = BAG_SUBDIR
+OUT_DIR = os.path.join(_HERE, DATE_DIR)
+TAG = f'{DATE_DIR}_{BAG_SUBDIR}'
 print(f'Analyzing: {DB_PATH}')
 
 
@@ -219,7 +222,7 @@ axes[1].plot(hgdo_t, hgdo[:, 1], 'g'); axes[1].set_ylabel('fy [N]'); axes[1].gri
 axes[2].plot(hgdo_t, hgdo[:, 2], 'b'); axes[2].set_ylabel('fz [N]'); axes[2].grid(alpha=0.3)
 axes[2].set_xlabel('Time [s]')
 plt.tight_layout()
-plt.savefig(os.path.join(OUT_DIR, f'2026_05_11_{TAG}_hgdo_force.png'), dpi=120)
+plt.savefig(os.path.join(OUT_DIR, f'{TAG}_hgdo_force.png'), dpi=120)
 plt.close()
 
 # ─────────── PLOT 2: position + world-frame velocity ───────────
@@ -237,7 +240,7 @@ axes[1].set_ylabel('Velocity [m/s]'); axes[1].set_xlabel('Time [s]')
 axes[1].grid(alpha=0.3); axes[1].legend(loc='upper right')
 axes[1].set_title('World-frame Linear Velocity  (R(q) @ v_body)')
 plt.tight_layout()
-plt.savefig(os.path.join(OUT_DIR, f'2026_05_11_{TAG}_pos_vel_world.png'), dpi=120)
+plt.savefig(os.path.join(OUT_DIR, f'{TAG}_pos_vel_world.png'), dpi=120)
 plt.close()
 
 # ─────────── PLOT 3: desired vs actual roll/pitch ───────────
@@ -253,7 +256,66 @@ axes[1].set_ylabel('Pitch [deg]'); axes[1].set_xlabel('Time [s]')
 axes[1].grid(alpha=0.3); axes[1].legend(loc='upper right')
 axes[1].set_title('Desired (force→attitude) vs Actual Pitch')
 plt.tight_layout()
-plt.savefig(os.path.join(OUT_DIR, f'2026_05_11_{TAG}_des_vs_act_rp.png'), dpi=120)
+plt.savefig(os.path.join(OUT_DIR, f'{TAG}_des_vs_act_rp.png'), dpi=120)
+plt.close()
+
+# ─────────── PLOT 7: HGDO xy force vs PD xy force vs world velocity / position ───────────
+# Is HGDO fx/fy reacting to real disturbance, or is it chasing the motion the drone
+# is already doing?  If HGDO correlates strongly with velocity at zero lag, it is
+# acting like a (positive) feedback term on motion, which would amplify XY drift.
+Fpd_xy   = Fpd_w[:, 0:2]                  # PD-only force in world frame (at ctrl_t)
+Fhgdo_xy = -hgdo_w_at_ctrl[:, 0:2]        # HGDO compensation force the controller adds
+vw_at_ctrl = np.column_stack([
+    np.interp(ctrl_t, odom_t, v_world[:, 0]),
+    np.interp(ctrl_t, odom_t, v_world[:, 1])])
+pos_at_ctrl = np.column_stack([
+    np.interp(ctrl_t, odom_t, pos[:, 0]),
+    np.interp(ctrl_t, odom_t, pos[:, 1])])
+
+# Mask to airborne segment (use period where collective thrust is above weight-ish band)
+m_mask = ctrl[:, 2] > (0.5 * np.median(ctrl[ctrl[:, 2] > 0.0, 2]))
+
+def safe_corr(a, b):
+    if a.size < 50 or b.size < 50: return np.nan
+    a = a - a.mean(); b = b - b.mean()
+    s = a.std() * b.std()
+    return np.nan if s < 1e-12 else float(np.mean(a * b) / s)
+
+print('\n-- HGDO xy (world) vs PD xy (world) & motion correlations [airborne only] --')
+for k, ax in enumerate(['x', 'y']):
+    c_hgdo_pd  = safe_corr(Fhgdo_xy[m_mask, k], Fpd_xy[m_mask, k])
+    c_hgdo_v   = safe_corr(Fhgdo_xy[m_mask, k], vw_at_ctrl[m_mask, k])
+    c_hgdo_pos = safe_corr(Fhgdo_xy[m_mask, k], pos_at_ctrl[m_mask, k])
+    c_pd_v     = safe_corr(Fpd_xy[m_mask, k],   vw_at_ctrl[m_mask, k])
+    c_pd_pos   = safe_corr(Fpd_xy[m_mask, k],   pos_at_ctrl[m_mask, k])
+    print(f'  axis {ax}:  corr(HGDO,PD)={c_hgdo_pd:+.3f}   corr(HGDO,v_world)={c_hgdo_v:+.3f}   '
+          f'corr(HGDO,pos)={c_hgdo_pos:+.3f}   corr(PD,v)={c_pd_v:+.3f}   corr(PD,pos)={c_pd_pos:+.3f}')
+    print(f'           std(HGDO xy)={np.std(Fhgdo_xy[m_mask, k]):.3f} N   '
+          f'std(PD xy)={np.std(Fpd_xy[m_mask, k]):.3f} N   '
+          f'ratio={np.std(Fhgdo_xy[m_mask, k])/max(np.std(Fpd_xy[m_mask, k]),1e-9):.3f}')
+
+fig, axes = plt.subplots(4, 1, figsize=(14, 11), sharex=True)
+axes[0].plot(ctrl_t, Fpd_xy[:, 0],   'b', label='PD Fx (world)')
+axes[0].plot(ctrl_t, Fhgdo_xy[:, 0], 'r', alpha=0.85, label='HGDO Fx contribution (world)')
+axes[0].set_ylabel('Fx [N]'); axes[0].grid(alpha=0.3); axes[0].legend(loc='upper right', fontsize=9)
+axes[0].set_title('Force decomposition in world frame — X axis')
+
+axes[1].plot(ctrl_t, Fpd_xy[:, 1],   'b', label='PD Fy (world)')
+axes[1].plot(ctrl_t, Fhgdo_xy[:, 1], 'r', alpha=0.85, label='HGDO Fy contribution (world)')
+axes[1].set_ylabel('Fy [N]'); axes[1].grid(alpha=0.3); axes[1].legend(loc='upper right', fontsize=9)
+axes[1].set_title('Force decomposition in world frame — Y axis')
+
+axes[2].plot(odom_t, v_world[:, 0], 'r', label='vx world')
+axes[2].plot(odom_t, v_world[:, 1], 'g', label='vy world')
+axes[2].set_ylabel('Velocity [m/s]'); axes[2].grid(alpha=0.3); axes[2].legend(loc='upper right', fontsize=9)
+
+axes[3].plot(odom_t, pos[:, 0], 'r', label='x')
+axes[3].plot(odom_t, pos[:, 1], 'g', label='y')
+axes[3].set_ylabel('Position [m]'); axes[3].set_xlabel('Time [s]')
+axes[3].grid(alpha=0.3); axes[3].legend(loc='upper right', fontsize=9)
+
+plt.tight_layout()
+plt.savefig(os.path.join(OUT_DIR, f'{TAG}_xy_force_causality.png'), dpi=120)
 plt.close()
 
 # ─────────── PLOT 6: Torque decomposition (NMPC raw vs HGDO vs motor cmd) ───────────
@@ -277,7 +339,7 @@ for k in range(3):
 axes[0].set_title('Torque decomposition: NMPC raw (/nmpc/control) vs HGDO vs motor command')
 axes[-1].set_xlabel('Time [s]')
 plt.tight_layout()
-plt.savefig(os.path.join(OUT_DIR, f'2026_05_11_{TAG}_torque_decomp.png'), dpi=120)
+plt.savefig(os.path.join(OUT_DIR, f'{TAG}_torque_decomp.png'), dpi=120)
 plt.close()
 
 # ─────────── PLOT 5: PD-only vs HGDO-only vs total desired vs actual (per axis) ───────────
@@ -301,7 +363,7 @@ axes[1].set_ylabel('Pitch [deg]'); axes[1].set_xlabel('Time [s]')
 axes[1].grid(alpha=0.3); axes[1].legend(loc='upper right', fontsize=9)
 axes[1].set_title('Pitch: PD-only + HGDO-only = total desired (vs actual)')
 plt.tight_layout()
-plt.savefig(os.path.join(OUT_DIR, f'2026_05_11_{TAG}_rp_decomp.png'), dpi=120)
+plt.savefig(os.path.join(OUT_DIR, f'{TAG}_rp_decomp.png'), dpi=120)
 plt.close()
 
 # ─────────── PLOT 4: HGDO-only + PD-only desired roll/pitch + XY position overlay ───────────
@@ -324,7 +386,7 @@ axes[2].set_ylabel('XY position [m]'); axes[2].set_xlabel('Time [s]')
 axes[2].grid(alpha=0.3); axes[2].legend(loc='upper right')
 axes[2].set_title('XY position drift (odom)')
 plt.tight_layout()
-plt.savefig(os.path.join(OUT_DIR, f'2026_05_11_{TAG}_hgdo_des_rp.png'), dpi=120)
+plt.savefig(os.path.join(OUT_DIR, f'{TAG}_hgdo_des_rp.png'), dpi=120)
 plt.close()
 
 # ─────────── Stats ───────────
@@ -373,9 +435,9 @@ if mask.sum() > 100:
     print(f'  std(hgdo_pitch) / std(total_des_pitch) = {p_share:.3f}   corr={corr_p:+.3f}')
 
 print('\nFigures saved to:', OUT_DIR)
-print(f'  - 2026_05_11_{TAG}_hgdo_force.png')
-print(f'  - 2026_05_11_{TAG}_pos_vel_world.png')
-print(f'  - 2026_05_11_{TAG}_des_vs_act_rp.png')
-print(f'  - 2026_05_11_{TAG}_hgdo_des_rp.png')
-print(f'  - 2026_05_11_{TAG}_rp_decomp.png')
-print(f'  - 2026_05_11_{TAG}_torque_decomp.png')
+print(f'  - {TAG}_hgdo_force.png')
+print(f'  - {TAG}_pos_vel_world.png')
+print(f'  - {TAG}_des_vs_act_rp.png')
+print(f'  - {TAG}_hgdo_des_rp.png')
+print(f'  - {TAG}_rp_decomp.png')
+print(f'  - {TAG}_torque_decomp.png')
