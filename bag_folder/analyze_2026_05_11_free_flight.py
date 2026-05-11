@@ -318,29 +318,42 @@ plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, f'{TAG}_xy_force_causality.png'), dpi=120)
 plt.close()
 
-# ─────────── PLOT 6: Torque decomposition (NMPC raw vs HGDO vs motor cmd) ───────────
-#   /nmpc/control.torque = u_mpc  (NMPC raw, BEFORE HGDO compensation)
+# ─────────── PLOT 6: Torque decomposition (motor cmd / HGDO / pure NMPC) ───────────
+#   /nmpc/control.torque = motor command (POST-DOB, what actually drives the rotors)
 #   /hgdo/wrench.torque  = tau_dist
-#   motor cmd torque     = u_mpc - tau_dist  (post-DOB, what actually drives rotors)
+#   pure NMPC torque     = /nmpc/control.torque + tau_dist   (what NMPC alone wanted)
 hgdo_tau_at_ctrl = np.column_stack([
     np.interp(ctrl_t, hgdo_t, hgdo[:, 3]),
     np.interp(ctrl_t, hgdo_t, hgdo[:, 4]),
     np.interp(ctrl_t, hgdo_t, hgdo[:, 5])])
-motor_tau = ctrl[:, 3:6] - hgdo_tau_at_ctrl
+nmpc_pure_tau = ctrl[:, 3:6] + hgdo_tau_at_ctrl
 
 fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
 labels_axis = ['Mx', 'My', 'Mz']
 for k in range(3):
-    axes[k].plot(ctrl_t, ctrl[:, 3 + k],  'k', lw=1.4, label=f'{labels_axis[k]}  /nmpc/control (NMPC raw, pre-DOB)')
-    axes[k].plot(hgdo_t, hgdo[:, 3 + k],  'r', alpha=0.85, label=f'{labels_axis[k]}  /hgdo/wrench (HGDO)')
-    axes[k].plot(ctrl_t, motor_tau[:, k], 'b', alpha=0.85, label=f'{labels_axis[k]}  motor cmd = nmpc − hgdo')
+    axes[k].plot(ctrl_t, ctrl[:, 3 + k],     'k', lw=1.4, label=f'{labels_axis[k]}  /nmpc/control (motor cmd, post-DOB)')
+    axes[k].plot(hgdo_t, hgdo[:, 3 + k],     'r', alpha=0.85, label=f'{labels_axis[k]}  /hgdo/wrench (HGDO)')
+    axes[k].plot(ctrl_t, nmpc_pure_tau[:, k],'b', alpha=0.85, label=f'{labels_axis[k]}  pure NMPC = /nmpc/control + hgdo')
     axes[k].set_ylabel(f'{labels_axis[k]} [N·m]'); axes[k].grid(alpha=0.3)
     axes[k].legend(loc='upper right', fontsize=9)
-axes[0].set_title('Torque decomposition: NMPC raw (/nmpc/control) vs HGDO vs motor command')
+axes[0].set_title('Torque decomposition: motor cmd (/nmpc/control) vs HGDO vs pure NMPC')
 axes[-1].set_xlabel('Time [s]')
 plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, f'{TAG}_torque_decomp.png'), dpi=120)
 plt.close()
+
+# Per-axis split (one figure each) — easier to read on phone
+for k, ax_name in enumerate(['Mx', 'My', 'Mz']):
+    fig, ax = plt.subplots(1, 1, figsize=(14, 5))
+    ax.plot(ctrl_t, ctrl[:, 3 + k],      'k', lw=1.4, label=f'{ax_name} motor cmd (/nmpc/control, post-DOB)')
+    ax.plot(hgdo_t, hgdo[:, 3 + k],      'r', alpha=0.85, label=f'{ax_name} HGDO')
+    ax.plot(ctrl_t, nmpc_pure_tau[:, k], 'b', alpha=0.85, label=f'{ax_name} pure NMPC = motor + hgdo')
+    ax.set_ylabel(f'{ax_name} [N·m]'); ax.set_xlabel('Time [s]'); ax.grid(alpha=0.3)
+    ax.legend(loc='upper right', fontsize=9)
+    ax.set_title(f'Torque decomposition — {ax_name}')
+    plt.tight_layout()
+    plt.savefig(os.path.join(OUT_DIR, f'{TAG}_torque_{ax_name}.png'), dpi=120)
+    plt.close()
 
 # ─────────── PLOT 5: PD-only vs HGDO-only vs total desired vs actual (per axis) ───────────
 fig, axes = plt.subplots(2, 1, figsize=(14, 9), sharex=True)
@@ -458,11 +471,11 @@ stats('pitch_pd', pd_rp[:, 1])
 def stats_lin(name, x, unit='N·m'):
     print(f'  {name:18s}  std={np.std(x):7.4f} {unit}   min={np.min(x):8.4f}   max={np.max(x):8.4f}')
 
-print('\n-- Torque (Mx, My, Mz) [N·m] --')
+print('\n-- Torque (Mx, My, Mz) [N·m]  — /nmpc/control = motor cmd (post-DOB) --')
 for k, ax in enumerate(['Mx', 'My', 'Mz']):
-    stats_lin(f'{ax}_nmpc',  ctrl[:, 3 + k])
-    stats_lin(f'{ax}_hgdo',  hgdo[:, 3 + k])
-    stats_lin(f'{ax}_motor', motor_tau[:, k])
+    stats_lin(f'{ax}_motor_cmd', ctrl[:, 3 + k])
+    stats_lin(f'{ax}_hgdo',      hgdo[:, 3 + k])
+    stats_lin(f'{ax}_nmpc_pure', nmpc_pure_tau[:, k])
 
 # Contribution share: std(hgdo_rp) / std(total_des_rp) on aligned time grid
 des_roll_on_hgdo  = np.interp(hgdo_t, ctrl_t, des_rp[:, 0])
@@ -484,3 +497,6 @@ print(f'  - {TAG}_hgdo_des_rp.png')
 print(f'  - {TAG}_rp_decomp.png')
 print(f'  - {TAG}_rp_decomp_split.png')
 print(f'  - {TAG}_torque_decomp.png')
+print(f'  - {TAG}_torque_Mx.png')
+print(f'  - {TAG}_torque_My.png')
+print(f'  - {TAG}_torque_Mz.png')
