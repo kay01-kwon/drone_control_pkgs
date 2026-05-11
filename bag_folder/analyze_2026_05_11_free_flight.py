@@ -172,6 +172,39 @@ for i in range(len(hgdo_t)):
     fx_w, fy_w, _ = -hgdo_w[i]
     hgdo_rp[i] = force_to_rp(fx_w, fy_w, fcol_at_hgdo[i], psi_at_hgdo[i])
 
+# ─── PD-only (position/velocity) contribution to desired roll/pitch ───
+# Controller:  F_des = F_pd - R_wb @ f_hgdo_body   →   F_pd = F_des + R_wb @ f_hgdo
+# /nmpc/control publishes (fx, fy, f_col=||F_des||), so reconstruct F_des_z first.
+hgdo_w_at_ctrl = np.zeros((len(ctrl_t), 3))
+roll_at_ctrl = np.interp(ctrl_t, odom_t, rpy[:, 0])
+pit_at_ctrl  = np.interp(ctrl_t, odom_t, rpy[:, 1])
+hgdo_at_ctrl = np.column_stack([
+    np.interp(ctrl_t, hgdo_t, hgdo[:, 0]),
+    np.interp(ctrl_t, hgdo_t, hgdo[:, 1]),
+    np.interp(ctrl_t, hgdo_t, hgdo[:, 2])])
+for i in range(len(ctrl_t)):
+    R_wb = rpy_to_rotm(roll_at_ctrl[i], pit_at_ctrl[i], psi_at_ctrl[i])
+    hgdo_w_at_ctrl[i] = R_wb @ hgdo_at_ctrl[i]
+
+# Full F_des in world frame from /nmpc/control
+fz_sq = ctrl[:, 2] ** 2 - ctrl[:, 0] ** 2 - ctrl[:, 1] ** 2
+Fdes_z = np.sqrt(np.maximum(fz_sq, 0.0))
+Fdes_w = np.column_stack([ctrl[:, 0], ctrl[:, 1], Fdes_z])
+
+# PD-only force (no HGDO compensation injected)
+Fpd_w = Fdes_w + hgdo_w_at_ctrl
+fcol_pd = np.linalg.norm(Fpd_w, axis=1)
+
+pd_rp = np.zeros((len(ctrl_t), 2))
+for i in range(len(ctrl_t)):
+    pd_rp[i] = force_to_rp(Fpd_w[i, 0], Fpd_w[i, 1], fcol_pd[i], psi_at_ctrl[i])
+
+# HGDO-only on ctrl timestamps (for matching plot grid)
+hgdo_rp_at_ctrl = np.zeros((len(ctrl_t), 2))
+for i in range(len(ctrl_t)):
+    fx_w, fy_w, _ = -hgdo_w_at_ctrl[i]
+    hgdo_rp_at_ctrl[i] = force_to_rp(fx_w, fy_w, ctrl[i, 2], psi_at_ctrl[i])
+
 
 # ─────────── PLOT 1: HGDO fx, fy, fz ───────────
 fig, axes = plt.subplots(3, 1, figsize=(14, 8), sharex=True)
@@ -218,17 +251,43 @@ plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, '2026_05_11_des_vs_act_rp.png'), dpi=120)
 plt.close()
 
-# ─────────── PLOT 4: HGDO-only desired roll/pitch + XY position overlay ───────────
-fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
-axes[0].plot(hgdo_t, np.degrees(hgdo_rp[:, 0]), 'r', label='Roll desired from HGDO compensation')
-axes[0].plot(ctrl_t, np.degrees(des_rp[:, 0]), 'k--', alpha=0.5, label='Roll desired total (/nmpc/control)')
-axes[0].set_ylabel('Roll [deg]'); axes[0].grid(alpha=0.3); axes[0].legend(loc='upper right')
-axes[0].set_title('HGDO-induced desired Roll vs total desired Roll')
+# ─────────── PLOT 5: PD-only vs HGDO-only vs total desired vs actual (per axis) ───────────
+fig, axes = plt.subplots(2, 1, figsize=(14, 9), sharex=True)
+axes[0].plot(ctrl_t, np.degrees(des_rp[:, 0]),       'k',  lw=1.6, label='Roll des total (/nmpc/control)')
+axes[0].plot(ctrl_t, np.degrees(pd_rp[:, 0]),        'b',  lw=1.0, alpha=0.85,
+             label='Roll des PD only (pos/vel)')
+axes[0].plot(ctrl_t, np.degrees(hgdo_rp_at_ctrl[:, 0]), 'r', lw=1.0, alpha=0.85,
+             label='Roll des HGDO only')
+axes[0].plot(odom_t, np.degrees(rpy[:, 0]),          'g',  lw=0.9, alpha=0.6, label='Roll actual')
+axes[0].set_ylabel('Roll [deg]'); axes[0].grid(alpha=0.3); axes[0].legend(loc='upper right', fontsize=9)
+axes[0].set_title('Roll: PD-only + HGDO-only = total desired (vs actual)')
 
-axes[1].plot(hgdo_t, np.degrees(hgdo_rp[:, 1]), 'g', label='Pitch desired from HGDO compensation')
-axes[1].plot(ctrl_t, np.degrees(des_rp[:, 1]), 'k--', alpha=0.5, label='Pitch desired total (/nmpc/control)')
-axes[1].set_ylabel('Pitch [deg]'); axes[1].grid(alpha=0.3); axes[1].legend(loc='upper right')
-axes[1].set_title('HGDO-induced desired Pitch vs total desired Pitch')
+axes[1].plot(ctrl_t, np.degrees(des_rp[:, 1]),       'k',  lw=1.6, label='Pitch des total (/nmpc/control)')
+axes[1].plot(ctrl_t, np.degrees(pd_rp[:, 1]),        'b',  lw=1.0, alpha=0.85,
+             label='Pitch des PD only (pos/vel)')
+axes[1].plot(ctrl_t, np.degrees(hgdo_rp_at_ctrl[:, 1]), 'r', lw=1.0, alpha=0.85,
+             label='Pitch des HGDO only')
+axes[1].plot(odom_t, np.degrees(rpy[:, 1]),          'g',  lw=0.9, alpha=0.6, label='Pitch actual')
+axes[1].set_ylabel('Pitch [deg]'); axes[1].set_xlabel('Time [s]')
+axes[1].grid(alpha=0.3); axes[1].legend(loc='upper right', fontsize=9)
+axes[1].set_title('Pitch: PD-only + HGDO-only = total desired (vs actual)')
+plt.tight_layout()
+plt.savefig(os.path.join(OUT_DIR, '2026_05_11_rp_decomp.png'), dpi=120)
+plt.close()
+
+# ─────────── PLOT 4: HGDO-only + PD-only desired roll/pitch + XY position overlay ───────────
+fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
+axes[0].plot(ctrl_t, np.degrees(des_rp[:, 0]),       'k',  lw=1.5, label='Roll des total (/nmpc/control)')
+axes[0].plot(ctrl_t, np.degrees(pd_rp[:, 0]),        'b',  alpha=0.85, label='Roll des PD only (pos/vel)')
+axes[0].plot(hgdo_t, np.degrees(hgdo_rp[:, 0]),      'r',  alpha=0.85, label='Roll des HGDO only')
+axes[0].set_ylabel('Roll [deg]'); axes[0].grid(alpha=0.3); axes[0].legend(loc='upper right', fontsize=9)
+axes[0].set_title('Desired Roll decomposition: total = PD only + HGDO only')
+
+axes[1].plot(ctrl_t, np.degrees(des_rp[:, 1]),       'k',  lw=1.5, label='Pitch des total (/nmpc/control)')
+axes[1].plot(ctrl_t, np.degrees(pd_rp[:, 1]),        'b',  alpha=0.85, label='Pitch des PD only (pos/vel)')
+axes[1].plot(hgdo_t, np.degrees(hgdo_rp[:, 1]),      'r',  alpha=0.85, label='Pitch des HGDO only')
+axes[1].set_ylabel('Pitch [deg]'); axes[1].grid(alpha=0.3); axes[1].legend(loc='upper right', fontsize=9)
+axes[1].set_title('Desired Pitch decomposition: total = PD only + HGDO only')
 
 axes[2].plot(odom_t, pos[:, 0], 'r', label='x')
 axes[2].plot(odom_t, pos[:, 1], 'g', label='y')
@@ -258,6 +317,9 @@ stats('pitch_err', pitch_err)
 print('-- HGDO-only equivalent desired tilt --')
 stats('roll_hgdo',  hgdo_rp[:, 0])
 stats('pitch_hgdo', hgdo_rp[:, 1])
+print('-- PD-only (pos/vel) equivalent desired tilt --')
+stats('roll_pd',  pd_rp[:, 0])
+stats('pitch_pd', pd_rp[:, 1])
 
 # Contribution share: std(hgdo_rp) / std(total_des_rp) on aligned time grid
 des_roll_on_hgdo  = np.interp(hgdo_t, ctrl_t, des_rp[:, 0])
@@ -276,3 +338,4 @@ print('  - 2026_05_11_hgdo_force.png')
 print('  - 2026_05_11_pos_vel_world.png')
 print('  - 2026_05_11_des_vs_act_rp.png')
 print('  - 2026_05_11_hgdo_des_rp.png')
+print('  - 2026_05_11_rp_decomp.png')
