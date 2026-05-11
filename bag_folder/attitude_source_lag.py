@@ -25,7 +25,7 @@ BAG_SUBDIR = sys.argv[1] if len(sys.argv) > 1 else '02_ct_1p255'
 DATE_DIR   = sys.argv[2] if len(sys.argv) > 2 else '2026_05_05_free_flight'
 DB = glob.glob(os.path.join(_HERE, DATE_DIR, BAG_SUBDIR, '*.db3'))[0]
 OUT_DIR = os.path.join(_HERE, DATE_DIR)
-TAG = f'{DATE_DIR}_{BAG_SUBDIR}'
+TAG = BAG_SUBDIR
 print(f'Analyzing: {DB}')
 
 

@@ -3,7 +3,7 @@
 Usage:
   python3 analyze_2026_05_11_free_flight.py [<bag_subdir> [<date_dir>]]
 Defaults: bag_subdir = eps_f_0p5,  date_dir = 2026_05_11_free_flight.
-Each output PNG is suffixed with <date_dir>_<bag_subdir>.
+Each output PNG is prefixed with the bag subdir name.
 """
 
 import os, sys, sqlite3, struct, glob
@@ -21,7 +21,7 @@ if not db_candidates:
     raise SystemExit(f'No .db3 found in {BAG_DIR}')
 DB_PATH = db_candidates[0]
 OUT_DIR = os.path.join(_HERE, DATE_DIR)
-TAG = f'{DATE_DIR}_{BAG_SUBDIR}'
+TAG = BAG_SUBDIR
 print(f'Analyzing: {DB_PATH}')
 
 
