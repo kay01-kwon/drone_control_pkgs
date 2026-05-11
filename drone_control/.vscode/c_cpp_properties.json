@@ -1,0 +1,24 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/kay/ros2_ws/install/ros2_libcanard_msgs/include/**",
+        "/home/kay/optitrack_ws/install/natnet_ros2/include/**",
+        "/opt/ros/humble/include/**",
+        "/home/kay/rotors_sim_ws/src/drone_control_pkgs/drone_dob/include/**",
+        "/home/kay/rotors_sim_ws/src/drone_simulator_pkgs/ros_motor_model/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}
