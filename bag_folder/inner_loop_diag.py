@@ -229,6 +229,70 @@ plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, f'{TAG}_inner_attitude_lag.png'), dpi=120)
 plt.close()
 
+# ── Visual verification: shift actual back by measured lag ──
+# If the measured lag is real, shifting actual by −lag should overlap desired.
+# Pick a 10-second airborne window with reasonable signal variation.
+def pick_window(des, t, win_s=10.0):
+    n = len(t)
+    seg = int(win_s / dt_u)
+    if seg >= n: return 0, n
+    # find segment with highest std (most signal)
+    best_i, best_v = 0, -1
+    for i in range(0, n - seg, seg // 4):
+        v = des[i:i + seg].std()
+        if v > best_v: best_v, best_i = v, i
+    return best_i, best_i + seg
+
+i0, i1 = pick_window(roll_des_u, t_u)
+
+def shift_signal(x, lag_samples):
+    out = np.full_like(x, np.nan)
+    if lag_samples >= 0:
+        out[:len(x) - lag_samples] = x[lag_samples:]
+    else:
+        out[-lag_samples:] = x[:len(x) + lag_samples]
+    return out
+
+lag_r_samp = int(round(lag_r / dt_u))
+lag_p_samp = int(round(lag_p / dt_u))
+roll_act_shifted  = shift_signal(roll_act_u,  lag_r_samp)
+pitch_act_shifted = shift_signal(pitch_act_u, lag_p_samp)
+
+fig, axes = plt.subplots(2, 2, figsize=(16, 9), sharex='col')
+# Top row: Roll
+axes[0, 0].plot(t_u[i0:i1], np.degrees(roll_des_u[i0:i1]),  'k', lw=1.4, label='desired')
+axes[0, 0].plot(t_u[i0:i1], np.degrees(roll_act_u[i0:i1]),  'r', lw=1.0, alpha=0.85,
+                label='actual (raw)')
+axes[0, 0].set_ylabel('Roll [deg]'); axes[0, 0].grid(alpha=0.3)
+axes[0, 0].legend(loc='upper right', fontsize=9)
+axes[0, 0].set_title(f'Roll — original (no shift)')
+
+axes[0, 1].plot(t_u[i0:i1], np.degrees(roll_des_u[i0:i1]),       'k', lw=1.4, label='desired')
+axes[0, 1].plot(t_u[i0:i1], np.degrees(roll_act_shifted[i0:i1]), 'b', lw=1.0, alpha=0.85,
+                label=f'actual shifted by −{lag_r*1000:.0f} ms')
+axes[0, 1].set_ylabel('Roll [deg]'); axes[0, 1].grid(alpha=0.3)
+axes[0, 1].legend(loc='upper right', fontsize=9)
+axes[0, 1].set_title(f'Roll — shifted (if lag is real, this should overlap)')
+
+# Bottom row: Pitch
+axes[1, 0].plot(t_u[i0:i1], np.degrees(pitch_des_u[i0:i1]),  'k', lw=1.4, label='desired')
+axes[1, 0].plot(t_u[i0:i1], np.degrees(pitch_act_u[i0:i1]),  'g', lw=1.0, alpha=0.85,
+                label='actual (raw)')
+axes[1, 0].set_ylabel('Pitch [deg]'); axes[1, 0].set_xlabel('Time [s]'); axes[1, 0].grid(alpha=0.3)
+axes[1, 0].legend(loc='upper right', fontsize=9)
+axes[1, 0].set_title('Pitch — original (no shift)')
+
+axes[1, 1].plot(t_u[i0:i1], np.degrees(pitch_des_u[i0:i1]),       'k', lw=1.4, label='desired')
+axes[1, 1].plot(t_u[i0:i1], np.degrees(pitch_act_shifted[i0:i1]), 'b', lw=1.0, alpha=0.85,
+                label=f'actual shifted by −{lag_p*1000:.0f} ms')
+axes[1, 1].set_ylabel('Pitch [deg]'); axes[1, 1].set_xlabel('Time [s]'); axes[1, 1].grid(alpha=0.3)
+axes[1, 1].legend(loc='upper right', fontsize=9)
+axes[1, 1].set_title('Pitch — shifted')
+
+plt.tight_layout()
+plt.savefig(os.path.join(OUT_DIR, f'{TAG}_lag_verify.png'), dpi=120)
+plt.close()
+
 # ── Motor RPM tracking (cmd vs actual per motor) ──
 # Resample both to a common 200 Hz grid in the airborne segment for xcorr.
 RPM_HOVER = np.median(act_rpm[(act_rpm > 0).all(axis=1)], axis=0) if (act_rpm > 0).any() else np.zeros(6)
@@ -279,4 +343,5 @@ plt.close()
 print('\nSaved:')
 print(f'  - {TAG}_inner_torque_check.png')
 print(f'  - {TAG}_inner_attitude_lag.png')
+print(f'  - {TAG}_lag_verify.png')
 print(f'  - {TAG}_motor_rpm_track.png')
