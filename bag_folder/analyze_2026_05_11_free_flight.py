@@ -140,6 +140,38 @@ pitch_act_at_ctrl = np.interp(ctrl_t, odom_t, rpy[:, 1])
 roll_err = des_rp[:, 0] - roll_act_at_ctrl
 pitch_err = des_rp[:, 1] - pitch_act_at_ctrl
 
+# ─── HGDO-only equivalent desired roll/pitch ───
+# Controller does:  F_des -= R_wb @ f_dist_body   (see pd_nmpc_att_with_dob.py:394)
+# So the HGDO's contribution to F_des in world frame is  F_hgdo_w = -(R_wb @ f_dist).
+# We reconstruct the desired tilt that this term alone would request, using the
+# published collective f_col as the thrust magnitude.
+hgdo_w = np.zeros((len(hgdo_t), 3))   # HGDO disturbance estimate in world frame
+roll_hgdo_at_odom_t = np.zeros(len(odom_t))  # interp slots
+# rebuild R_wb at each hgdo timestamp by interpolating quaternion → rpy then back
+psi_at_hgdo  = np.interp(hgdo_t, odom_t, np.unwrap(rpy[:, 2]))
+roll_at_hgdo = np.interp(hgdo_t, odom_t, rpy[:, 0])
+pit_at_hgdo  = np.interp(hgdo_t, odom_t, rpy[:, 1])
+
+def rpy_to_rotm(r, p, y):
+    cr, sr = np.cos(r), np.sin(r); cp, sp = np.cos(p), np.sin(p); cy, sy = np.cos(y), np.sin(y)
+    return np.array([
+        [cy * cp, cy * sp * sr - sy * cr, cy * sp * cr + sy * sr],
+        [sy * cp, sy * sp * sr + cy * cr, sy * sp * cr - cy * sr],
+        [-sp,     cp * sr,                cp * cr]])
+
+for i in range(len(hgdo_t)):
+    R_wb = rpy_to_rotm(roll_at_hgdo[i], pit_at_hgdo[i], psi_at_hgdo[i])
+    hgdo_w[i] = R_wb @ hgdo[i, 0:3]   # body → world (matches controller)
+
+# Use collective thrust from /nmpc/control interpolated to hgdo timestamps
+fcol_at_hgdo = np.interp(hgdo_t, ctrl_t, ctrl[:, 2])
+
+hgdo_rp = np.zeros((len(hgdo_t), 2))
+for i in range(len(hgdo_t)):
+    # F that controller injects on behalf of HGDO = -hgdo_w  (compensation)
+    fx_w, fy_w, _ = -hgdo_w[i]
+    hgdo_rp[i] = force_to_rp(fx_w, fy_w, fcol_at_hgdo[i], psi_at_hgdo[i])
+
 
 # ─────────── PLOT 1: HGDO fx, fy, fz ───────────
 fig, axes = plt.subplots(3, 1, figsize=(14, 8), sharex=True)
@@ -186,6 +218,27 @@ plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, '2026_05_11_des_vs_act_rp.png'), dpi=120)
 plt.close()
 
+# ─────────── PLOT 4: HGDO-only desired roll/pitch + XY position overlay ───────────
+fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
+axes[0].plot(hgdo_t, np.degrees(hgdo_rp[:, 0]), 'r', label='Roll desired from HGDO compensation')
+axes[0].plot(ctrl_t, np.degrees(des_rp[:, 0]), 'k--', alpha=0.5, label='Roll desired total (/nmpc/control)')
+axes[0].set_ylabel('Roll [deg]'); axes[0].grid(alpha=0.3); axes[0].legend(loc='upper right')
+axes[0].set_title('HGDO-induced desired Roll vs total desired Roll')
+
+axes[1].plot(hgdo_t, np.degrees(hgdo_rp[:, 1]), 'g', label='Pitch desired from HGDO compensation')
+axes[1].plot(ctrl_t, np.degrees(des_rp[:, 1]), 'k--', alpha=0.5, label='Pitch desired total (/nmpc/control)')
+axes[1].set_ylabel('Pitch [deg]'); axes[1].grid(alpha=0.3); axes[1].legend(loc='upper right')
+axes[1].set_title('HGDO-induced desired Pitch vs total desired Pitch')
+
+axes[2].plot(odom_t, pos[:, 0], 'r', label='x')
+axes[2].plot(odom_t, pos[:, 1], 'g', label='y')
+axes[2].set_ylabel('XY position [m]'); axes[2].set_xlabel('Time [s]')
+axes[2].grid(alpha=0.3); axes[2].legend(loc='upper right')
+axes[2].set_title('XY position drift (odom)')
+plt.tight_layout()
+plt.savefig(os.path.join(OUT_DIR, '2026_05_11_hgdo_des_rp.png'), dpi=120)
+plt.close()
+
 # ─────────── Stats ───────────
 def stats(name, x):
     x_deg = np.degrees(x)
@@ -202,8 +255,24 @@ stats('pitch_act', rpy[:, 1])
 print('-- Tracking error (des - act, on ctrl timestamps) --')
 stats('roll_err',  roll_err)
 stats('pitch_err', pitch_err)
+print('-- HGDO-only equivalent desired tilt --')
+stats('roll_hgdo',  hgdo_rp[:, 0])
+stats('pitch_hgdo', hgdo_rp[:, 1])
+
+# Contribution share: std(hgdo_rp) / std(total_des_rp) on aligned time grid
+des_roll_on_hgdo  = np.interp(hgdo_t, ctrl_t, des_rp[:, 0])
+des_pitch_on_hgdo = np.interp(hgdo_t, ctrl_t, des_rp[:, 1])
+mask = (hgdo_t >= ctrl_t[0]) & (hgdo_t <= ctrl_t[-1]) & (np.abs(hgdo[:, 0]) + np.abs(hgdo[:, 1]) > 1e-6)
+if mask.sum() > 100:
+    r_share = np.std(hgdo_rp[mask, 0]) / max(np.std(des_roll_on_hgdo[mask]),  1e-9)
+    p_share = np.std(hgdo_rp[mask, 1]) / max(np.std(des_pitch_on_hgdo[mask]), 1e-9)
+    corr_r = np.corrcoef(hgdo_rp[mask, 0], des_roll_on_hgdo[mask])[0, 1]
+    corr_p = np.corrcoef(hgdo_rp[mask, 1], des_pitch_on_hgdo[mask])[0, 1]
+    print(f'\n  std(hgdo_roll)  / std(total_des_roll)  = {r_share:.3f}   corr={corr_r:+.3f}')
+    print(f'  std(hgdo_pitch) / std(total_des_pitch) = {p_share:.3f}   corr={corr_p:+.3f}')
 
 print('\nFigures saved to:', OUT_DIR)
 print('  - 2026_05_11_hgdo_force.png')
 print('  - 2026_05_11_pos_vel_world.png')
 print('  - 2026_05_11_des_vs_act_rp.png')
+print('  - 2026_05_11_hgdo_des_rp.png')
