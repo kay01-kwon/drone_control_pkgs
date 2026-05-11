@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
-"""Analyze 2026_05_11_free_flight/eps_f_0p5:
-  - /hgdo/wrench  : fx, fy, fz vs time
-  - /mavros/local_position/odom : position + world-frame linear velocity (R @ v_body)
-  - /nmpc/control : desired roll/pitch reconstructed from (fx, fy, f_col)
-                    overlaid with actual roll/pitch from odom; print std / min / max.
+"""Analyze a 2026_05_11_free_flight bag (default: eps_f_0p5).
+Usage:  python3 analyze_2026_05_11_free_flight.py [<bag_subdir>]
+Each output PNG is suffixed with the bag subdir name.
 """
 
-import os, sqlite3, struct
+import os, sys, sqlite3, struct, glob
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(_HERE, '2026_05_11_free_flight/eps_f_0p5/eps_f_0p5_0.db3')
+BAG_SUBDIR = sys.argv[1] if len(sys.argv) > 1 else 'eps_f_0p5'
+BAG_DIR = os.path.join(_HERE, '2026_05_11_free_flight', BAG_SUBDIR)
+db_candidates = glob.glob(os.path.join(BAG_DIR, '*.db3'))
+if not db_candidates:
+    raise SystemExit(f'No .db3 found in {BAG_DIR}')
+DB_PATH = db_candidates[0]
 OUT_DIR = os.path.join(_HERE, '2026_05_11_free_flight')
+TAG = BAG_SUBDIR
+print(f'Analyzing: {DB_PATH}')
 
 
 def _align(off, n):
@@ -214,7 +219,7 @@ axes[1].plot(hgdo_t, hgdo[:, 1], 'g'); axes[1].set_ylabel('fy [N]'); axes[1].gri
 axes[2].plot(hgdo_t, hgdo[:, 2], 'b'); axes[2].set_ylabel('fz [N]'); axes[2].grid(alpha=0.3)
 axes[2].set_xlabel('Time [s]')
 plt.tight_layout()
-plt.savefig(os.path.join(OUT_DIR, '2026_05_11_hgdo_force.png'), dpi=120)
+plt.savefig(os.path.join(OUT_DIR, f'2026_05_11_{TAG}_hgdo_force.png'), dpi=120)
 plt.close()
 
 # ─────────── PLOT 2: position + world-frame velocity ───────────
@@ -232,7 +237,7 @@ axes[1].set_ylabel('Velocity [m/s]'); axes[1].set_xlabel('Time [s]')
 axes[1].grid(alpha=0.3); axes[1].legend(loc='upper right')
 axes[1].set_title('World-frame Linear Velocity  (R(q) @ v_body)')
 plt.tight_layout()
-plt.savefig(os.path.join(OUT_DIR, '2026_05_11_pos_vel_world.png'), dpi=120)
+plt.savefig(os.path.join(OUT_DIR, f'2026_05_11_{TAG}_pos_vel_world.png'), dpi=120)
 plt.close()
 
 # ─────────── PLOT 3: desired vs actual roll/pitch ───────────
@@ -248,7 +253,7 @@ axes[1].set_ylabel('Pitch [deg]'); axes[1].set_xlabel('Time [s]')
 axes[1].grid(alpha=0.3); axes[1].legend(loc='upper right')
 axes[1].set_title('Desired (force→attitude) vs Actual Pitch')
 plt.tight_layout()
-plt.savefig(os.path.join(OUT_DIR, '2026_05_11_des_vs_act_rp.png'), dpi=120)
+plt.savefig(os.path.join(OUT_DIR, f'2026_05_11_{TAG}_des_vs_act_rp.png'), dpi=120)
 plt.close()
 
 # ─────────── PLOT 6: Torque decomposition (NMPC raw vs HGDO vs motor cmd) ───────────
@@ -272,7 +277,7 @@ for k in range(3):
 axes[0].set_title('Torque decomposition: NMPC raw (/nmpc/control) vs HGDO vs motor command')
 axes[-1].set_xlabel('Time [s]')
 plt.tight_layout()
-plt.savefig(os.path.join(OUT_DIR, '2026_05_11_torque_decomp.png'), dpi=120)
+plt.savefig(os.path.join(OUT_DIR, f'2026_05_11_{TAG}_torque_decomp.png'), dpi=120)
 plt.close()
 
 # ─────────── PLOT 5: PD-only vs HGDO-only vs total desired vs actual (per axis) ───────────
@@ -296,7 +301,7 @@ axes[1].set_ylabel('Pitch [deg]'); axes[1].set_xlabel('Time [s]')
 axes[1].grid(alpha=0.3); axes[1].legend(loc='upper right', fontsize=9)
 axes[1].set_title('Pitch: PD-only + HGDO-only = total desired (vs actual)')
 plt.tight_layout()
-plt.savefig(os.path.join(OUT_DIR, '2026_05_11_rp_decomp.png'), dpi=120)
+plt.savefig(os.path.join(OUT_DIR, f'2026_05_11_{TAG}_rp_decomp.png'), dpi=120)
 plt.close()
 
 # ─────────── PLOT 4: HGDO-only + PD-only desired roll/pitch + XY position overlay ───────────
@@ -319,7 +324,7 @@ axes[2].set_ylabel('XY position [m]'); axes[2].set_xlabel('Time [s]')
 axes[2].grid(alpha=0.3); axes[2].legend(loc='upper right')
 axes[2].set_title('XY position drift (odom)')
 plt.tight_layout()
-plt.savefig(os.path.join(OUT_DIR, '2026_05_11_hgdo_des_rp.png'), dpi=120)
+plt.savefig(os.path.join(OUT_DIR, f'2026_05_11_{TAG}_hgdo_des_rp.png'), dpi=120)
 plt.close()
 
 # ─────────── Stats ───────────
@@ -368,9 +373,9 @@ if mask.sum() > 100:
     print(f'  std(hgdo_pitch) / std(total_des_pitch) = {p_share:.3f}   corr={corr_p:+.3f}')
 
 print('\nFigures saved to:', OUT_DIR)
-print('  - 2026_05_11_hgdo_force.png')
-print('  - 2026_05_11_pos_vel_world.png')
-print('  - 2026_05_11_des_vs_act_rp.png')
-print('  - 2026_05_11_hgdo_des_rp.png')
-print('  - 2026_05_11_rp_decomp.png')
-print('  - 2026_05_11_torque_decomp.png')
+print(f'  - 2026_05_11_{TAG}_hgdo_force.png')
+print(f'  - 2026_05_11_{TAG}_pos_vel_world.png')
+print(f'  - 2026_05_11_{TAG}_des_vs_act_rp.png')
+print(f'  - 2026_05_11_{TAG}_hgdo_des_rp.png')
+print(f'  - 2026_05_11_{TAG}_rp_decomp.png')
+print(f'  - 2026_05_11_{TAG}_torque_decomp.png')
