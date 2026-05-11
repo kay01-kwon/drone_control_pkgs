@@ -275,17 +275,19 @@ plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, '2026_05_11_rp_decomp.png'), dpi=120)
 plt.close()
 
-# ─────────── PLOT 4: HGDO-only desired roll/pitch + XY position overlay ───────────
+# ─────────── PLOT 4: HGDO-only + PD-only desired roll/pitch + XY position overlay ───────────
 fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
-axes[0].plot(hgdo_t, np.degrees(hgdo_rp[:, 0]), 'r', label='Roll desired from HGDO compensation')
-axes[0].plot(ctrl_t, np.degrees(des_rp[:, 0]), 'k--', alpha=0.5, label='Roll desired total (/nmpc/control)')
-axes[0].set_ylabel('Roll [deg]'); axes[0].grid(alpha=0.3); axes[0].legend(loc='upper right')
-axes[0].set_title('HGDO-induced desired Roll vs total desired Roll')
+axes[0].plot(ctrl_t, np.degrees(des_rp[:, 0]),       'k',  lw=1.5, label='Roll des total (/nmpc/control)')
+axes[0].plot(ctrl_t, np.degrees(pd_rp[:, 0]),        'b',  alpha=0.85, label='Roll des PD only (pos/vel)')
+axes[0].plot(hgdo_t, np.degrees(hgdo_rp[:, 0]),      'r',  alpha=0.85, label='Roll des HGDO only')
+axes[0].set_ylabel('Roll [deg]'); axes[0].grid(alpha=0.3); axes[0].legend(loc='upper right', fontsize=9)
+axes[0].set_title('Desired Roll decomposition: total = PD only + HGDO only')
 
-axes[1].plot(hgdo_t, np.degrees(hgdo_rp[:, 1]), 'g', label='Pitch desired from HGDO compensation')
-axes[1].plot(ctrl_t, np.degrees(des_rp[:, 1]), 'k--', alpha=0.5, label='Pitch desired total (/nmpc/control)')
-axes[1].set_ylabel('Pitch [deg]'); axes[1].grid(alpha=0.3); axes[1].legend(loc='upper right')
-axes[1].set_title('HGDO-induced desired Pitch vs total desired Pitch')
+axes[1].plot(ctrl_t, np.degrees(des_rp[:, 1]),       'k',  lw=1.5, label='Pitch des total (/nmpc/control)')
+axes[1].plot(ctrl_t, np.degrees(pd_rp[:, 1]),        'b',  alpha=0.85, label='Pitch des PD only (pos/vel)')
+axes[1].plot(hgdo_t, np.degrees(hgdo_rp[:, 1]),      'r',  alpha=0.85, label='Pitch des HGDO only')
+axes[1].set_ylabel('Pitch [deg]'); axes[1].grid(alpha=0.3); axes[1].legend(loc='upper right', fontsize=9)
+axes[1].set_title('Desired Pitch decomposition: total = PD only + HGDO only')
 
 axes[2].plot(odom_t, pos[:, 0], 'r', label='x')
 axes[2].plot(odom_t, pos[:, 1], 'g', label='y')
