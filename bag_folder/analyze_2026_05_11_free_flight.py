@@ -256,6 +256,65 @@ plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, f'2026_05_11_{TAG}_des_vs_act_rp.png'), dpi=120)
 plt.close()
 
+# ─────────── PLOT 7: HGDO xy force vs PD xy force vs world velocity / position ───────────
+# Is HGDO fx/fy reacting to real disturbance, or is it chasing the motion the drone
+# is already doing?  If HGDO correlates strongly with velocity at zero lag, it is
+# acting like a (positive) feedback term on motion, which would amplify XY drift.
+Fpd_xy   = Fpd_w[:, 0:2]                  # PD-only force in world frame (at ctrl_t)
+Fhgdo_xy = -hgdo_w_at_ctrl[:, 0:2]        # HGDO compensation force the controller adds
+vw_at_ctrl = np.column_stack([
+    np.interp(ctrl_t, odom_t, v_world[:, 0]),
+    np.interp(ctrl_t, odom_t, v_world[:, 1])])
+pos_at_ctrl = np.column_stack([
+    np.interp(ctrl_t, odom_t, pos[:, 0]),
+    np.interp(ctrl_t, odom_t, pos[:, 1])])
+
+# Mask to airborne segment (use period where collective thrust is above weight-ish band)
+m_mask = ctrl[:, 2] > (0.5 * np.median(ctrl[ctrl[:, 2] > 0.0, 2]))
+
+def safe_corr(a, b):
+    if a.size < 50 or b.size < 50: return np.nan
+    a = a - a.mean(); b = b - b.mean()
+    s = a.std() * b.std()
+    return np.nan if s < 1e-12 else float(np.mean(a * b) / s)
+
+print('\n-- HGDO xy (world) vs PD xy (world) & motion correlations [airborne only] --')
+for k, ax in enumerate(['x', 'y']):
+    c_hgdo_pd  = safe_corr(Fhgdo_xy[m_mask, k], Fpd_xy[m_mask, k])
+    c_hgdo_v   = safe_corr(Fhgdo_xy[m_mask, k], vw_at_ctrl[m_mask, k])
+    c_hgdo_pos = safe_corr(Fhgdo_xy[m_mask, k], pos_at_ctrl[m_mask, k])
+    c_pd_v     = safe_corr(Fpd_xy[m_mask, k],   vw_at_ctrl[m_mask, k])
+    c_pd_pos   = safe_corr(Fpd_xy[m_mask, k],   pos_at_ctrl[m_mask, k])
+    print(f'  axis {ax}:  corr(HGDO,PD)={c_hgdo_pd:+.3f}   corr(HGDO,v_world)={c_hgdo_v:+.3f}   '
+          f'corr(HGDO,pos)={c_hgdo_pos:+.3f}   corr(PD,v)={c_pd_v:+.3f}   corr(PD,pos)={c_pd_pos:+.3f}')
+    print(f'           std(HGDO xy)={np.std(Fhgdo_xy[m_mask, k]):.3f} N   '
+          f'std(PD xy)={np.std(Fpd_xy[m_mask, k]):.3f} N   '
+          f'ratio={np.std(Fhgdo_xy[m_mask, k])/max(np.std(Fpd_xy[m_mask, k]),1e-9):.3f}')
+
+fig, axes = plt.subplots(4, 1, figsize=(14, 11), sharex=True)
+axes[0].plot(ctrl_t, Fpd_xy[:, 0],   'b', label='PD Fx (world)')
+axes[0].plot(ctrl_t, Fhgdo_xy[:, 0], 'r', alpha=0.85, label='HGDO Fx contribution (world)')
+axes[0].set_ylabel('Fx [N]'); axes[0].grid(alpha=0.3); axes[0].legend(loc='upper right', fontsize=9)
+axes[0].set_title('Force decomposition in world frame — X axis')
+
+axes[1].plot(ctrl_t, Fpd_xy[:, 1],   'b', label='PD Fy (world)')
+axes[1].plot(ctrl_t, Fhgdo_xy[:, 1], 'r', alpha=0.85, label='HGDO Fy contribution (world)')
+axes[1].set_ylabel('Fy [N]'); axes[1].grid(alpha=0.3); axes[1].legend(loc='upper right', fontsize=9)
+axes[1].set_title('Force decomposition in world frame — Y axis')
+
+axes[2].plot(odom_t, v_world[:, 0], 'r', label='vx world')
+axes[2].plot(odom_t, v_world[:, 1], 'g', label='vy world')
+axes[2].set_ylabel('Velocity [m/s]'); axes[2].grid(alpha=0.3); axes[2].legend(loc='upper right', fontsize=9)
+
+axes[3].plot(odom_t, pos[:, 0], 'r', label='x')
+axes[3].plot(odom_t, pos[:, 1], 'g', label='y')
+axes[3].set_ylabel('Position [m]'); axes[3].set_xlabel('Time [s]')
+axes[3].grid(alpha=0.3); axes[3].legend(loc='upper right', fontsize=9)
+
+plt.tight_layout()
+plt.savefig(os.path.join(OUT_DIR, f'2026_05_11_{TAG}_xy_force_causality.png'), dpi=120)
+plt.close()
+
 # ─────────── PLOT 6: Torque decomposition (NMPC raw vs HGDO vs motor cmd) ───────────
 #   /nmpc/control.torque = u_mpc  (NMPC raw, BEFORE HGDO compensation)
 #   /hgdo/wrench.torque  = tau_dist
