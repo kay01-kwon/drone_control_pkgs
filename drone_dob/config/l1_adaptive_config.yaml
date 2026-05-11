@@ -1,0 +1,22 @@
+/**:
+  ros__parameters:
+    drone:
+      m: 3.146
+      l: 0.265
+      MoiArray: [0.060, 0.060, 0.080]
+      motor_const: 1.2895e-07
+      moment_const: 0.01569
+
+    l1_adaptive:
+      dob_looptime: 0.010
+      As_array: [-15.0, -15.0, -15.0,    # vx, vy, vz (Body frame)
+                 -15.0, -15.0, -15.0]    # wx, wy ,wz (Body frame)
+      freq_cutoff_trans: 2.0
+      freq_cutoff_rot: 2.0
+
+    topic_names:
+      odom_in: "/mavros/local_position/odom"
+      filtered_odom: "/l1_adaptive/filtered_odom"
+      actual_rpm: "/uav/actual_rpm"
+      base_line_control: "/nmpc/control"
+      dob_wrench: "/l1_adaptive/wrench"
