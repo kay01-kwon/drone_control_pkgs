@@ -366,6 +366,48 @@ plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, f'{TAG}_rp_decomp.png'), dpi=120)
 plt.close()
 
+# ─────────── PLOT 5b: 3-row (PD / HGDO / total) × 2-col (roll/pitch) ───────────
+# Each subplot overlays the actual roll/pitch on top of one desired-component,
+# so we can see clearly whether the actual is tracking PD, HGDO, or just total.
+fig, axes = plt.subplots(3, 2, figsize=(16, 11), sharex=True)
+# Left column: roll
+axes[0, 0].plot(ctrl_t, np.degrees(pd_rp[:, 0]),        'b', lw=1.2, label='Roll des PD only')
+axes[0, 0].plot(odom_t, np.degrees(rpy[:, 0]),          'g', lw=0.9, alpha=0.7, label='Roll actual')
+axes[0, 0].set_ylabel('Roll [deg]'); axes[0, 0].grid(alpha=0.3); axes[0, 0].legend(loc='upper right', fontsize=9)
+axes[0, 0].set_title('PD-only desired vs actual  (Roll)')
+
+axes[1, 0].plot(ctrl_t, np.degrees(hgdo_rp_at_ctrl[:, 0]), 'r', lw=1.2, label='Roll des HGDO only')
+axes[1, 0].plot(odom_t, np.degrees(rpy[:, 0]),             'g', lw=0.9, alpha=0.7, label='Roll actual')
+axes[1, 0].set_ylabel('Roll [deg]'); axes[1, 0].grid(alpha=0.3); axes[1, 0].legend(loc='upper right', fontsize=9)
+axes[1, 0].set_title('HGDO-only desired vs actual  (Roll)')
+
+axes[2, 0].plot(ctrl_t, np.degrees(des_rp[:, 0]),        'k', lw=1.2, label='Roll des TOTAL')
+axes[2, 0].plot(odom_t, np.degrees(rpy[:, 0]),           'g', lw=0.9, alpha=0.7, label='Roll actual')
+axes[2, 0].set_ylabel('Roll [deg]'); axes[2, 0].set_xlabel('Time [s]')
+axes[2, 0].grid(alpha=0.3); axes[2, 0].legend(loc='upper right', fontsize=9)
+axes[2, 0].set_title('TOTAL desired (PD + HGDO) vs actual  (Roll)')
+
+# Right column: pitch
+axes[0, 1].plot(ctrl_t, np.degrees(pd_rp[:, 1]),        'b', lw=1.2, label='Pitch des PD only')
+axes[0, 1].plot(odom_t, np.degrees(rpy[:, 1]),          'g', lw=0.9, alpha=0.7, label='Pitch actual')
+axes[0, 1].set_ylabel('Pitch [deg]'); axes[0, 1].grid(alpha=0.3); axes[0, 1].legend(loc='upper right', fontsize=9)
+axes[0, 1].set_title('PD-only desired vs actual  (Pitch)')
+
+axes[1, 1].plot(ctrl_t, np.degrees(hgdo_rp_at_ctrl[:, 1]), 'r', lw=1.2, label='Pitch des HGDO only')
+axes[1, 1].plot(odom_t, np.degrees(rpy[:, 1]),             'g', lw=0.9, alpha=0.7, label='Pitch actual')
+axes[1, 1].set_ylabel('Pitch [deg]'); axes[1, 1].grid(alpha=0.3); axes[1, 1].legend(loc='upper right', fontsize=9)
+axes[1, 1].set_title('HGDO-only desired vs actual  (Pitch)')
+
+axes[2, 1].plot(ctrl_t, np.degrees(des_rp[:, 1]),        'k', lw=1.2, label='Pitch des TOTAL')
+axes[2, 1].plot(odom_t, np.degrees(rpy[:, 1]),           'g', lw=0.9, alpha=0.7, label='Pitch actual')
+axes[2, 1].set_ylabel('Pitch [deg]'); axes[2, 1].set_xlabel('Time [s]')
+axes[2, 1].grid(alpha=0.3); axes[2, 1].legend(loc='upper right', fontsize=9)
+axes[2, 1].set_title('TOTAL desired (PD + HGDO) vs actual  (Pitch)')
+
+plt.tight_layout()
+plt.savefig(os.path.join(OUT_DIR, f'{TAG}_rp_decomp_split.png'), dpi=120)
+plt.close()
+
 # ─────────── PLOT 4: HGDO-only + PD-only desired roll/pitch + XY position overlay ───────────
 fig, axes = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
 axes[0].plot(ctrl_t, np.degrees(des_rp[:, 0]),       'k',  lw=1.5, label='Roll des total (/nmpc/control)')
@@ -440,4 +482,5 @@ print(f'  - {TAG}_pos_vel_world.png')
 print(f'  - {TAG}_des_vs_act_rp.png')
 print(f'  - {TAG}_hgdo_des_rp.png')
 print(f'  - {TAG}_rp_decomp.png')
+print(f'  - {TAG}_rp_decomp_split.png')
 print(f'  - {TAG}_torque_decomp.png')
