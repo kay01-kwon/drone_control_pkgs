@@ -355,6 +355,25 @@ for k, ax_name in enumerate(['Mx', 'My', 'Mz']):
     plt.savefig(os.path.join(OUT_DIR, f'{TAG}_torque_{ax_name}.png'), dpi=120)
     plt.close()
 
+# 3×2 layout: rows = (Mx, My, Mz), cols = (motor+HGDO, pure NMPC)
+fig, axes = plt.subplots(3, 2, figsize=(16, 11), sharex=True)
+for k, ax_name in enumerate(['Mx', 'My', 'Mz']):
+    axes[k, 0].plot(ctrl_t, ctrl[:, 3 + k], 'k', lw=1.3, label=f'{ax_name} motor cmd (total, post-DOB)')
+    axes[k, 0].plot(hgdo_t, hgdo[:, 3 + k], 'r', lw=1.0, alpha=0.85, label=f'{ax_name} HGDO')
+    axes[k, 0].set_ylabel(f'{ax_name} [N·m]'); axes[k, 0].grid(alpha=0.3)
+    axes[k, 0].legend(loc='upper right', fontsize=9)
+    axes[k, 0].set_title(f'{ax_name} — motor cmd (total) and HGDO')
+
+    axes[k, 1].plot(ctrl_t, nmpc_pure_tau[:, k], 'b', lw=1.3, label=f'{ax_name} pure NMPC = motor + HGDO')
+    axes[k, 1].set_ylabel(f'{ax_name} [N·m]'); axes[k, 1].grid(alpha=0.3)
+    axes[k, 1].legend(loc='upper right', fontsize=9)
+    axes[k, 1].set_title(f'{ax_name} — pure NMPC moment')
+
+axes[-1, 0].set_xlabel('Time [s]'); axes[-1, 1].set_xlabel('Time [s]')
+plt.tight_layout()
+plt.savefig(os.path.join(OUT_DIR, f'{TAG}_torque_split_3x2.png'), dpi=120)
+plt.close()
+
 # ─────────── PLOT 5: PD-only vs HGDO-only vs total desired vs actual (per axis) ───────────
 fig, axes = plt.subplots(2, 1, figsize=(14, 9), sharex=True)
 axes[0].plot(ctrl_t, np.degrees(des_rp[:, 0]),       'k',  lw=1.6, label='Roll des total (/nmpc/control)')
@@ -500,3 +519,4 @@ print(f'  - {TAG}_torque_decomp.png')
 print(f'  - {TAG}_torque_Mx.png')
 print(f'  - {TAG}_torque_My.png')
 print(f'  - {TAG}_torque_Mz.png')
+print(f'  - {TAG}_torque_split_3x2.png')
