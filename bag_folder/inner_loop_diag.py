@@ -60,6 +60,23 @@ def parse_wrench(blob):
     off = _align(off, 8)
     return np.array(struct.unpack_from('<6d', blob, off))
 
+MAX_BIT, MAX_RPM = 8191, 9800
+
+def parse_cmd_raw(blob):
+    """HexaCmdRaw: header + int16[6] cmd_raw → convert back to RPM."""
+    off = 4 + 8
+    slen = struct.unpack_from('<I', blob, off)[0]; off += 4 + slen
+    off = _align(off, 2)
+    raw = np.array(struct.unpack_from('<6h', blob, off), dtype=np.float64)
+    return raw * MAX_RPM / MAX_BIT
+
+def parse_actual_rpm(blob):
+    """HexaActualRpm: header + uint32[6] rpm (trailing fields zero, ignored)."""
+    off = 4 + 8
+    slen = struct.unpack_from('<I', blob, off)[0]; off += 4 + slen
+    off = _align(off, 4)
+    return np.array(struct.unpack_from('<6I', blob, off), dtype=np.float64)
+
 def quat_to_rpy(q):
     qw, qx, qy, qz = q
     roll = np.arctan2(2*(qw*qx + qy*qz), 1 - 2*(qx**2 + qy**2))
@@ -81,12 +98,16 @@ def fetch(t, p):
 odom_ts, odom = fetch('/mavros/local_position/odom', parse_odom)
 hgdo_ts, hgdo = fetch('/hgdo/wrench', parse_wrench)
 ctrl_ts, ctrl = fetch('/nmpc/control', parse_wrench)
+cmd_ts,  cmd_rpm  = fetch('/uav/cmd_raw',    parse_cmd_raw)
+act_ts,  act_rpm  = fetch('/uav/actual_rpm', parse_actual_rpm)
 conn.close()
 
-t0 = min(odom_ts[0], hgdo_ts[0], ctrl_ts[0])
+t0 = min(odom_ts[0], hgdo_ts[0], ctrl_ts[0], cmd_ts[0], act_ts[0])
 odom_t = (odom_ts - t0) * 1e-9
 hgdo_t = (hgdo_ts - t0) * 1e-9
 ctrl_t = (ctrl_ts - t0) * 1e-9
+cmd_t  = (cmd_ts  - t0) * 1e-9
+act_t  = (act_ts  - t0) * 1e-9
 
 # ── Implied torque from omega (body frame) ──
 # τ = J·dω/dt + ω × (J·ω)
@@ -208,6 +229,54 @@ plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, f'{TAG}_inner_attitude_lag.png'), dpi=120)
 plt.close()
 
+# ── Motor RPM tracking (cmd vs actual per motor) ──
+# Resample both to a common 200 Hz grid in the airborne segment for xcorr.
+RPM_HOVER = np.median(act_rpm[(act_rpm > 0).all(axis=1)], axis=0) if (act_rpm > 0).any() else np.zeros(6)
+T_LO2 = max(cmd_t[0], act_t[0]) + 1.0
+T_HI2 = min(cmd_t[-1], act_t[-1]) - 1.0
+dt_m = 0.005
+t_m = np.arange(T_LO2, T_HI2, dt_m)
+cmd_u = np.column_stack([np.interp(t_m, cmd_t, cmd_rpm[:, k]) for k in range(6)])
+act_u = np.column_stack([np.interp(t_m, act_t, act_rpm[:, k]) for k in range(6)])
+
+# Mask airborne (use any motor cmd > 1.5x rotor_min ≈ 3000)
+m_air = cmd_u.mean(axis=1) > 3000.0
+
+print(f'\n-- Motor RPM tracking (cmd vs actual) — {m_air.sum()*dt_m:.1f}s airborne sample --')
+motor_lags = np.zeros(6)
+for k in range(6):
+    a = act_u[m_air, k] - act_u[m_air, k].mean()
+    c = cmd_u[m_air, k] - cmd_u[m_air, k].mean()
+    if a.std() < 1e-6 or c.std() < 1e-6:
+        continue
+    max_k = int(0.2 / dt_m)
+    lags = np.arange(-max_k, max_k + 1)
+    corr_curve = np.zeros_like(lags, dtype=float)
+    for j, kk in enumerate(lags):
+        if kk >= 0: corr_curve[j] = np.mean(a[kk:] * c[:len(a) - kk])
+        else:       corr_curve[j] = np.mean(a[:len(a) + kk] * c[-kk:])
+    corr_curve /= (a.std() * c.std())
+    j_pk = np.argmax(corr_curve)
+    motor_lags[k] = lags[j_pk] * dt_m
+    err = act_u[m_air, k] - cmd_u[m_air, k]
+    print(f'  motor {k}: lag={motor_lags[k]*1000:+5.0f} ms  '
+          f'peak xcorr={corr_curve[j_pk]:.3f}  '
+          f'std(act−cmd)={err.std():6.1f} RPM  '
+          f'mean(cmd)={cmd_u[m_air, k].mean():.0f} RPM')
+
+fig, axes = plt.subplots(6, 1, figsize=(14, 14), sharex=True)
+for k in range(6):
+    axes[k].plot(cmd_t, cmd_rpm[:, k], 'b', lw=0.9, label=f'motor {k} cmd')
+    axes[k].plot(act_t, act_rpm[:, k], 'r', lw=0.7, alpha=0.85, label=f'motor {k} actual')
+    axes[k].set_ylabel('RPM'); axes[k].grid(alpha=0.3)
+    axes[k].legend(loc='upper right', fontsize=8)
+axes[0].set_title(f'{TAG}  —  Motor RPM: cmd vs actual')
+axes[-1].set_xlabel('Time [s]')
+plt.tight_layout()
+plt.savefig(os.path.join(OUT_DIR, f'{TAG}_motor_rpm_track.png'), dpi=120)
+plt.close()
+
 print('\nSaved:')
 print(f'  - {TAG}_inner_torque_check.png')
 print(f'  - {TAG}_inner_attitude_lag.png')
+print(f'  - {TAG}_motor_rpm_track.png')
