@@ -93,6 +93,21 @@ print(f'  f_col − m·g     mean={(f_col[mask_c]-M*G).mean():+7.4f} N   std={(f
 
 # ── Plots — 3 rows × twin y-axes ──
 fig, axes = plt.subplots(3, 1, figsize=(15, 11), sharex=True)
+def align_zero(ax1, ax2):
+    """Align y=0 of two twin axes to the same horizontal line."""
+    y1lo, y1hi = ax1.get_ylim()
+    y2lo, y2hi = ax2.get_ylim()
+    # fraction of zero from bottom
+    f1 = -y1lo / (y1hi - y1lo)
+    f2 = -y2lo / (y2hi - y2lo)
+    f = max(f1, f2)
+    if not (0 < f < 1): return
+    for ax, (lo, hi) in [(ax1, (y1lo, y1hi)), (ax2, (y2lo, y2hi))]:
+        r1 = hi / (1 - f) if hi > 0 else 0
+        r2 = -lo / f if lo < 0 else 0
+        R = max(r1, r2)
+        ax.set_ylim(-f * R, (1 - f) * R)
+
 labels = [('x', 0, F_des_x,       'F_des_x (world)'),
           ('y', 1, F_des_y,       'F_des_y (world)'),
           ('z', 2, f_col - M * G, 'f_col − m·g (body z)')]
@@ -102,15 +117,14 @@ for k, (axis, idx, F, F_label) in enumerate(labels):
     ax_F = ax_p.twinx()
     l1, = ax_p.plot(odom_t, p_zero[:, idx], 'b', lw=1.0, label=f'pos_{axis} − p_{axis}(0)')
     l2, = ax_F.plot(ctrl_t, F,              'r', lw=0.9, alpha=0.85, label=F_label)
-    ax_p.axhline(0, color='gray', lw=0.5, alpha=0.5)
-    ax_F.axhline(0, color='gray', lw=0.5, alpha=0.5, ls='--')
     ax_p.set_ylabel(f'pos_{axis} [m]', color='b')
     ax_F.set_ylabel(f'{F_label} [N]', color='r')
     ax_p.tick_params(axis='y', labelcolor='b')
     ax_F.tick_params(axis='y', labelcolor='r')
     ax_p.grid(alpha=0.3)
+    align_zero(ax_p, ax_F)
+    ax_p.axhline(0, color='gray', lw=0.7, alpha=0.6)
     ax_p.legend([l1, l2], [l1.get_label(), l2.get_label()], loc='upper right', fontsize=9)
-    title_frame = 'world' if axis != 'z' else 'body z'
     ax_p.set_title(f'pos_{axis}  vs  {F_label}')
 axes[-1].set_xlabel('Time [s]')
 plt.tight_layout()
