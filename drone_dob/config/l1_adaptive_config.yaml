@@ -14,6 +14,14 @@
       freq_cutoff_trans: 2.0
       freq_cutoff_rot: 2.0
 
+      # In-flight hysteresis (avoids chattering when drone briefly contacts ground)
+      alt_enter: 0.05            # [m]   enter airborne if altitude > 5 cm
+      alt_exit:  0.02            # [m]   exit  airborne if altitude < 2 cm
+      thrust_margin_in:  1.05    # enter requires thrust > 1.05 * W
+      thrust_margin_out: 0.60    # exit  contributes when thrust < 0.60 * W
+      enter_dwell_n: 30          # samples to confirm entry (~0.3 s @ 100 Hz)
+      exit_dwell_n:  50          # samples to confirm exit  (~0.5 s)
+
     topic_names:
       odom_in: "/mavros/local_position/odom"
       filtered_odom: "/l1_adaptive/filtered_odom"

@@ -172,12 +172,12 @@ class PdNmpcAttWithDOBNode(Node):
         self.a_z_max = pd_param['a_z_max']
         self.dob_force_xy = pd_param['dob_force_xy']
 
-        # Take-off / landing hysteresis (avoids chattering between ground and
-        # flight modes when the drone bounces).  Matches HGDO node convention.
-        self._tk_alt_enter   = 0.05    # 5 cm to enter flight
-        self._tk_alt_exit    = 0.02    # 2 cm to exit flight
-        self._tk_enter_dwell = 30      # ~0.3 s @ 100 Hz
-        self._tk_exit_dwell  = 50      # ~0.5 s @ 100 Hz
+        # Take-off / landing hysteresis (yaml-configurable; defaults are
+        # low-altitude friendly).  Avoids chattering when the drone bounces.
+        self._tk_alt_enter   = pd_param['tk_alt_enter']
+        self._tk_alt_exit    = pd_param['tk_alt_exit']
+        self._tk_enter_dwell = pd_param['tk_enter_dwell']
+        self._tk_exit_dwell  = pd_param['tk_exit_dwell']
         self._tk_enter_cnt   = 0
         self._tk_exit_cnt    = 0
         self._in_flight      = False
@@ -597,6 +597,10 @@ class PdNmpcAttWithDOBNode(Node):
         a_xy_max = self.get_parameter('pd_param.a_xy_max').value
         a_z_max = self.get_parameter('pd_param.a_z_max').value
         dob_force_xy = self.get_parameter('pd_param.dob_force_xy').value
+        tk_alt_enter   = self.get_parameter('pd_param.tk_alt_enter').value
+        tk_alt_exit    = self.get_parameter('pd_param.tk_alt_exit').value
+        tk_enter_dwell = self.get_parameter('pd_param.tk_enter_dwell').value
+        tk_exit_dwell  = self.get_parameter('pd_param.tk_exit_dwell').value
         self.get_logger().info('Parameters loaded:')
         self.get_logger().info(f'  Mass: {m:.2f} kg')
         self.get_logger().info(f'  Inertia: {MoiArray}')
@@ -626,6 +630,10 @@ class PdNmpcAttWithDOBNode(Node):
             'dpsi_dt_max': dpsi_dt_max,
             'a_xy_max': a_xy_max, 'a_z_max': a_z_max,
             'dob_force_xy': dob_force_xy,
+            'tk_alt_enter': tk_alt_enter,
+            'tk_alt_exit':  tk_alt_exit,
+            'tk_enter_dwell': tk_enter_dwell,
+            'tk_exit_dwell':  tk_exit_dwell,
         }
         return dynamic_param, drone_param, nmpc_param, pd_param
 
