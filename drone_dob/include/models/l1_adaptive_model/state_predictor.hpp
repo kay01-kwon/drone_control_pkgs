@@ -46,6 +46,9 @@ class StatePredictor{
 
     Vector6d get_z_tilde() const;
 
+    // Reset predictor state (call on airborne → ground transition).
+    void reset();
+
     private:
 
     void initialize_state();

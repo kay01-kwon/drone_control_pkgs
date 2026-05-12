@@ -83,6 +83,11 @@ Vector6d StatePredictor::get_z_tilde() const{
     return z_tilde;
 }
 
+void StatePredictor::reset()
+{
+    initialize_state();
+}
+
 void StatePredictor::initialize_state(){
 
     state_meas_.p.setZero();
