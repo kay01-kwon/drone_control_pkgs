@@ -144,43 +144,48 @@ print(f'  x  std = {diff_x.std():.3f} N (should be small if reconstruction is ri
 print(f'  y  std = {diff_y.std():.3f} N')
 
 
-# ── Plot per axis: all components + position ──
-fig, axes = plt.subplots(2, 1, figsize=(15, 10), sharex=True)
+# ── Plot: 5 rows × 2 cols, each signal on its own panel ──
+fig, axes = plt.subplots(5, 2, figsize=(15, 14), sharex=True)
 
 mask_c = ctrl_t > 5.0
 t_p = ctrl_t[mask_c]
 
-for k, (axis, idx) in enumerate([('x', 0), ('y', 1)]):
-    ax_F = axes[k]
-    ax_p = ax_F.twinx()
-
-    ax_F.plot(t_p, Kp_F_c[mask_c, idx],   'g',  lw=1.0, label=f'Kp·e_p (·m) = m·Kp·({"x" if axis=="x" else "y"}_ref − {axis})')
-    ax_F.plot(t_p, Kd_F_c[mask_c, idx],   'orange', lw=1.0, alpha=0.85, label=f'Kd·e_v (·m) = −m·Kd·v_{axis}')
-    ax_F.plot(t_p, F_pd_c[mask_c, idx],   'b',  lw=1.4, label='PD sum  (m·a_pd)')
-    ax_F.plot(t_p, HGDO_F[mask_c, idx],   'r',  lw=1.0, alpha=0.85, label=f'HGDO comp  (−R·f_hgdo_{axis})')
-    ax_F.plot(t_p, F_des[mask_c, idx],    'k',  lw=1.4, label='F_des published')
-    ax_F.axhline(0, color='gray', lw=0.5, alpha=0.5)
-    ax_F.set_ylabel(f'F_{axis} [N]')
-    ax_F.grid(alpha=0.3)
-    ax_F.legend(loc='upper left', fontsize=8, ncol=2)
-
+for col, (axis, idx) in enumerate([('x', 0), ('y', 1)]):
     pos_dev = pos_c[mask_c, idx] - ref_p[idx]
-    ax_p.plot(t_p, pos_dev, 'purple', lw=0.9, alpha=0.5, label=f'pos_{axis} − ref ({axis})')
-    ax_p.set_ylabel(f'{axis} − ref [m]', color='purple')
-    ax_p.tick_params(axis='y', labelcolor='purple')
 
-    # Align zeros of left/right
-    yFlo, yFhi = ax_F.get_ylim(); yplo, yphi = ax_p.get_ylim()
-    fF = -yFlo / (yFhi - yFlo); fp = -yplo / (yphi - yplo)
-    f = max(fF, fp); f = min(max(f, 0.001), 0.999)
-    for ax, (lo, hi) in [(ax_F, (yFlo, yFhi)), (ax_p, (yplo, yphi))]:
-        r1 = hi / (1 - f) if hi > 0 else 0
-        r2 = -lo / f if lo < 0 else 0
-        R = max(r1, r2)
-        ax.set_ylim(-f * R, (1 - f) * R)
-    ax_F.set_title(f'{axis}-axis force decomposition  (Kp={Kp[idx]}, Kd={Kd[idx]})')
+    axes[0, col].plot(t_p, pos_dev, 'purple', lw=1.0)
+    axes[0, col].axhline(0, color='gray', lw=0.5, alpha=0.5)
+    axes[0, col].set_ylabel(f'{axis} − ref [m]')
+    axes[0, col].grid(alpha=0.3)
+    axes[0, col].set_title(f'{axis}-axis  —  position deviation  (ref = mean({axis}))')
 
-axes[-1].set_xlabel('Time [s]')
+    axes[1, col].plot(t_p, Kp_F_c[mask_c, idx], 'g', lw=1.0)
+    axes[1, col].axhline(0, color='gray', lw=0.5, alpha=0.5)
+    axes[1, col].set_ylabel(f'Kp·m·e_p_{axis} [N]')
+    axes[1, col].grid(alpha=0.3)
+    axes[1, col].set_title(f'Kp term (Kp={Kp[idx]})  →  proportional to position error')
+
+    axes[2, col].plot(t_p, Kd_F_c[mask_c, idx], 'orange', lw=1.0)
+    axes[2, col].axhline(0, color='gray', lw=0.5, alpha=0.5)
+    axes[2, col].set_ylabel(f'Kd·m·e_v_{axis} [N]')
+    axes[2, col].grid(alpha=0.3)
+    axes[2, col].set_title(f'Kd term (Kd={Kd[idx]})  →  proportional to (−velocity)')
+
+    axes[3, col].plot(t_p, F_pd_c[mask_c, idx], 'b', lw=1.0, label='PD sum')
+    axes[3, col].plot(t_p, HGDO_F[mask_c, idx], 'r', lw=1.0, alpha=0.85, label='HGDO comp')
+    axes[3, col].axhline(0, color='gray', lw=0.5, alpha=0.5)
+    axes[3, col].set_ylabel(f'F_{axis} [N]')
+    axes[3, col].grid(alpha=0.3)
+    axes[3, col].legend(loc='upper right', fontsize=9)
+    axes[3, col].set_title('PD sum  vs  HGDO compensation  (these add to F_des)')
+
+    axes[4, col].plot(t_p, F_des[mask_c, idx], 'k', lw=1.0)
+    axes[4, col].axhline(0, color='gray', lw=0.5, alpha=0.5)
+    axes[4, col].set_ylabel(f'F_des_{axis} [N]')
+    axes[4, col].grid(alpha=0.3)
+    axes[4, col].set_title('F_des published  (= PD sum + HGDO comp)')
+    axes[4, col].set_xlabel('Time [s]')
+
 plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, f'{TAG}_pd_force_decomp.png'), dpi=120)
 plt.close()
