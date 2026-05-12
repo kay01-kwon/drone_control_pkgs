@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""Overlay XYZ position with F_des (post-DOB, world frame) per axis.
+"""Overlay XYZ position with /nmpc/control force per axis.
 
-  /nmpc/control.force.x = F_des_x (world)
-  /nmpc/control.force.y = F_des_y (world)
-  /nmpc/control.force.z = f_col   (= ||F_des||, magnitude — NOT F_des_z)
-  → F_des_z_world = sqrt(f_col² − F_des_x² − F_des_y²)
+  /nmpc/control.force.x = F_des_x in WORLD frame (post-DOB)
+  /nmpc/control.force.y = F_des_y in WORLD frame (post-DOB)
+  /nmpc/control.force.z = f_col, collective thrust along BODY z (NOT world z)
 
-We also subtract m·g from F_des_z_world to highlight the control effort
-above hover thrust.
+Position is plotted as p_axis − p_axis(0) so each curve starts at 0.
+We also subtract m·g from f_col to show control effort above hover.
 
 Usage:  python3 pos_vs_fdes.py [<bag_subdir> [<date_dir>]]
 """
@@ -65,16 +64,16 @@ t0 = min(odom_ts[0], ctrl_ts[0])
 odom_t = (odom_ts - t0) * 1e-9
 ctrl_t = (ctrl_ts - t0) * 1e-9
 
-# Reconstruct F_des_z_world = sqrt(f_col^2 − Fx^2 − Fy^2)
-fz_sq = ctrl[:, 2] ** 2 - ctrl[:, 0] ** 2 - ctrl[:, 1] ** 2
-F_des_z_w = np.sqrt(np.maximum(fz_sq, 0.0))
-F_des_x = ctrl[:, 0]
-F_des_y = ctrl[:, 1]
+# /nmpc/control: force.x, force.y are WORLD frame; force.z is BODY z (collective)
+F_des_x = ctrl[:, 0]    # world
+F_des_y = ctrl[:, 1]    # world
+f_col   = ctrl[:, 2]    # body z (collective thrust)
 
-# Position with mean-removed offset for visualization
+# Position with INITIAL position subtracted per axis
+p_init = p[0].copy()
+p_zero = p - p_init
 mask = odom_t > 5.0
-p_mean = p[mask].mean(axis=0)
-p_zero = p - p_mean
+print(f'\nInitial position p[0] = {p_init.tolist()}')
 
 # Stats
 print('\n== Position and F_des stats (airborne) ==')
@@ -82,40 +81,37 @@ mask_c = ctrl_t > 5.0
 for k, ax in enumerate('xyz'):
     print(f'  pos_{ax}     mean={p[mask, k].mean():+7.4f} m   std={p[mask, k].std():6.4f} m   '
           f'range [{p[mask, k].min():+7.3f}, {p[mask, k].max():+7.3f}]')
-print('-- F_des in world frame --')
-print(f'  Fx_des     mean={F_des_x[mask_c].mean():+7.4f} N   std={F_des_x[mask_c].std():6.4f}   '
+print('-- /nmpc/control force (fx, fy in world; fz in body) --')
+print(f'  Fx_des (world)  mean={F_des_x[mask_c].mean():+7.4f} N   std={F_des_x[mask_c].std():6.4f}   '
       f'peak±{max(abs(F_des_x[mask_c].min()), abs(F_des_x[mask_c].max())):6.3f}')
-print(f'  Fy_des     mean={F_des_y[mask_c].mean():+7.4f} N   std={F_des_y[mask_c].std():6.4f}   '
+print(f'  Fy_des (world)  mean={F_des_y[mask_c].mean():+7.4f} N   std={F_des_y[mask_c].std():6.4f}   '
       f'peak±{max(abs(F_des_y[mask_c].min()), abs(F_des_y[mask_c].max())):6.3f}')
-print(f'  Fz_des_w   mean={F_des_z_w[mask_c].mean():+7.4f} N   std={F_des_z_w[mask_c].std():6.4f}   '
+print(f'  f_col  (body z) mean={f_col[mask_c].mean():+7.4f} N   std={f_col[mask_c].std():6.4f}   '
       f'(hover m·g = {M*G:.2f} N)')
-print(f'  Fz_des−mg  mean={(F_des_z_w[mask_c]-M*G).mean():+7.4f} N   std={(F_des_z_w[mask_c]-M*G).std():6.4f}')
+print(f'  f_col − m·g     mean={(f_col[mask_c]-M*G).mean():+7.4f} N   std={(f_col[mask_c]-M*G).std():6.4f}')
 
 
 # ── Plots — 3 rows × twin y-axes ──
 fig, axes = plt.subplots(3, 1, figsize=(15, 11), sharex=True)
-labels = [('x', 0, F_des_x),
-          ('y', 1, F_des_y),
-          ('z', 2, F_des_z_w - M * G)]
+labels = [('x', 0, F_des_x,       'F_des_x (world)'),
+          ('y', 1, F_des_y,       'F_des_y (world)'),
+          ('z', 2, f_col - M * G, 'f_col − m·g (body z)')]
 
-for k, (axis, idx, F) in enumerate(labels):
+for k, (axis, idx, F, F_label) in enumerate(labels):
     ax_p = axes[k]
     ax_F = ax_p.twinx()
-    l1, = ax_p.plot(odom_t, p_zero[:, idx], 'b', lw=1.0, label=f'pos_{axis} (mean removed)')
-    if axis == 'z':
-        l2, = ax_F.plot(ctrl_t, F, 'r', lw=0.9, alpha=0.85, label=f'F_des_z_world − m·g')
-        ax_F.set_ylabel(f'F_des_z − m·g [N]', color='r')
-    else:
-        l2, = ax_F.plot(ctrl_t, F, 'r', lw=0.9, alpha=0.85, label=f'F_des_{axis} (world)')
-        ax_F.set_ylabel(f'F_des_{axis} [N]', color='r')
+    l1, = ax_p.plot(odom_t, p_zero[:, idx], 'b', lw=1.0, label=f'pos_{axis} − p_{axis}(0)')
+    l2, = ax_F.plot(ctrl_t, F,              'r', lw=0.9, alpha=0.85, label=F_label)
     ax_p.axhline(0, color='gray', lw=0.5, alpha=0.5)
     ax_F.axhline(0, color='gray', lw=0.5, alpha=0.5, ls='--')
     ax_p.set_ylabel(f'pos_{axis} [m]', color='b')
+    ax_F.set_ylabel(f'{F_label} [N]', color='r')
     ax_p.tick_params(axis='y', labelcolor='b')
     ax_F.tick_params(axis='y', labelcolor='r')
     ax_p.grid(alpha=0.3)
     ax_p.legend([l1, l2], [l1.get_label(), l2.get_label()], loc='upper right', fontsize=9)
-    ax_p.set_title(f'pos_{axis}  vs  F_des_{axis} (world)')
+    title_frame = 'world' if axis != 'z' else 'body z'
+    ax_p.set_title(f'pos_{axis}  vs  {F_label}')
 axes[-1].set_xlabel('Time [s]')
 plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, f'{TAG}_pos_vs_Fdes.png'), dpi=120)
