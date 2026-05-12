@@ -208,16 +208,34 @@ void HgdoNode::dob_estimate()
         initial_altitude_ = odom_recent.position(2);
         initial_altitude_set_ = true;
     }
-    double relative_altitude = odom_recent.position(2) - initial_altitude_;
-    if(relative_altitude < 0.0) relative_altitude = 0.0;
+    double absolute_z = odom_recent.position(2);
+    double relative_altitude = absolute_z - initial_altitude_;
+    bool below_floor = absolute_z < 0.0;
 
-    // In-flight hysteresis for translational force gating
-    // Entry: actual total thrust >= weight
-    // Exit: relative altitude < 1cm AND actual total thrust < weight
-    bool airborne = actual_total_thrust_ >= W_;
-    if(airborne) was_airborne_ = true;
-    in_flight_ = airborne || (was_airborne_ && relative_altitude > 0.01);
-    if(!in_flight_ && was_airborne_) was_airborne_ = false;
+    // Two-sided hysteresis (low-altitude friendly):
+    //   ENTER: thrust > 1.05*W AND alt > 5 cm, sustained for enter_dwell
+    //   EXIT : thrust < 0.60*W OR  alt < 2 cm, sustained for exit_dwell
+    bool can_enter = (actual_total_thrust_ > thrust_margin_in_  * W_) &&
+                     (relative_altitude   > alt_enter_);
+    bool must_exit = (actual_total_thrust_ < thrust_margin_out_ * W_) ||
+                     (relative_altitude   < alt_exit_);
+
+    if(can_enter) ++enter_cnt_; else enter_cnt_ = 0;
+    if(must_exit) ++exit_cnt_;  else exit_cnt_  = 0;
+
+    if(!in_flight_ && enter_cnt_ > enter_dwell_n_) in_flight_ = true;
+    if( in_flight_ && exit_cnt_  > exit_dwell_n_ ) in_flight_ = false;
+
+    // Hard override: never compensate force when absolute altitude is negative.
+    if(below_floor) in_flight_ = false;
+
+    // Reset HGDO state on airborne → ground transition so stale gamma
+    // accumulated during ground contact does not corrupt the next takeoff.
+    if(prev_in_flight_ && !in_flight_) hgdo_model_->reset();
+    prev_in_flight_ = in_flight_;
+
+    // Keep was_airborne_ for any downstream code still using it.
+    was_airborne_ = in_flight_;
 
     // Publish DOB estimate directly (no additional LPF — HGDO observer
     // already filters via eps_f / eps_tau dynamics)

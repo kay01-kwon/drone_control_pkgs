@@ -87,3 +87,13 @@ void L1AdaptationModel::initialize_state()
     u_L1_.setZero();
     sigma_hat_.setZero();
 }
+
+void L1AdaptationModel::reset()
+{
+    u_L1_.setZero();
+    sigma_hat_.setZero();
+    state_predictor_.reset();
+    // Note: LPFs hold residual state across reset.  If the L1 LPFs accumulate
+    // problematic values during ground contact, a per-LPF reset() could be
+    // added later — for now their input drives them back to zero quickly.
+}

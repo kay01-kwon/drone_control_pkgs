@@ -31,7 +31,11 @@ class HgdoModel {
                 const Vector3d& w,
                 const Quaterniond& q,
                 const Vector4d& u);
-    
+
+    // Reset filter state (call when transitioning to ground so accumulated
+    // gamma from being on the stand does not corrupt the next takeoff).
+    void reset();
+
     Vector6d get_disturbance_estimate() const;
 
     private:
