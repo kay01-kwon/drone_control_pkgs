@@ -172,6 +172,16 @@ class PdNmpcAttWithDOBNode(Node):
         self.a_z_max = pd_param['a_z_max']
         self.dob_force_xy = pd_param['dob_force_xy']
 
+        # Take-off / landing hysteresis (avoids chattering between ground and
+        # flight modes when the drone bounces).  Matches HGDO node convention.
+        self._tk_alt_enter   = 0.05    # 5 cm to enter flight
+        self._tk_alt_exit    = 0.02    # 2 cm to exit flight
+        self._tk_enter_dwell = 30      # ~0.3 s @ 100 Hz
+        self._tk_exit_dwell  = 50      # ~0.5 s @ 100 Hz
+        self._tk_enter_cnt   = 0
+        self._tk_exit_cnt    = 0
+        self._in_flight      = False
+
         # Statistics
         self.solve_count = 0
         self.failure_count = 0
@@ -194,6 +204,7 @@ class PdNmpcAttWithDOBNode(Node):
         self.px_offset = None
         self.py_offset = None
         self.pz_offset = None
+        self._z_raw_pre_clip = 0.0    # used for negative-altitude DOB guard
 
         # Publish predicted trajectory
         self.publish_state = nmpc_param.get('publish_state', False)
@@ -262,6 +273,10 @@ class PdNmpcAttWithDOBNode(Node):
         odom_data[1] -= self.py_offset
         odom_data[2] -= self.pz_offset
 
+        # Remember pre-clip z so DOB application can detect mocap glitches
+        # that put the drone below the floor.
+        self._z_raw_pre_clip = odom_data[2]
+
         if odom_data[2] < 0.0:
             odom_data[2] = 0.0
 
@@ -329,7 +344,18 @@ class PdNmpcAttWithDOBNode(Node):
 
         R_wb = quaternion_to_rotm(q)
 
-        take_off_cond = self.ref_p[2] >= 0.01 or state[2] >= 0.01
+        # Hysteresis on take-off condition (5 cm enter / 2 cm exit + dwell)
+        # so brief bounces don't toggle between ground and flight modes.
+        alt_signal = max(self.ref_p[2], state[2])
+        can_enter = alt_signal > self._tk_alt_enter
+        must_exit = alt_signal < self._tk_alt_exit
+        self._tk_enter_cnt = (self._tk_enter_cnt + 1) if can_enter else 0
+        self._tk_exit_cnt  = (self._tk_exit_cnt  + 1) if must_exit else 0
+        if not self._in_flight and self._tk_enter_cnt > self._tk_enter_dwell:
+            self._in_flight = True
+        if     self._in_flight and self._tk_exit_cnt  > self._tk_exit_dwell:
+            self._in_flight = False
+        take_off_cond = self._in_flight
 
         if not take_off_cond:
             self.des_rotor_thrust_mpc = 6.0 * np.ones(6)
@@ -394,6 +420,12 @@ class PdNmpcAttWithDOBNode(Node):
             _, wrench_body = self.wrench_buffer.get_latest()
             f_dist = wrench_body[0:3].copy()
             tau_dist = wrench_body[3:6]
+            # Defense-in-depth safety: never apply DOB force compensation
+            # when the raw mocap altitude is negative (mocap glitch / below floor)
+            # — the DOB node already gates this, but we do not want a stale
+            # buffered wrench to slip through.
+            if self._z_raw_pre_clip < 0.0:
+                f_dist[:] = 0.0
             if not self.dob_force_xy:
                 f_dist[0:2] = 0.0
             F_des -= R_wb @ f_dist

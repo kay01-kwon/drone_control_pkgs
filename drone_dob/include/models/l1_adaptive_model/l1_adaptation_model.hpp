@@ -39,6 +39,9 @@ class L1AdaptationModel {
 
     Vector6d get_u_L1() const;
 
+    // Reset L1 filter / predictor state (call on airborne → ground transition).
+    void reset();
+
     private:
 
     void initialize_state();

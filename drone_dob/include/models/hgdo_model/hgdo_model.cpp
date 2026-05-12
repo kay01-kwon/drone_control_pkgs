@@ -60,6 +60,11 @@ void HgdoModel::update(const double &t_prev,
     }
 }
 
+void HgdoModel::reset()
+{
+    gamma_.setZero();
+}
+
 Vector6d HgdoModel::get_disturbance_estimate() const
 {
     Vector6d disturbance_estimate;

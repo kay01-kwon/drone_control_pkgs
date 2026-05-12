@@ -86,9 +86,20 @@ class L1AdaptiveNode : public rclcpp::Node {
     double C_T_{0.0};
     double actual_total_thrust_{0.0};
     bool in_flight_{false};
+    bool prev_in_flight_{false};
     bool was_airborne_{false};
     double initial_altitude_{0.0};
     bool initial_altitude_set_{false};
+
+    // Two-sided hysteresis (low-altitude friendly), same convention as HgdoNode
+    double alt_enter_{0.05};
+    double alt_exit_{0.02};
+    double thrust_margin_in_{1.05};
+    double thrust_margin_out_{0.60};
+    int    enter_dwell_n_{30};
+    int    exit_dwell_n_{50};
+    int    enter_cnt_{0};
+    int    exit_cnt_{0};
 
     nav_msgs::msg::Odometry filtered_odom_msg_;
     WrenchStamped dob_msg_;
