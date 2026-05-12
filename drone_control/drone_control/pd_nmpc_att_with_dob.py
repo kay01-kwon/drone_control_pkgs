@@ -170,6 +170,7 @@ class PdNmpcAttWithDOBNode(Node):
         self.dpsi_dt_max = pd_param['dpsi_dt_max']
         self.a_xy_max = pd_param['a_xy_max']
         self.a_z_max = pd_param['a_z_max']
+        self.dob_force_xy = pd_param['dob_force_xy']
 
         # Statistics
         self.solve_count = 0
@@ -387,10 +388,14 @@ class PdNmpcAttWithDOBNode(Node):
         F_des = self.m * a_des
 
         # DOB force/torque compensation (body → world)
+        # dob_force_xy=False keeps HGDO fz compensation but zeroes fx, fy
+        # (HGDO xy was found to cancel PD output, causing limit cycle).
         if not self.wrench_buffer.is_empty():
             _, wrench_body = self.wrench_buffer.get_latest()
-            f_dist = wrench_body[0:3]
+            f_dist = wrench_body[0:3].copy()
             tau_dist = wrench_body[3:6]
+            if not self.dob_force_xy:
+                f_dist[0:2] = 0.0
             F_des -= R_wb @ f_dist
         else:
             tau_dist = np.zeros(3)
@@ -559,6 +564,7 @@ class PdNmpcAttWithDOBNode(Node):
         dpsi_dt_max = self.get_parameter('pd_param.dpsi_dt_max').value
         a_xy_max = self.get_parameter('pd_param.a_xy_max').value
         a_z_max = self.get_parameter('pd_param.a_z_max').value
+        dob_force_xy = self.get_parameter('pd_param.dob_force_xy').value
         self.get_logger().info('Parameters loaded:')
         self.get_logger().info(f'  Mass: {m:.2f} kg')
         self.get_logger().info(f'  Inertia: {MoiArray}')
@@ -567,6 +573,7 @@ class PdNmpcAttWithDOBNode(Node):
         self.get_logger().info(f'  PD Ki: {Ki}, anti_windup: {anti_windup}')
         self.get_logger().info(f'  dpsi_dt_max: {dpsi_dt_max} rad/s')
         self.get_logger().info(f'  a_xy_max: {a_xy_max} m/s^2, a_z_max: {a_z_max} m/s^2')
+        self.get_logger().info(f'  dob_force_xy: {dob_force_xy} (False → HGDO fx,fy zeroed; fz still applied)')
 
         dynamic_param = {
             'm': m, 'MoiArray': MoiArray,
@@ -586,6 +593,7 @@ class PdNmpcAttWithDOBNode(Node):
             'Kp': Kp, 'Kd': Kd, 'Ki': Ki, 'anti_windup': anti_windup,
             'dpsi_dt_max': dpsi_dt_max,
             'a_xy_max': a_xy_max, 'a_z_max': a_z_max,
+            'dob_force_xy': dob_force_xy,
         }
         return dynamic_param, drone_param, nmpc_param, pd_param
 

@@ -22,6 +22,8 @@
       Ki: [0.0, 0.0, 0.0]         # Integral gain [1/s^3]
       anti_windup: [1.0, 1.0, 1.0] # Integral anti-windup limit [m/s^2]
       dpsi_dt_max: 0.5             # Yaw rate limit [rad/s]
+      dob_force_xy: false          # true: full DOB force compensation
+                                   # false: DOB fx,fy zeroed, fz still applied
 
     nmpc_param:
       publish_state: true
