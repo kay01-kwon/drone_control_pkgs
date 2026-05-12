@@ -370,6 +370,20 @@ void HgdoNode::configure_parameters()
     hgdo_param.eps_f = eps_f;
     hgdo_param.eps_tau = eps_tau;
 
+    // In-flight hysteresis (yaml-configurable; defaults are low-altitude friendly)
+    this->declare_parameter<double>("dob.alt_enter",         0.05);
+    this->declare_parameter<double>("dob.alt_exit",          0.02);
+    this->declare_parameter<double>("dob.thrust_margin_in",  1.05);
+    this->declare_parameter<double>("dob.thrust_margin_out", 0.60);
+    this->declare_parameter<int>(   "dob.enter_dwell_n",     30);
+    this->declare_parameter<int>(   "dob.exit_dwell_n",      50);
+    alt_enter_         = this->get_parameter("dob.alt_enter").get_value<double>();
+    alt_exit_          = this->get_parameter("dob.alt_exit").get_value<double>();
+    thrust_margin_in_  = this->get_parameter("dob.thrust_margin_in").get_value<double>();
+    thrust_margin_out_ = this->get_parameter("dob.thrust_margin_out").get_value<double>();
+    enter_dwell_n_     = this->get_parameter("dob.enter_dwell_n").get_value<int>();
+    exit_dwell_n_      = this->get_parameter("dob.exit_dwell_n").get_value<int>();
+
 
     // 3. Initialize HGDO model and other utilities
     W_ = m * 9.81;

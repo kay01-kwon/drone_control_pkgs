@@ -382,7 +382,21 @@ void L1AdaptiveNode::configure_parameters()
 
     this->declare_parameter("l1_adaptive.freq_cutoff_rot", 60.0);
     l1_adaptive_param.freq_cutoff_rot = this->get_parameter("l1_adaptive.freq_cutoff_rot").get_value<double>();
-    
+
+    // In-flight hysteresis (yaml-configurable; same convention as HGDO)
+    this->declare_parameter<double>("l1_adaptive.alt_enter",         0.05);
+    this->declare_parameter<double>("l1_adaptive.alt_exit",          0.02);
+    this->declare_parameter<double>("l1_adaptive.thrust_margin_in",  1.05);
+    this->declare_parameter<double>("l1_adaptive.thrust_margin_out", 0.60);
+    this->declare_parameter<int>(   "l1_adaptive.enter_dwell_n",     30);
+    this->declare_parameter<int>(   "l1_adaptive.exit_dwell_n",      50);
+    alt_enter_         = this->get_parameter("l1_adaptive.alt_enter").get_value<double>();
+    alt_exit_          = this->get_parameter("l1_adaptive.alt_exit").get_value<double>();
+    thrust_margin_in_  = this->get_parameter("l1_adaptive.thrust_margin_in").get_value<double>();
+    thrust_margin_out_ = this->get_parameter("l1_adaptive.thrust_margin_out").get_value<double>();
+    enter_dwell_n_     = this->get_parameter("l1_adaptive.enter_dwell_n").get_value<int>();
+    exit_dwell_n_      = this->get_parameter("l1_adaptive.exit_dwell_n").get_value<int>();
+
     l1_adaptive_model_ = new L1AdaptationModel(drone_param, l1_adaptive_param);
 
     print_parameters(drone_param, l1_adaptive_param);

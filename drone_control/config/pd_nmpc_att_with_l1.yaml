@@ -25,6 +25,12 @@
       dob_force_xy: false          # true: full DOB force compensation
                                    # false: DOB fx,fy zeroed, fz still applied
 
+      # Take-off / landing hysteresis (avoids chattering on bounces)
+      tk_alt_enter:   0.05
+      tk_alt_exit:    0.02
+      tk_enter_dwell: 30
+      tk_exit_dwell:  50
+
     nmpc_param:
       publish_state: true
       t_horizon: 1.0
