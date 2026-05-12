@@ -93,24 +93,53 @@ print(f'  f_col − m·g     mean={(f_col[mask_c]-M*G).mean():+7.4f} N   std={(f
 
 # ── Plots — 3 rows × twin y-axes ──
 fig, axes = plt.subplots(3, 1, figsize=(15, 11), sharex=True)
-labels = [('x', 0, F_des_x,       'F_des_x (world)'),
-          ('y', 1, F_des_y,       'F_des_y (world)'),
-          ('z', 2, f_col - M * G, 'f_col − m·g (body z)')]
+def align_levels(ax1, ax2, c1, c2):
+    """Align horizontal line c1 on ax1 with c2 on ax2."""
+    y1lo, y1hi = ax1.get_ylim()
+    y2lo, y2hi = ax2.get_ylim()
+    f1 = (c1 - y1lo) / (y1hi - y1lo)
+    f2 = (c2 - y2lo) / (y2hi - y2lo)
+    f = max(f1, f2, 0.001)
+    f = min(f, 0.999)
+    for ax, (lo, hi), c in [(ax1, (y1lo, y1hi), c1), (ax2, (y2lo, y2hi), c2)]:
+        # at this fraction f, value should be c
+        r_above = (hi - c) / (1 - f) if hi > c else 0
+        r_below = (c - lo) / f       if lo < c else 0
+        R = max(r_above, r_below)
+        ax.set_ylim(c - f * R, c + (1 - f) * R)
 
-for k, (axis, idx, F, F_label) in enumerate(labels):
+def align_zero(ax1, ax2):
+    align_levels(ax1, ax2, 0.0, 0.0)
+
+# Plot only the airborne segment so hover detail is visible
+t_o_a = odom_t[mask]
+t_c_a = ctrl_t[mask_c]
+
+# For z: anchor pos_z = 0 m  ↔  min(f_col).  Use 1% quantile to ignore landing.
+f_col_min = float(np.quantile(f_col[mask_c], 0.01))
+
+panels = [('x', 0, F_des_x[mask_c], 'F_des_x (world)', p_zero[mask, 0], 0.0, 0.0),
+          ('y', 1, F_des_y[mask_c], 'F_des_y (world)', p_zero[mask, 1], 0.0, 0.0),
+          ('z', 2, f_col   [mask_c], 'f_col (body z)',  p_zero[mask, 2], 0.0, f_col_min)]
+
+for k, (axis, idx, F, F_label, p_dat, p_ref, F_ref) in enumerate(panels):
     ax_p = axes[k]
     ax_F = ax_p.twinx()
-    l1, = ax_p.plot(odom_t, p_zero[:, idx], 'b', lw=1.0, label=f'pos_{axis} − p_{axis}(0)')
-    l2, = ax_F.plot(ctrl_t, F,              'r', lw=0.9, alpha=0.85, label=F_label)
-    ax_p.axhline(0, color='gray', lw=0.5, alpha=0.5)
-    ax_F.axhline(0, color='gray', lw=0.5, alpha=0.5, ls='--')
+    l1_lab = f'pos_{axis} − p_{axis}(0)'
+    if axis == 'z':
+        l2_lab = f'{F_label}   (min = {F_ref:.2f} N anchored to 0 m)'
+    else:
+        l2_lab = F_label
+    l1, = ax_p.plot(t_o_a, p_dat, 'b', lw=1.0, label=l1_lab)
+    l2, = ax_F.plot(t_c_a, F,     'r', lw=0.9, alpha=0.85, label=l2_lab)
     ax_p.set_ylabel(f'pos_{axis} [m]', color='b')
     ax_F.set_ylabel(f'{F_label} [N]', color='r')
     ax_p.tick_params(axis='y', labelcolor='b')
     ax_F.tick_params(axis='y', labelcolor='r')
     ax_p.grid(alpha=0.3)
+    align_levels(ax_p, ax_F, p_ref, F_ref)
+    ax_p.axhline(p_ref, color='gray', lw=0.7, alpha=0.6)
     ax_p.legend([l1, l2], [l1.get_label(), l2.get_label()], loc='upper right', fontsize=9)
-    title_frame = 'world' if axis != 'z' else 'body z'
     ax_p.set_title(f'pos_{axis}  vs  {F_label}')
 axes[-1].set_xlabel('Time [s]')
 plt.tight_layout()
