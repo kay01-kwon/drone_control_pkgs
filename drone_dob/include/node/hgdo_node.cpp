@@ -148,8 +148,20 @@ void HgdoNode::odom_filter()
     OdomData odom_recent;
     odom_recent = odom_buffer_.get_latest().value();
 
-    // Linear velocity: pass through EKF2 output as-is.
-    lin_vel_filtered_ = odom_recent.linear_velocity;
+    // Linear velocity: optional first-order LPF on top of EKF2.
+    if (lin_vel_filter_cutoff_hz_ > 0.0) {
+        double dt_v = 0.01;
+        if (lin_vel_lpf_prev_time_ > 0.0) {
+            dt_v = odom_recent.timestamp - lin_vel_lpf_prev_time_;
+            if (dt_v < 1e-4) dt_v = 1e-4;
+            if (dt_v > 0.05) dt_v = 0.05;
+        }
+        lin_vel_lpf_prev_time_ = odom_recent.timestamp;
+        for (int i = 0; i < 3; ++i)
+            lin_vel_filtered_(i) = lin_vel_lpf_[i].update(odom_recent.linear_velocity(i), dt_v);
+    } else {
+        lin_vel_filtered_ = odom_recent.linear_velocity;
+    }
 
     // Angular velocity: optional first-order LPF on top of EKF2 to suppress
     // gyro noise (cutoff > attitude bandwidth so phase lag stays small).
@@ -403,6 +415,11 @@ void HgdoNode::configure_parameters()
     this->declare_parameter<double>("dob.omega_filter_cutoff_hz", 0.0);
     omega_filter_cutoff_hz_ = this->get_parameter("dob.omega_filter_cutoff_hz").get_value<double>();
     for(int i = 0; i < 3; ++i) omega_lpf_[i].setCutoffFrequency(omega_filter_cutoff_hz_);
+
+    // Optional linear velocity LPF on EKF2 v (0 → bypass).
+    this->declare_parameter<double>("dob.lin_vel_filter_cutoff_hz", 0.0);
+    lin_vel_filter_cutoff_hz_ = this->get_parameter("dob.lin_vel_filter_cutoff_hz").get_value<double>();
+    for(int i = 0; i < 3; ++i) lin_vel_lpf_[i].setCutoffFrequency(lin_vel_filter_cutoff_hz_);
 
 
     // 3. Initialize HGDO model and other utilities

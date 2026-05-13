@@ -82,6 +82,11 @@ class L1AdaptiveNode : public rclcpp::Node {
     LowPassFilter omega_lpf_[3];
     double omega_lpf_prev_time_{-1.0};
 
+    // Optional body linear velocity LPF on EKF2 v (cutoff_hz ≤ 0 → bypass).
+    double lin_vel_filter_cutoff_hz_{0.0};
+    LowPassFilter lin_vel_lpf_[3];
+    double lin_vel_lpf_prev_time_{-1.0};
+
     L1AdaptationModel* l1_adaptive_model_{nullptr};
     HexaRotorRpmToCmd* rpm_to_cmd_converter_{nullptr};
 
