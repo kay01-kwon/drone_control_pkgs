@@ -22,6 +22,9 @@
       enter_dwell_n: 30          # samples to confirm entry (~0.3 s @ 100 Hz)
       exit_dwell_n:  50          # samples to confirm exit  (~0.5 s)
 
+      # Body angular velocity LPF (0 disables).  cutoff >> attitude bandwidth.
+      omega_filter_cutoff_hz: 0.0
+
     topic_names:
       odom_in: "/mavros/local_position/odom"
       filtered_odom: "/l1_adaptive/filtered_odom"

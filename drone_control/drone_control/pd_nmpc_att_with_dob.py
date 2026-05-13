@@ -37,6 +37,7 @@ from drone_control.rc_control import FlightMode
 from drone_control.utils.circular_buffer import CircularBuffer
 from drone_control.utils.control_allocator import ControlAllocator
 from drone_control.utils.cmd_converter import HexaCmdConverter
+from drone_control.utils.low_pass_filter import LowPassFilter
 from drone_control.utils import MsgParser, cleanup_acados_files
 from drone_control.utils.math_tool import quaternion_to_rotm, quaternion_to_yaw, wrap_pi
 from drone_control.nmpc.ocp.S550_att_ocp import S550_att_ocp
@@ -182,6 +183,11 @@ class PdNmpcAttWithDOBNode(Node):
         self._tk_exit_cnt    = 0
         self._in_flight      = False
 
+        # ω LPF applied at odom callback (0 = bypass).
+        # Cutoff > attitude bandwidth (~10 rad/s ≈ 1.6 Hz) keeps phase lag small.
+        self._omega_lpf = LowPassFilter(cutoff_freq=pd_param['omega_filter_cutoff_hz'])
+        self._omega_lpf_prev_time = -1.0
+
         # Statistics
         self.solve_count = 0
         self.failure_count = 0
@@ -279,6 +285,17 @@ class PdNmpcAttWithDOBNode(Node):
 
         if odom_data[2] < 0.0:
             odom_data[2] = 0.0
+
+        # Optional ω LPF (cutoff = 0 → bypass).  Filters body angular velocity
+        # to reduce gyro/EKF2 high-frequency noise before NMPC and DOB consume it.
+        if self._omega_lpf.cutoff_freq > 0.0:
+            if self._omega_lpf_prev_time > 0.0:
+                dt_w = odom_time - self._omega_lpf_prev_time
+                dt_w = max(min(dt_w, 0.05), 1e-4)
+            else:
+                dt_w = 0.01
+            odom_data[10:13] = self._omega_lpf.filter(odom_data[10:13], dt_w)
+            self._omega_lpf_prev_time = odom_time
 
         if self.odom_buffer.is_full():
             self.odom_buffer.pop()
@@ -601,6 +618,7 @@ class PdNmpcAttWithDOBNode(Node):
         tk_alt_exit    = self.get_parameter('pd_param.tk_alt_exit').value
         tk_enter_dwell = self.get_parameter('pd_param.tk_enter_dwell').value
         tk_exit_dwell  = self.get_parameter('pd_param.tk_exit_dwell').value
+        omega_filter_cutoff_hz = self.get_parameter('pd_param.omega_filter_cutoff_hz').value
         self.get_logger().info('Parameters loaded:')
         self.get_logger().info(f'  Mass: {m:.2f} kg')
         self.get_logger().info(f'  Inertia: {MoiArray}')
@@ -634,6 +652,7 @@ class PdNmpcAttWithDOBNode(Node):
             'tk_alt_exit':  tk_alt_exit,
             'tk_enter_dwell': tk_enter_dwell,
             'tk_exit_dwell':  tk_exit_dwell,
+            'omega_filter_cutoff_hz': omega_filter_cutoff_hz,
         }
         return dynamic_param, drone_param, nmpc_param, pd_param
 

@@ -20,6 +20,11 @@
       enter_dwell_n: 30          # samples to confirm entry (~0.3 s @ 100 Hz)
       exit_dwell_n:  50          # samples to confirm exit  (~0.5 s)
 
+      # Body angular velocity LPF (0 disables).  EKF2 output ω is already
+      # estimator-smoothed, so this is intended for additional gyro/vibration
+      # noise suppression — keep cutoff >> attitude bandwidth (~1.6 Hz).
+      omega_filter_cutoff_hz: 0.0  # default off; try 30–50 Hz if needed
+
     topic_names:
       odom_in: "/mavros/local_position/odom"
       filtered_odom: "/hgdo/filtered_odom"
