@@ -208,6 +208,14 @@ class PdNmpcAttWithDOBNode(Node):
         self.des_rotor_rpm_comp_prev = np.zeros(6)
         self.C_T = drone_param['motor_const']
 
+        # Optional 1st-order LPF on commanded rotor RPM, in place of the
+        # acc_max/min rate limiter inside compute_relaxed_des_rpm.
+        # Default 0 → use the legacy rate limiter (compute_relaxed_des_rpm).
+        # Set > 0 (e.g. 5.0 Hz) to bypass acc_max/min and apply a softer LPF
+        # whose cutoff sits well inside the motor's natural bandwidth.
+        self._cmd_lpf_cutoff_hz = drone_param['cmd_lpf_cutoff_hz']
+        self._cmd_rpm_lpf = LowPassFilter(cutoff_freq=self._cmd_lpf_cutoff_hz)
+
         self.actual_total_thrust = 0.0
         self.was_airborne = False
 
@@ -400,11 +408,17 @@ class PdNmpcAttWithDOBNode(Node):
                 M_comp = np.zeros(3)
             M_comp[2] = 0.0
 
-            self.des_rotor_rpm_comp = (self.control_allocator
-                                       .compute_relaxed_des_rpm(
-                                           f_comp, M_comp,
-                                           self.des_rotor_rpm_comp_prev,
-                                           self.control_period))
+            if self._cmd_lpf_cutoff_hz > 0.0:
+                rpm_unfiltered = self.control_allocator.compute_des_rpm(
+                    f_comp, M_comp)
+                self.des_rotor_rpm_comp = self._cmd_rpm_lpf.filter(
+                    rpm_unfiltered, self.control_period)
+            else:
+                self.des_rotor_rpm_comp = (self.control_allocator
+                                           .compute_relaxed_des_rpm(
+                                               f_comp, M_comp,
+                                               self.des_rotor_rpm_comp_prev,
+                                               self.control_period))
 
             cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(
                 self.get_clock().now(), self.des_rotor_rpm_comp)
@@ -524,11 +538,18 @@ class PdNmpcAttWithDOBNode(Node):
                 M_comp = u_mpc[1:4] - tau_dist
                 M_comp[2] = 0.0
 
-        self.des_rotor_rpm_comp = (self.control_allocator
-                                   .compute_relaxed_des_rpm(
-                                       f_comp_final, M_comp,
-                                       self.des_rotor_rpm_comp_prev,
-                                       self.control_period))
+        if self._cmd_lpf_cutoff_hz > 0.0:
+            # LPF path: use direct allocation, replace acc_max/min with LPF.
+            rpm_unfiltered = self.control_allocator.compute_des_rpm(
+                f_comp_final, M_comp)
+            self.des_rotor_rpm_comp = self._cmd_rpm_lpf.filter(
+                rpm_unfiltered, self.control_period)
+        else:
+            self.des_rotor_rpm_comp = (self.control_allocator
+                                       .compute_relaxed_des_rpm(
+                                           f_comp_final, M_comp,
+                                           self.des_rotor_rpm_comp_prev,
+                                           self.control_period))
 
         cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(
             self.get_clock().now(), self.des_rotor_rpm_comp)
@@ -610,6 +631,7 @@ class PdNmpcAttWithDOBNode(Node):
         rotor_min = self.get_parameter('drone_param.rotor_min').value
         acc_max = self.get_parameter('drone_param.acc_max').value
         acc_min = self.get_parameter('drone_param.acc_min').value
+        cmd_lpf_cutoff_hz = self.get_parameter('drone_param.cmd_lpf_cutoff_hz').value
 
         # NMPC attitude parameters
         publish_state = self.get_parameter('nmpc_param.publish_state').value
@@ -652,6 +674,7 @@ class PdNmpcAttWithDOBNode(Node):
             'arm_length': arm_length, 'motor_const': motor_const,
             'moment_const': moment_const, 'rotor_max': rotor_max,
             'rotor_min': rotor_min, 'acc_max': acc_max, 'acc_min': acc_min,
+            'cmd_lpf_cutoff_hz': cmd_lpf_cutoff_hz,
         }
         nmpc_param = {
             'publish_state': publish_state,
