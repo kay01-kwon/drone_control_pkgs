@@ -24,6 +24,8 @@
 
       # Body angular velocity LPF (0 disables).  cutoff >> attitude bandwidth.
       omega_filter_cutoff_hz: 0.0
+      # Body linear velocity LPF (0 disables).  cutoff >> outer-loop bandwidth.
+      lin_vel_filter_cutoff_hz: 0.0
 
     topic_names:
       odom_in: "/mavros/local_position/odom"
