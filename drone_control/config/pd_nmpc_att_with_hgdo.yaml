@@ -15,6 +15,11 @@
       rotor_min: 2000.0
       acc_max: 15000.0
       acc_min: 15000.0
+      # If > 0, bypass acc_max/min rate limit and apply a 1st-order LPF
+      # to commanded rotor RPM.  Motor cmd response cutoff ≈ 3.1 Hz and phase
+      # inverts around 7–10 Hz, so 5.0 Hz cutoff sits inside the motor's
+      # natural bandwidth and produces smoother, trackable commands.
+      cmd_lpf_cutoff_hz: 5.0
 
     pd_param:
       Kp: [2.0, 2.0, 5.0]         # Position P gain [1/s^2]  (ω_n_xy=1.41)
