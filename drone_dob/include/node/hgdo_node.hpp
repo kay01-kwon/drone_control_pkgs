@@ -11,6 +11,7 @@
 #include "utils/math_tool.hpp"
 #include "utils/CircularBuffer.hpp"
 #include "utils/HexaRotorRpmToCmd.hpp"
+#include "utils/LowPassFilter.hpp"
 
 #include "models/hgdo_model/hgdo_model.hpp"
 
@@ -73,6 +74,11 @@ class HgdoNode : public rclcpp::Node {
 
     Vector3d lin_vel_filtered_{Vector3d::Zero()};
     Vector3d ang_vel_filtered_{Vector3d::Zero()};
+
+    // Optional body-rate LPF on EKF2 ω (cutoff_hz ≤ 0 → bypass).
+    double omega_filter_cutoff_hz_{0.0};
+    LowPassFilter omega_lpf_[3];
+    double omega_lpf_prev_time_{-1.0};
 
     HgdoModel *hgdo_model_{nullptr};
     HexaRotorRpmToCmd *rpm_to_cmd_converter_{nullptr};

@@ -148,10 +148,25 @@ void HgdoNode::odom_filter()
     OdomData odom_recent;
     odom_recent = odom_buffer_.get_latest().value();
 
-    // LPF bypassed: MAVROS odom velocities are already filtered by PX4 EKF2.
-    // Double-filtering adds phase lag and degrades HGDO disturbance estimates.
+    // Linear velocity: pass through EKF2 output as-is.
     lin_vel_filtered_ = odom_recent.linear_velocity;
-    ang_vel_filtered_ = odom_recent.angular_velocity;
+
+    // Angular velocity: optional first-order LPF on top of EKF2 to suppress
+    // gyro noise (cutoff > attitude bandwidth so phase lag stays small).
+    // cutoff <= 0 → bypass (preserves previous behaviour).
+    if (omega_filter_cutoff_hz_ > 0.0) {
+        double dt_w = 0.01;
+        if (omega_lpf_prev_time_ > 0.0) {
+            dt_w = odom_recent.timestamp - omega_lpf_prev_time_;
+            if (dt_w < 1e-4) dt_w = 1e-4;
+            if (dt_w > 0.05) dt_w = 0.05;
+        }
+        omega_lpf_prev_time_ = odom_recent.timestamp;
+        for (int i = 0; i < 3; ++i)
+            ang_vel_filtered_(i) = omega_lpf_[i].update(odom_recent.angular_velocity(i), dt_w);
+    } else {
+        ang_vel_filtered_ = odom_recent.angular_velocity;
+    }
 
 
     // Publish filtered odometry
@@ -369,6 +384,25 @@ void HgdoNode::configure_parameters()
     HgdoParam hgdo_param;
     hgdo_param.eps_f = eps_f;
     hgdo_param.eps_tau = eps_tau;
+
+    // In-flight hysteresis (yaml-configurable; defaults are low-altitude friendly)
+    this->declare_parameter<double>("dob.alt_enter",         0.05);
+    this->declare_parameter<double>("dob.alt_exit",          0.02);
+    this->declare_parameter<double>("dob.thrust_margin_in",  1.05);
+    this->declare_parameter<double>("dob.thrust_margin_out", 0.60);
+    this->declare_parameter<int>(   "dob.enter_dwell_n",     30);
+    this->declare_parameter<int>(   "dob.exit_dwell_n",      50);
+    alt_enter_         = this->get_parameter("dob.alt_enter").get_value<double>();
+    alt_exit_          = this->get_parameter("dob.alt_exit").get_value<double>();
+    thrust_margin_in_  = this->get_parameter("dob.thrust_margin_in").get_value<double>();
+    thrust_margin_out_ = this->get_parameter("dob.thrust_margin_out").get_value<double>();
+    enter_dwell_n_     = this->get_parameter("dob.enter_dwell_n").get_value<int>();
+    exit_dwell_n_      = this->get_parameter("dob.exit_dwell_n").get_value<int>();
+
+    // Optional ω LPF on EKF2 angular velocity (0 → bypass; matches PD-NMPC).
+    this->declare_parameter<double>("dob.omega_filter_cutoff_hz", 0.0);
+    omega_filter_cutoff_hz_ = this->get_parameter("dob.omega_filter_cutoff_hz").get_value<double>();
+    for(int i = 0; i < 3; ++i) omega_lpf_[i].setCutoffFrequency(omega_filter_cutoff_hz_);
 
 
     // 3. Initialize HGDO model and other utilities

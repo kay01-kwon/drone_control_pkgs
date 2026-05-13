@@ -27,6 +27,17 @@
       dob_force_xy: false          # true: full HGDO force compensation
                                    # false: HGDO fx,fy zeroed, fz still applied
 
+      # Take-off / landing hysteresis (avoids chattering on bounces)
+      tk_alt_enter:   0.05         # [m]   enter flight mode if altitude > 5 cm
+      tk_alt_exit:    0.02         # [m]   exit  flight mode if altitude < 2 cm
+      tk_enter_dwell: 30           # samples to confirm entry (~0.3 s @ 100 Hz)
+      tk_exit_dwell:  50           # samples to confirm exit  (~0.5 s)
+
+      # Body angular velocity LPF (0 disables).  Filters odom ω before NMPC
+      # and DOB consume it.  Keep cutoff >> attitude bandwidth (~1.6 Hz) to
+      # avoid phase lag on the signal of interest.
+      omega_filter_cutoff_hz: 0.0  # default off; try 30–50 Hz for noisy gyros
+
     nmpc_param:
       publish_state: true
       t_horizon: 1.0

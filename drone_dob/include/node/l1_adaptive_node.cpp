@@ -152,10 +152,24 @@ void L1AdaptiveNode::odom_filter()
     OdomData odom_recent;
     odom_recent = odom_buffer_.get_latest().value();
 
-    // LPF bypassed: MAVROS odom velocities are already filtered by PX4 EKF2.
-    // Double-filtering adds phase lag and degrades L1 adaptive estimates.
+    // Linear velocity: pass through EKF2 output as-is.
     lin_vel_filtered_ = odom_recent.linear_velocity;
-    ang_vel_filtered_ = odom_recent.angular_velocity;
+
+    // Angular velocity: optional first-order LPF on top of EKF2 to suppress
+    // gyro noise.  cutoff <= 0 → bypass (preserves previous behaviour).
+    if (omega_filter_cutoff_hz_ > 0.0) {
+        double dt_w = 0.01;
+        if (omega_lpf_prev_time_ > 0.0) {
+            dt_w = odom_recent.timestamp - omega_lpf_prev_time_;
+            if (dt_w < 1e-4) dt_w = 1e-4;
+            if (dt_w > 0.05) dt_w = 0.05;
+        }
+        omega_lpf_prev_time_ = odom_recent.timestamp;
+        for (int i = 0; i < 3; ++i)
+            ang_vel_filtered_(i) = omega_lpf_[i].update(odom_recent.angular_velocity(i), dt_w);
+    } else {
+        ang_vel_filtered_ = odom_recent.angular_velocity;
+    }
 
     // Publish filtered odometry
     filtered_odom_msg_.header.stamp = this->now();
@@ -382,7 +396,26 @@ void L1AdaptiveNode::configure_parameters()
 
     this->declare_parameter("l1_adaptive.freq_cutoff_rot", 60.0);
     l1_adaptive_param.freq_cutoff_rot = this->get_parameter("l1_adaptive.freq_cutoff_rot").get_value<double>();
-    
+
+    // In-flight hysteresis (yaml-configurable; same convention as HGDO)
+    this->declare_parameter<double>("l1_adaptive.alt_enter",         0.05);
+    this->declare_parameter<double>("l1_adaptive.alt_exit",          0.02);
+    this->declare_parameter<double>("l1_adaptive.thrust_margin_in",  1.05);
+    this->declare_parameter<double>("l1_adaptive.thrust_margin_out", 0.60);
+    this->declare_parameter<int>(   "l1_adaptive.enter_dwell_n",     30);
+    this->declare_parameter<int>(   "l1_adaptive.exit_dwell_n",      50);
+    alt_enter_         = this->get_parameter("l1_adaptive.alt_enter").get_value<double>();
+    alt_exit_          = this->get_parameter("l1_adaptive.alt_exit").get_value<double>();
+    thrust_margin_in_  = this->get_parameter("l1_adaptive.thrust_margin_in").get_value<double>();
+    thrust_margin_out_ = this->get_parameter("l1_adaptive.thrust_margin_out").get_value<double>();
+    enter_dwell_n_     = this->get_parameter("l1_adaptive.enter_dwell_n").get_value<int>();
+    exit_dwell_n_      = this->get_parameter("l1_adaptive.exit_dwell_n").get_value<int>();
+
+    // Optional ω LPF on EKF2 angular velocity (0 → bypass; matches HGDO/PD-NMPC).
+    this->declare_parameter<double>("l1_adaptive.omega_filter_cutoff_hz", 0.0);
+    omega_filter_cutoff_hz_ = this->get_parameter("l1_adaptive.omega_filter_cutoff_hz").get_value<double>();
+    for(int i = 0; i < 3; ++i) omega_lpf_[i].setCutoffFrequency(omega_filter_cutoff_hz_);
+
     l1_adaptive_model_ = new L1AdaptationModel(drone_param, l1_adaptive_param);
 
     print_parameters(drone_param, l1_adaptive_param);
