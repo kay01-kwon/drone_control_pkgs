@@ -36,7 +36,11 @@
       # Body angular velocity LPF (0 disables).  Filters odom ω before NMPC
       # and DOB consume it.  Keep cutoff >> attitude bandwidth (~1.6 Hz) to
       # avoid phase lag on the signal of interest.
-      omega_filter_cutoff_hz: 0.0  # default off; try 30–50 Hz for noisy gyros
+      omega_filter_cutoff_hz: 0.0    # default off; try 30–50 Hz for noisy gyros
+
+      # Body linear velocity LPF (0 disables).  Filters odom v before PD/DOB.
+      # Keep cutoff >> outer-loop bandwidth (~0.22 Hz) — e.g. 10–30 Hz.
+      lin_vel_filter_cutoff_hz: 0.0  # default off
 
     nmpc_param:
       publish_state: true

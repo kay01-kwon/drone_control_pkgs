@@ -23,7 +23,11 @@
       # Body angular velocity LPF (0 disables).  EKF2 output ω is already
       # estimator-smoothed, so this is intended for additional gyro/vibration
       # noise suppression — keep cutoff >> attitude bandwidth (~1.6 Hz).
-      omega_filter_cutoff_hz: 0.0  # default off; try 30–50 Hz if needed
+      omega_filter_cutoff_hz: 0.0    # default off; try 30–50 Hz if needed
+
+      # Body linear velocity LPF (0 disables).  Keep cutoff >> outer-loop
+      # bandwidth (~0.22 Hz) — e.g. 10–30 Hz.
+      lin_vel_filter_cutoff_hz: 0.0  # default off
 
     topic_names:
       odom_in: "/mavros/local_position/odom"

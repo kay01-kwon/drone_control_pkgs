@@ -33,6 +33,8 @@
 
       # Body angular velocity LPF (0 disables).
       omega_filter_cutoff_hz: 0.0
+      # Body linear velocity LPF (0 disables).
+      lin_vel_filter_cutoff_hz: 0.0
 
     nmpc_param:
       publish_state: true
