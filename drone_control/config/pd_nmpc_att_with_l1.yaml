@@ -31,6 +31,9 @@
       tk_enter_dwell: 30
       tk_exit_dwell:  50
 
+      # Body angular velocity LPF (0 disables).
+      omega_filter_cutoff_hz: 0.0
+
     nmpc_param:
       publish_state: true
       t_horizon: 1.0
