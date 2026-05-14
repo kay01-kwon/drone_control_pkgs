@@ -12,11 +12,12 @@ from scipy import signal
 _HERE = os.path.dirname(os.path.abspath(__file__))
 BAG = sys.argv[1]
 DATE = sys.argv[2] if len(sys.argv) > 2 else '2026_05_14_free_flight'
+TAG_OVR = sys.argv[3] if len(sys.argv) > 3 else None
 BAG_DIR = os.path.join(_HERE, DATE, BAG)
 db = glob.glob(os.path.join(BAG_DIR, '*.db3'))[0]
 parts = BAG.split('/')
 OUT_DIR = os.path.join(_HERE, DATE, *parts[:-1])
-TAG = parts[-1]
+TAG = TAG_OVR if TAG_OVR else parts[-1]
 
 
 def _align(off, n):
