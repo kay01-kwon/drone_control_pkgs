@@ -20,8 +20,10 @@ db_candidates = glob.glob(os.path.join(BAG_DIR, '*.db3'))
 if not db_candidates:
     raise SystemExit(f'No .db3 found in {BAG_DIR}')
 DB_PATH = db_candidates[0]
-OUT_DIR = os.path.join(_HERE, DATE_DIR)
-TAG = BAG_SUBDIR
+# Support nested layouts like Qw1p0/cmd_lpf_7hz_eps_tau_0p5
+_parts = BAG_SUBDIR.replace('\\', '/').split('/')
+OUT_DIR = os.path.join(_HERE, DATE_DIR, *_parts[:-1]) if len(_parts) > 1 else os.path.join(_HERE, DATE_DIR)
+TAG = _parts[-1]
 print(f'Analyzing: {DB_PATH}')
 
 
