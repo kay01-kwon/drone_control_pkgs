@@ -32,8 +32,9 @@ db_path = glob.glob(os.path.join(BAG_DIR, '*.db3'))
 if not db_path:
     raise SystemExit(f'No .db3 in {BAG_DIR}')
 DB = db_path[0]
-OUT_DIR = os.path.join(_HERE, DATE_DIR)
-TAG = BAG_SUBDIR
+_parts = BAG_SUBDIR.replace('\\', '/').split('/')
+OUT_DIR = os.path.join(_HERE, DATE_DIR, *_parts[:-1]) if len(_parts) > 1 else os.path.join(_HERE, DATE_DIR)
+TAG = _parts[-1]
 print(f'Analyzing: {DB}')
 
 
