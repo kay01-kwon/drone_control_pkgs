@@ -28,8 +28,9 @@
       dob_force_xy: false          # true: full DOB force compensation
                                    # false: DOB fx,fy zeroed, fz still applied
 
-      # Take-off / landing hysteresis (avoids chattering on bounces)
-      tk_alt_enter:   0.05
+      # Take-off / landing hysteresis (avoids chattering on bounces).
+      # 3 cm enter chosen to match L1 (avoids the unmodeled-mass deadlock).
+      tk_alt_enter:   0.03
       tk_alt_exit:    0.02
       tk_enter_dwell: 30
       tk_exit_dwell:  50

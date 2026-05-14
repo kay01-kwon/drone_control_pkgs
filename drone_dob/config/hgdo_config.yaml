@@ -12,10 +12,13 @@
       eps_f: 0.15
       eps_tau: 0.5
 
-      # In-flight hysteresis (avoids chattering when drone briefly contacts ground)
-      alt_enter: 0.05            # [m]   enter airborne if altitude > 5 cm
+      # In-flight hysteresis (avoids chattering when drone briefly contacts ground).
+      # ENTER uses thrust_margin_in=0.90 (hover-active check, not a strict floor)
+      # to avoid the deadlock where unmodeled mass keeps actual thrust ≤ W and
+      # the drone stuck below alt_enter forever.
+      alt_enter: 0.03            # [m]   enter airborne if altitude > 3 cm
       alt_exit:  0.02            # [m]   exit  airborne if altitude < 2 cm
-      thrust_margin_in:  1.05    # enter requires thrust > 1.05 * W
+      thrust_margin_in:  0.90    # enter requires thrust > 0.90 * W
       thrust_margin_out: 0.60    # exit  contributes when thrust < 0.60 * W
       enter_dwell_n: 30          # samples to confirm entry (~0.3 s @ 100 Hz)
       exit_dwell_n:  50          # samples to confirm exit  (~0.5 s)
