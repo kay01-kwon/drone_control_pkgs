@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 _HERE = os.path.dirname(os.path.abspath(__file__))
 BAG = sys.argv[1]
 DATE = sys.argv[2] if len(sys.argv) > 2 else '2026_05_14_free_flight'
+TAG_OVR = sys.argv[3] if len(sys.argv) > 3 else None
 BAG_DIR = os.path.join(_HERE, DATE, BAG)
 db = glob.glob(os.path.join(BAG_DIR, '*.db3'))[0]
 
@@ -171,6 +172,7 @@ axes[3].axvline(t_takeoff, color='r', alpha=0.5)
 axes[3].set_ylabel('HGDO fz [N]'); axes[3].set_xlabel('time [s]'); axes[3].grid(alpha=0.3)
 
 plt.tight_layout()
-out = os.path.join(_HERE, DATE, *BAG.split('/')[:-1], f'{BAG.split("/")[-1]}_z_takeoff_zoom.png')
+_tag = TAG_OVR if TAG_OVR else BAG.split('/')[-1]
+out = os.path.join(_HERE, DATE, *BAG.split('/')[:-1], f'{_tag}_z_takeoff_zoom.png')
 plt.savefig(out, dpi=120)
 print(f'\nSaved: {out}')

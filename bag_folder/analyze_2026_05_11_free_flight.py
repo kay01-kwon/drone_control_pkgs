@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 _HERE = os.path.dirname(os.path.abspath(__file__))
 BAG_SUBDIR = sys.argv[1] if len(sys.argv) > 1 else 'eps_f_0p5'
 DATE_DIR   = sys.argv[2] if len(sys.argv) > 2 else '2026_05_11_free_flight'
+TAG_OVR    = sys.argv[3] if len(sys.argv) > 3 else None
 BAG_DIR = os.path.join(_HERE, DATE_DIR, BAG_SUBDIR)
 db_candidates = glob.glob(os.path.join(BAG_DIR, '*.db3'))
 if not db_candidates:
@@ -23,7 +24,7 @@ DB_PATH = db_candidates[0]
 # Support nested layouts like Qw1p0/cmd_lpf_7hz_eps_tau_0p5
 _parts = BAG_SUBDIR.replace('\\', '/').split('/')
 OUT_DIR = os.path.join(_HERE, DATE_DIR, *_parts[:-1]) if len(_parts) > 1 else os.path.join(_HERE, DATE_DIR)
-TAG = _parts[-1]
+TAG = TAG_OVR if TAG_OVR else _parts[-1]
 print(f'Analyzing: {DB_PATH}')
 
 

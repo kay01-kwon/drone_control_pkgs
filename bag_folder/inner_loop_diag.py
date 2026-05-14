@@ -27,6 +27,7 @@ M      = 3.188
 _HERE = os.path.dirname(os.path.abspath(__file__))
 BAG_SUBDIR = sys.argv[1] if len(sys.argv) > 1 else '02_ct_1p255'
 DATE_DIR   = sys.argv[2] if len(sys.argv) > 2 else '2026_05_05_free_flight'
+TAG_OVR    = sys.argv[3] if len(sys.argv) > 3 else None
 BAG_DIR = os.path.join(_HERE, DATE_DIR, BAG_SUBDIR)
 db_path = glob.glob(os.path.join(BAG_DIR, '*.db3'))
 if not db_path:
@@ -34,7 +35,7 @@ if not db_path:
 DB = db_path[0]
 _parts = BAG_SUBDIR.replace('\\', '/').split('/')
 OUT_DIR = os.path.join(_HERE, DATE_DIR, *_parts[:-1]) if len(_parts) > 1 else os.path.join(_HERE, DATE_DIR)
-TAG = _parts[-1]
+TAG = TAG_OVR if TAG_OVR else _parts[-1]
 print(f'Analyzing: {DB}')
 
 
