@@ -138,6 +138,14 @@ rp_des = np.array([force_to_des_rp(fx_w[i], fy_w[i], f_col[i], psi_c[i]) for i i
 roll_des = np.rad2deg(rp_des[:, 0])
 pitch_des = np.rad2deg(rp_des[:, 1])
 
+# Actual roll/pitch (deg) for overlay
+roll_act = np.rad2deg(rp_act[:, 0])
+pitch_act = np.rad2deg(rp_act[:, 1])
+
+# Negate roll so all four pairs become positively correlated for easier reading
+neg_roll_des = -roll_des
+neg_roll_act = -roll_act
+
 # Cross-correlations (sign-aware): max |corr| and lag
 e_x_c = np.interp(t_c, t_o, e_x)
 e_y_c = np.interp(t_c, t_o, e_y)
@@ -161,30 +169,45 @@ def xcorr_lag(a, b, dt, max_lag_s=1.0):
 
 dt = np.median(np.diff(t_c)) if len(t_c) > 1 else 0.01
 print(f'Window: {t_lo:.1f} → {t_hi:.1f} s')
-print(f'Cross-correlation (b lags a if positive lag):')
+# Actual roll/pitch on /nmpc/control timeline (interp from odom)
+neg_roll_act_c  = np.interp(t_c, t_o, neg_roll_act)
+pitch_act_c     = np.interp(t_c, t_o, pitch_act)
+
+print(f'Cross-correlation (b lags a if positive lag) — roll negated:')
 for an, av in [('e_x', e_x_c), ('e_y', e_y_c)]:
-    for bn, bv in [('roll_des', roll_des), ('pitch_des', pitch_des)]:
+    for bn, bv in [('-roll_des', neg_roll_des), ('pitch_des', pitch_des)]:
         r, lag = xcorr_lag(av, bv, dt)
         print(f'  {an} → {bn}:  corr={r:+.3f}  lag={lag:+.0f} ms')
 
-fig, axes = plt.subplots(4, 1, figsize=(12, 11), sharex=True)
+
+def align_zero(ax1, ax2):
+    """Symmetric ylim around 0 on both axes so the two zero lines coincide."""
+    A = max(abs(ax1.get_ylim()[0]), abs(ax1.get_ylim()[1]))
+    B = max(abs(ax2.get_ylim()[0]), abs(ax2.get_ylim()[1]))
+    ax1.set_ylim(-A, A)
+    ax2.set_ylim(-B, B)
+
+
+fig, axes = plt.subplots(4, 1, figsize=(12, 12), sharex=True)
 pairs = [
-    ('e_x', e_x_c, 'roll_des',  roll_des,  'r', 'C0'),
-    ('e_x', e_x_c, 'pitch_des', pitch_des, 'r', 'C2'),
-    ('e_y', e_y_c, 'roll_des',  roll_des,  'g', 'C0'),
-    ('e_y', e_y_c, 'pitch_des', pitch_des, 'g', 'C2'),
+    ('e_x', e_x_c, '-roll',  neg_roll_des, neg_roll_act_c, 'r', 'C0'),
+    ('e_x', e_x_c, 'pitch',  pitch_des,    pitch_act_c,    'r', 'C2'),
+    ('e_y', e_y_c, '-roll',  neg_roll_des, neg_roll_act_c, 'g', 'C0'),
+    ('e_y', e_y_c, 'pitch',  pitch_des,    pitch_act_c,    'g', 'C2'),
 ]
-for ax, (an, av, bn, bv, ac, bc) in zip(axes, pairs):
-    r, lag = xcorr_lag(av, bv, dt)
-    ax.plot(t_c, av, color=ac, label=f'{an} [m]')
+for ax, (an, av, bn, b_des, b_act, ac, bc) in zip(axes, pairs):
+    r, lag = xcorr_lag(av, b_des, dt)
+    ax.plot(t_c, av, color=ac, label=f'{an} [m]', lw=1.5)
     ax.set_ylabel(f'{an} [m]', color=ac); ax.tick_params(axis='y', labelcolor=ac)
-    ax.axhline(0, color='k', alpha=0.2)
+    ax.axhline(0, color='k', alpha=0.3, lw=0.8)
     ax.grid(alpha=0.3)
     ax2 = ax.twinx()
-    ax2.plot(t_c, bv, color=bc, label=f'{bn} [deg]')
+    ax2.plot(t_c, b_des, color=bc, ls='--', label=f'{bn}_des [deg]', lw=1.2)
+    ax2.plot(t_c, b_act, color=bc, ls='-',  alpha=0.6, label=f'{bn}_act [deg]', lw=1.0)
     ax2.set_ylabel(f'{bn} [deg]', color=bc); ax2.tick_params(axis='y', labelcolor=bc)
-    ax2.axhline(0, color='k', alpha=0.2, ls=':')
-    ax.set_title(f'{an}  ↔  {bn}     corr={r:+.3f}, lag={lag:+.0f} ms')
+    align_zero(ax, ax2)
+    ax2.legend(loc='upper right', fontsize=8)
+    ax.set_title(f'{an}  ↔  {bn}_des     corr={r:+.3f}, lag={lag:+.0f} ms')
 axes[-1].set_xlabel('time [s]')
 fig.suptitle(f'{TAG} — pos-error vs desired RP (t={T_CENTER:.0f}±{WIN/2:.0f} s)', y=1.00)
 plt.tight_layout()
