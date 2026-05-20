@@ -15,11 +15,11 @@
       cmd_lpf_cutoff: 10.0  # LPF cutoff frequency [Hz] for cmd output
 
     moment_ramp_param:
-      threshold_angle: 0.05   # (~2.86 deg)
+      threshold_angle: 0.08726   # (~5 deg)
       moment_dot: -0.3         # (0.1 ~ 0.3 Nm/s)
       xy_direction: 'x'       # (Mx or My)
 
     topic_names:
       cmd_topic: '/uav/cmd_raw'
-      filtered_odom_topic: '/l1_adaptive/filtered_odom'
+      filtered_odom_topic: '/mavros/local_position/odom'
       rc_topic: '/mavros/rc/in'
