@@ -55,7 +55,7 @@ class MomentExcitation(Node):
         g = 9.81
 
         # Control input initialization
-        self.f_fix = m*g / 2.0
+        self.f_fix = m*g*0.7    # Start with 70% of hover thrust to allow for ramp up
         self.M = np.zeros((3,))
 
         self.count = 0

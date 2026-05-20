@@ -1,12 +1,12 @@
 /**:
   ros__parameters:
     dynamic_param:
-      m: 3.0
+      m: 3.066
       MoiArray: [0.06, 0.06, 0.08]
 
     drone_param:
       arm_length: 0.265
-      motor_const: 1.2895e-7
+      motor_const: 1.3175e-7
       moment_const: 0.0156
       rotor_min: 2000.0
       rotor_max: 7300.0
