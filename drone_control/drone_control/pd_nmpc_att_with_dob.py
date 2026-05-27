@@ -397,13 +397,20 @@ class PdNmpcAttWithDOBNode(Node):
             self._in_flight = False
         take_off_cond = self._in_flight
 
+        # Landing intent comes from RC: ARMED / MANUAL_STAB set ref_p[2]=0.
+        # The static moment FF (M_ff) compensates the CoM-offset gravity torque,
+        # which is only valid while thrust carries the weight.  On touchdown the
+        # ground reacts that torque, so applying M_ff would tip the drone.
+        # Disable M_ff in landing modes; takeoff (AUTO) keeps it.
+        landing_mode = self.mode in (FlightMode.ARMED, FlightMode.MANUAL_STAB)
+
         if not take_off_cond:
             self.des_rotor_thrust_mpc = 6.0 * np.ones(6)
             self.nmpc_solver.previous_states = None
             self.p_integral[:] = 0.0
 
             f_comp = 6.0
-            if self.moment_ff_flag:
+            if self.moment_ff_flag and not landing_mode:
                 M_comp = self.M_ff.copy()
             else:
                 M_comp = np.zeros(3)
@@ -533,7 +540,7 @@ class PdNmpcAttWithDOBNode(Node):
             if self.was_airborne:
                 self.was_airborne = False
             f_comp_final = u_mpc[0]
-            if self.moment_ff_flag and state[2] < 0.01:
+            if self.moment_ff_flag and state[2] < 0.01 and not landing_mode:
                 M_comp = self.M_ff.copy()
             else:
                 M_comp = u_mpc[1:4] - tau_dist
