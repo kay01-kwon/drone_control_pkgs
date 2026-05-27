@@ -1,16 +1,16 @@
 /**:
   ros__parameters:
     drone:
-      m: 3.146
+      m: 3.000
       l: 0.265
       MoiArray: [0.060, 0.060, 0.080]
-      motor_const: 1.2895e-07
+      motor_const: 1.3175e-07
       moment_const: 0.01569
 
     dob:
       dob_looptime: 0.010
       eps_f: 0.15
-      eps_tau: 0.5
+      eps_tau: 0.1
 
       # In-flight hysteresis (avoids chattering when drone briefly contacts ground).
       # ENTER uses thrust_margin_in=0.90 (hover-active check, not a strict floor)

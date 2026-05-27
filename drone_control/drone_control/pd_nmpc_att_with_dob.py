@@ -133,13 +133,14 @@ class PdNmpcAttWithDOBNode(Node):
         self.anti_windup = np.array(pd_param['anti_windup'])
         self.p_integral = np.zeros(3)
 
-        # COM offset for moment feedforward
-        com_offset = dynamic_param['com_offset']
+        # Moment offset for moment feedforward
+        moment_offset = dynamic_param['moment_offset']
 
         # Moment feedforward
         self.moment_ff_flag = dynamic_param['moment_ff']
-        self.M_ff = np.array([self.W * com_offset[1],
-                              -self.W * com_offset[0],
+        
+        self.M_ff = np.array([moment_offset[1],
+                              -moment_offset[0],
                               0.0])
 
         # Create RC converter
@@ -621,7 +622,7 @@ class PdNmpcAttWithDOBNode(Node):
         m = self.get_parameter('dynamic_param.m').value
         MoiArray = self.get_parameter('dynamic_param.MoiArray').value
         moment_ff = self.get_parameter('dynamic_param.moment_ff').value
-        com_offset = self.get_parameter('dynamic_param.com_offset').value
+        moment_offset = self.get_parameter('dynamic_param.moment_offset').value
 
         # Drone parameters
         arm_length = self.get_parameter('drone_param.arm_length').value
@@ -668,7 +669,7 @@ class PdNmpcAttWithDOBNode(Node):
 
         dynamic_param = {
             'm': m, 'MoiArray': MoiArray,
-            'moment_ff': moment_ff, 'com_offset': com_offset,
+            'moment_ff': moment_ff, 'moment_offset': moment_offset,
         }
         drone_param = {
             'arm_length': arm_length, 'motor_const': motor_const,
