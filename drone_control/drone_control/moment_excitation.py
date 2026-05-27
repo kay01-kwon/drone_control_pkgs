@@ -173,7 +173,7 @@ class MomentExcitation(Node):
             self.M[1] += self.M_dot * dt
 
         if phi > self.threshold_angle:
-            self.f_fix = self.f_min
+            self.f_fix = 0.0    # Just for safety, set thrust to zero if angle exceeds threshold
             self.M = np.zeros((3,))
             self.control_input_locked = True
 
@@ -245,6 +245,9 @@ class MomentExcitation(Node):
 
         des_rpm = (self.control_allocator
                               .compute_des_rpm(self.f_fix, self.M))
+        
+        if self.control_input_locked:
+            des_rpm = np.zeros((6,))    # Just for safety, set RPM to zero if control input is locked
 
         cmd_msg = HexaCmdConverter.Rpm_to_cmd_raw(
             self.get_clock().now(), des_rpm
