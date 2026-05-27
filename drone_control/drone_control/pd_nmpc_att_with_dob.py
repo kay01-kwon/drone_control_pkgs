@@ -219,6 +219,7 @@ class PdNmpcAttWithDOBNode(Node):
 
         self.actual_total_thrust = 0.0
         self.was_airborne = False
+        self._landing = False   # latched landing sequence (see control loop)
 
         # Initial position offset (from mocap)
         self.px_offset = None
@@ -357,12 +358,14 @@ class PdNmpcAttWithDOBNode(Node):
         if self.mode == FlightMode.KILL:
             self._set_rpm_zero()
             self.p_integral[:] = 0.0
+            self._landing = False
             _, st = self.odom_buffer.get_latest()
             self.ref_psi_ramped = quaternion_to_yaw(st[6:10])
             return
         elif self.mode == FlightMode.DISARMED:
             self._set_rpm_zero()
             self.p_integral[:] = 0.0
+            self._landing = False
             _, st = self.odom_buffer.get_latest()
             self.ref_psi_ramped = quaternion_to_yaw(st[6:10])
             return
@@ -397,12 +400,18 @@ class PdNmpcAttWithDOBNode(Node):
             self._in_flight = False
         take_off_cond = self._in_flight
 
-        # Landing intent comes from RC: ARMED / MANUAL_STAB set ref_p[2]=0.
-        # The static moment FF (M_ff) compensates the CoM-offset gravity torque,
-        # which is only valid while thrust carries the weight.  On touchdown the
-        # ground reacts that torque, so applying M_ff would tip the drone.
-        # Disable M_ff in landing modes; takeoff (AUTO) keeps it.
-        landing_mode = self.mode in (FlightMode.ARMED, FlightMode.MANUAL_STAB)
+        # Landing latch: a land-mode command (ARMED / MANUAL_STAB set ref_p[2]=0)
+        # received *while airborne* marks a landing sequence.  Pre-takeoff ARMED
+        # (still on the ground, _in_flight=False) must NOT latch, so that M_ff
+        # still compensates the CoM-offset torque during takeoff.  Cleared on
+        # AUTO (re-takeoff / abort).  M_ff is the gravity-torque feedforward,
+        # valid only while thrust carries the weight; on touchdown the ground
+        # reacts that torque so applying M_ff would tip the drone.
+        if self._in_flight and self.mode in (FlightMode.ARMED,
+                                             FlightMode.MANUAL_STAB):
+            self._landing = True
+        elif self.mode == FlightMode.AUTO:
+            self._landing = False
 
         if not take_off_cond:
             self.des_rotor_thrust_mpc = 6.0 * np.ones(6)
@@ -410,7 +419,7 @@ class PdNmpcAttWithDOBNode(Node):
             self.p_integral[:] = 0.0
 
             f_comp = 6.0
-            if self.moment_ff_flag and not landing_mode:
+            if self.moment_ff_flag and not self._landing:
                 M_comp = self.M_ff.copy()
             else:
                 M_comp = np.zeros(3)
@@ -540,7 +549,7 @@ class PdNmpcAttWithDOBNode(Node):
             if self.was_airborne:
                 self.was_airborne = False
             f_comp_final = u_mpc[0]
-            if self.moment_ff_flag and state[2] < 0.01 and not landing_mode:
+            if self.moment_ff_flag and state[2] < 0.01 and not self._landing:
                 M_comp = self.M_ff.copy()
             else:
                 M_comp = u_mpc[1:4] - tau_dist
