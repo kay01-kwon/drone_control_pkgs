@@ -22,6 +22,7 @@
       # moment_offset: [0.3146, -0.1509]  # [W*x_off, W*y_off] (N*m)
       # 2. Pivot free
       moment_offset: [0.3032, -0.1474]  # [W*x_off, W*y_off] (N*m)
+      # moment_offset: [0.0, 0.0] # [0.0, 0.0] (N*m)
 
 
     drone_param:
