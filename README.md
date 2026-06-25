@@ -11,6 +11,10 @@ controller also depends on the external
 [`ros2_libcanard_msgs`](https://github.com/kay01-kwon/ros2_libcanard_pkgs)
 package.
 
+There are two external packages: ['ros2_libcanard_pkgs'](https://github.com/kay01-kwon/ros2_libcanard_pkgs) and ['drone_simulator_pkgs'](https://github.com/kay01-kwon/drone_simulator_pkgs) packages.
+
+First of all, install the above two pakcages in turn.
+
 ### 1. Create the workspace
 
 ```
