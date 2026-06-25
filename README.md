@@ -90,6 +90,8 @@ or
 ros2 launch drone_control pd_nmpc_att_with_l1.launch.py
 ```
 
+Note that the control approach should be matched to DOB method.
+
 ## How to activate manual stab mode
 
 1. SE: Deactivate Kill switch by pressing the button.
