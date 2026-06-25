@@ -8,7 +8,7 @@ disturbance observer (HGDO or L1 adaptive), driven by RC input.
 This repository contains three ROS 2 packages: `drone_msgs` (interfaces),
 `drone_control` (ament_python), and `drone_dob` (ament_cmake).  The
 controller also depends on the external
-[`ros2_libcanard_msgs`](https://github.com/kay01-kwon/ros2_libcanard_msgs)
+[`ros2_libcanard_msgs`](https://github.com/kay01-kwon/ros2_libcanard_pkgs)
 package.
 
 ### 1. Create the workspace
