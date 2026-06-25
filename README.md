@@ -2,6 +2,17 @@
 
 ## Installation
 
+
+Make the workspace directory first.
+```
+mkdir -p ~/rotor_sim_ws/
+```
+
+Install drone_msgs package
+```
+colcon build --packages-select drone_msgs
+```
+
 ```
 cd ~/rotor_sim_ws/
 ```
