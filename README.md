@@ -25,14 +25,7 @@ git clone https://github.com/kay01-kwon/drone_control_pkgs.git
 git clone https://github.com/kay01-kwon/ros2_libcanard_msgs.git
 ```
 
-### 3. Install ROS dependencies
-
-```
-cd ~/rotor_sim_ws
-rosdep install --from-paths src --ignore-src -r -y
-```
-
-### 4. Build `drone_msgs` first
+### 3. Build `drone_msgs` first
 
 `drone_control` and `drone_dob` depend on the interfaces in `drone_msgs`,
 so it must be built (and sourced) before the rest.
@@ -42,7 +35,7 @@ colcon build --packages-select drone_msgs
 source install/setup.bash
 ```
 
-### 5. Build `drone_control` and `drone_dob`
+### 4. Build `drone_control` and `drone_dob`
 
 ```
 colcon build --packages-select drone_control drone_dob --symlink-install
