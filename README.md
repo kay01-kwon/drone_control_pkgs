@@ -5,6 +5,16 @@ disturbance observer (HGDO or L1 adaptive), driven by RC input.
 
 ## Installation
 
+
+Make the workspace directory first.
+```
+mkdir -p ~/rotor_sim_ws/
+```
+
+Install drone_msgs package
+```
+colcon build --packages-select drone_msgs
+```
 Clone the repository into your workspace `src/`, then build:
 
 ```
