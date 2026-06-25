@@ -1,149 +1,115 @@
 # drone_control_pkgs
 
+ROS 2 packages for hexarotor control: a cascaded PD–NMPC outer/inner loop with a
+disturbance observer (HGDO or L1 adaptive), driven by RC input.
+
 ## Installation
+
+Clone the repository into your workspace `src/`, then build:
 
 ```
 cd ~/rotor_sim_ws/
 ```
-Install drone_control package
+
+Build the `drone_control` package:
 ```
 colcon build --packages-select drone_control --symlink-install
 ```
 
-Install drone_dob package
+Build the `drone_dob` package:
 ```
 colcon build --packages-select drone_dob --symlink-install
 ```
 
+## Launch
 
-## Run Launch
+This stack depends on the `px4_launch` nodes from
+[ros2_device_bringup](https://github.com/kay01-kwon/ros2_device_bringup).
+Install that package first, then bring the system up in four terminals.
 
-Go to the following link and then install the packages.
+### Terminal 1 — PX4 bridge
 
-https://github.com/kay01-kwon/ros2_device_bringup
-
-After install the package, run the node with px6x mini.
-
-Terminal 1
-
-Navigate to the workspace.
-```
-cd ~/device_ws 
-```
-Source setup.bash.
-```
-source install/setup.bash
-```
-Run the px4 node.
-```
-ros2 launch px4_launch px4.launch
-```
-Terminal 2
 ```
 cd ~/device_ws
-```
-
-```
 source install/setup.bash
+ros2 launch px4_launch px4.launch
 ```
 
+### Terminal 2 — PX4 client
+
 ```
+cd ~/device_ws
+source install/setup.bash
 ros2 run px4_launch px4_client_node
 ```
 
-Terminal3
+### Terminal 3 — Disturbance observer
+
+Pick one of the two observers:
+
 ```
 cd ~/rotor_sim_ws
-```
-
-```
 source install/setup.bash
+ros2 launch drone_dob hgdo.launch.py          # HGDO
+# or
+ros2 launch drone_dob l1_adaptive.launch.py   # L1 adaptive
 ```
 
-```
-ros2 launch drone_dob hgdo.launch.py
-```
+### Terminal 4 — Controller
 
-or
+Launch the controller that matches the observer chosen in Terminal 3:
 
-```
-ros2 launch drone_dob l1_adaptive.launch.py
-```
-
-
-Terminal 4
 ```
 cd ~/rotor_sim_ws
-```
-
-```
 source install/setup.bash
+ros2 launch drone_control pd_nmpc_att_with_hgdo.launch.py   # pairs with HGDO
+# or
+ros2 launch drone_control pd_nmpc_att_with_l1.launch.py     # pairs with L1
 ```
 
-```
-ros2 launch drone_control pd_nmpc_att_with_hgdo.launch.py
-```
+> **Note**: the controller launch file must match the DOB launched in Terminal 3.
 
-or
+## Activating Manual-Stab Mode
 
-```
-ros2 launch drone_control pd_nmpc_att_with_l1.launch.py
-```
-
-Note that the control approach should be matched to DOB method.
-
-## How to activate manual stab mode
-
-1. SE: Deactivate Kill switch by pressing the button.
-
-2. SD: Switch from Disarmed to armed state.
-
-3. SB: Stick to Neutral position.
-
-4. To move up, increase throttle.
+1. **SE switch** — release the kill switch.
+2. **SD switch** — move from `DISARMED` to `ARMED`.
+3. **SB switch** — leave at the neutral position.
+4. Raise throttle to lift off.
 
 <img src="drone_control/figures/Boxer_explanation.png">
 
-## NMPC with DOB tunning guide
+## NMPC + DOB Tuning Guide
 
-1. HGDO
-
-```
-    dob:
-      dob_looptime: 0.010
-      eps_f: 0.10
-      eps_tau: 0.15
-```
-
-2. L1 adaptation
+### 1. HGDO
 
 ```
-    l1_adaptive:
-      dob_looptime: 0.010
-      As_array: [-15.0, -15.0, -15.0,    # vx, vy, vz (Body frame)
-                 -15.0, -15.0, -15.0]    # wx, wy ,wz (Body frame)
-      freq_cutoff_trans: 2.0
-      freq_cutoff_rot: 2.0
+dob:
+  dob_looptime: 0.010
+  eps_f:   0.10
+  eps_tau: 0.15
 ```
 
-## To do list
+### 2. L1 adaptive
 
-1. DOB Implementation
+```
+l1_adaptive:
+  dob_looptime: 0.010
+  As_array: [-15.0, -15.0, -15.0,   # vx, vy, vz (body frame)
+             -15.0, -15.0, -15.0]   # wx, wy, wz (body frame)
+  freq_cutoff_trans: 2.0
+  freq_cutoff_rot:   2.0
+```
 
+## To-do List
+
+### 1. DOB implementation
 - [x] HGDO
-
-- [x] L1 adaptation
-
+- [x] L1 adaptive
 <!-- - [ ] UKF/EKF for DOB -->
 
-2. Control Implementation
-
-- [x] Manual control (Velocity control mode for emergency)
-
+### 2. Control implementation
+- [x] Manual control (velocity-mode fallback for emergencies)
 - [x] Simple NMPC
-
-- [x] NMPC (Acados) with DOB
-
-- [x] NMPC - Moment feedforward
-
-- [x] NMPC/RC integration with DOB (Integration)
+- [x] NMPC (acados) with DOB
+- [x] NMPC with moment feedforward
+- [x] NMPC / RC integration with DOB
