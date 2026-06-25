@@ -5,7 +5,7 @@
 ```
 cd ~/rotor_sim_ws/
 ```
-Install drone_control pacakge
+Install drone_control package
 ```
 colcon build --packages-select drone_control --symlink-install
 ```
@@ -18,11 +18,11 @@ colcon build --packages-select drone_dob --symlink-install
 
 ## Run Launch
 
-Go to the following link and then install the pacagkes.
+Go to the following link and then install the packages.
 
 https://github.com/kay01-kwon/ros2_device_bringup
 
-After install the pacakge, run the node with px6x mini.
+After install the package, run the node with px6x mini.
 
 Terminal 1
 
@@ -82,7 +82,7 @@ ros2 launch drone_control rc_control.launch.py
 
 1. SE: Deactivate Kill switch by pressing the button.
 
-2. SD: Switch from Disamed to armed state.
+2. SD: Switch from Disarmed to armed state.
 
 3. SB: Stick to Neutral position.
 
@@ -92,7 +92,7 @@ ros2 launch drone_control rc_control.launch.py
 
 ## NMPC with DOB tunning guide
 
-1. L1 adaptation
+1. HGDO
 
 ```
     dob:
@@ -101,7 +101,7 @@ ros2 launch drone_control rc_control.launch.py
       eps_tau: 0.05
 ```
 
-2. HGDO
+2. L1 adaptation
 
 ```
     l1_adaptive:
