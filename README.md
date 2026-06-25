@@ -5,15 +5,18 @@ disturbance observer (HGDO or L1 adaptive), driven by RC input.
 
 ## Installation
 
-This repository contains three ROS 2 packages: `drone_msgs` (interfaces),
-`drone_control` (ament_python), and `drone_dob` (ament_cmake).  The
-controller also depends on the external
-[`ros2_libcanard_msgs`](https://github.com/kay01-kwon/ros2_libcanard_pkgs)
-package.
+This repository provides three ROS 2 packages — `drone_msgs` (interfaces),
+`drone_control` (ament_python), and `drone_dob` (ament_cmake).
 
-There are two external packages: ['ros2_libcanard_pkgs'](https://github.com/kay01-kwon/ros2_libcanard_pkgs) and ['drone_simulator_pkgs'](https://github.com/kay01-kwon/drone_simulator_pkgs) packages.
+### Prerequisites
 
-First of all, install the above two pakcages in turn.
+Before building this repository, install the following two external packages
+by following their own READMEs:
+
+1. [`ros2_libcanard_pkgs`](https://github.com/kay01-kwon/ros2_libcanard_pkgs)
+2. [`drone_simulator_pkgs`](https://github.com/kay01-kwon/drone_simulator_pkgs)
+
+Install them in the order above.
 
 ### 1. Create the workspace
 
@@ -26,7 +29,6 @@ cd ~/rotor_sim_ws/src
 
 ```
 git clone https://github.com/kay01-kwon/drone_control_pkgs.git
-git clone https://github.com/kay01-kwon/ros2_libcanard_msgs.git
 ```
 
 ### 3. Build `drone_msgs` first
@@ -35,6 +37,7 @@ git clone https://github.com/kay01-kwon/ros2_libcanard_msgs.git
 so it must be built (and sourced) before the rest.
 
 ```
+cd ~/rotor_sim_ws
 colcon build --packages-select drone_msgs
 source install/setup.bash
 ```
@@ -47,6 +50,7 @@ source install/setup.bash
 ```
 
 Add the source step to your `~/.bashrc` if you launch the stack often:
+
 ```
 echo "source ~/rotor_sim_ws/install/setup.bash" >> ~/.bashrc
 ```
