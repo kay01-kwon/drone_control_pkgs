@@ -5,30 +5,53 @@ disturbance observer (HGDO or L1 adaptive), driven by RC input.
 
 ## Installation
 
+This repository contains three ROS 2 packages: `drone_msgs` (interfaces),
+`drone_control` (ament_python), and `drone_dob` (ament_cmake).  The
+controller also depends on the external
+[`ros2_libcanard_msgs`](https://github.com/kay01-kwon/ros2_libcanard_msgs)
+package.
 
-Make the workspace directory first.
+### 1. Create the workspace
+
 ```
-mkdir -p ~/rotor_sim_ws/
+mkdir -p ~/rotor_sim_ws/src
+cd ~/rotor_sim_ws/src
 ```
 
-Install drone_msgs package
+### 2. Clone the sources
+
+```
+git clone https://github.com/kay01-kwon/drone_control_pkgs.git
+git clone https://github.com/kay01-kwon/ros2_libcanard_msgs.git
+```
+
+### 3. Install ROS dependencies
+
+```
+cd ~/rotor_sim_ws
+rosdep install --from-paths src --ignore-src -r -y
+```
+
+### 4. Build `drone_msgs` first
+
+`drone_control` and `drone_dob` depend on the interfaces in `drone_msgs`,
+so it must be built (and sourced) before the rest.
+
 ```
 colcon build --packages-select drone_msgs
-```
-Clone the repository into your workspace `src/`, then build:
-
-```
-cd ~/rotor_sim_ws/
+source install/setup.bash
 ```
 
-Build the `drone_control` package:
+### 5. Build `drone_control` and `drone_dob`
+
 ```
-colcon build --packages-select drone_control --symlink-install
+colcon build --packages-select drone_control drone_dob --symlink-install
+source install/setup.bash
 ```
 
-Build the `drone_dob` package:
+Add the source step to your `~/.bashrc` if you launch the stack often:
 ```
-colcon build --packages-select drone_dob --symlink-install
+echo "source ~/rotor_sim_ws/install/setup.bash" >> ~/.bashrc
 ```
 
 ## Launch
