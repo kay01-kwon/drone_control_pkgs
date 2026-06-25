@@ -14,7 +14,8 @@ Before building this repository, install the following two external packages
 by following their own READMEs:
 
 1. [`ros2_libcanard_pkgs`](https://github.com/kay01-kwon/ros2_libcanard_pkgs)
-2. [`drone_simulator_pkgs`](https://github.com/kay01-kwon/drone_simulator_pkgs)
+2. [`px4_launch`](https://github.com/kay01-kwon/ros2_device_bringup)
+3. [`drone_simulator_pkgs`](https://github.com/kay01-kwon/drone_simulator_pkgs)
 
 Install them in the order above.
 
