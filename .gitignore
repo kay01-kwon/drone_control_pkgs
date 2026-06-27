@@ -40,7 +40,3 @@ acados_ocp*.json
 # OS
 .DS_Store
 Thumbs.db
-
-# Bag recordings — kept locally, not pushed to remote
-bag_folder/
-*.db3
