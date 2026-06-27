@@ -29,7 +29,7 @@
       arm_length: 0.265
       motor_const: 1.3175e-07
       moment_const: 0.01569
-      rotor_max: 7300.0
+      rotor_max: 7900.0
       rotor_min: 2000.0
       acc_max: 15000.0
       acc_min: 15000.0
