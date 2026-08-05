@@ -93,45 +93,101 @@ xlabel('rotor index'); ylabel('T_i  [N]');
 title(sprintf('rotor thrusts at M = [%.2f, %.2f, %.2f] N\\cdotm', Mdemo));
 ylim([0 T_max*1.1]);
 
-%% ================= Fig.2 : area / extent vs Mz ======================
-Mz_scan = linspace(0, Mz_max*1.02, 240);
-areaMz  = zeros(size(Mz_scan));
-extX    = zeros(size(Mz_scan));
-extY    = zeros(size(Mz_scan));
-nVert   = zeros(size(Mz_scan));
+%% ================= Fig.2 : SIGNED extent vs Mz =======================
+%  NOTE: plotting max|Mx| over the whole polygon mixes the two signs of Mx
+%  and produces a spurious "increase" for 0 < Mz < Mz*.  The two signs must
+%  be separated:
+%    +Mx : yaw and roll ADD on rotor 2      -> monotonic decrease
+%          (this is exactly the conservative budget bound)
+%    -Mx : yaw and roll CANCEL on rotor 5   -> increases until rotors 4/6
+%          take over as the binding constraint at Mz = Mz*
 
-for k = 1:numel(Mz_scan)
+Mz_scan = linspace(-Mz_max*1.02, Mz_max*1.02, 401);
+n       = numel(Mz_scan);
+[maxX,minX,maxY,minY,areaMz,nVert] = deal(nan(1,n));
+
+for k = 1:n
     V = momentPolygon(G, up, dn, Mz_scan(k));
     if isempty(V), continue; end
+    maxX(k)   = max(V(:,1));   minX(k) = min(V(:,1));
+    maxY(k)   = max(V(:,2));   minY(k) = min(V(:,2));
     areaMz(k) = polyarea(V(:,1), V(:,2));
-    extX(k)   = max(abs(V(:,1)));
-    extY(k)   = max(abs(V(:,2)));
     nVert(k)  = size(V,1);
 end
 
-figure('Name','Set size vs Mz','Color','w','Position',[80 620 1180 420]);
+% --- analytic competing constraints on the -Mx side (Mz > 0) -----------
+gx_hi = max(abs(G(:,1)));                 % 1.2579  (rotors 2,5)
+gx_lo = min(abs(G(G(:,1)~=0,1)));         % 0.6289  (rotors 1,3,4,6)
+gz    = max(abs(G(:,3)));                 % 10.6225
+capCancel = @(mz) (up + gz*abs(mz))/gx_hi;   % rotor 5 : yaw cancels roll
+capAdd    = @(mz) (up - gz*abs(mz))/gx_lo;   % rotors 4/6 : yaw adds to roll
+Mz_star   = up*(1/gx_lo - 1/gx_hi) / (gz*(1/gx_lo + 1/gx_hi));
+fprintf('crossover  Mz* = %.4f N*m  ->  |Mx| = %.4f N*m\n', ...
+        Mz_star, capCancel(Mz_star));
 
-subplot(1,3,1); hold on; grid on
-plot(Mz_scan, areaMz, 'LineWidth',1.8);
-xline(Mz_max,'r--',sprintf('M_z^{max}=%.3f',Mz_max));
-xlabel('M_z  [N\cdotm]'); ylabel('area of (M_x,M_y) set  [(N\cdotm)^2]');
-title('set area shrinks with yaw demand');
+figure('Name','Signed extent vs Mz','Color','w','Position',[80 560 1240 720]);
 
-subplot(1,3,2); hold on; grid on
-plot(Mz_scan, extX, 'LineWidth',1.8, 'DisplayName','max |M_x|');
-plot(Mz_scan, extY, 'LineWidth',1.8, 'DisplayName','max |M_y|');
-% conservative budget prediction (aligned-sign, sufficient condition)
-plot(Mz_scan, Mmax(1)*(1-Mz_scan/Mz_max), 'k--', 'DisplayName','budget bound M_x');
-xline(Mz_max,'r--');
-xlabel('M_z  [N\cdotm]'); ylabel('extent  [N\cdotm]');
-title('per-axis extent'); legend('Location','southwest','FontSize',8);
+% ---- (a) signed Mx extents -------------------------------------------
+subplot(2,2,1); hold on; grid on
+plot(Mz_scan, maxX, 'LineWidth',2.0, 'Color',[0.85 0.33 0.10], ...
+     'DisplayName','max M_x  (aligned: yaw+roll add)');
+plot(Mz_scan, minX, 'LineWidth',2.0, 'Color',[0.00 0.45 0.74], ...
+     'DisplayName','min M_x  (opposed: yaw cancels roll)');
+plot(Mz_scan,  Mmax(1)*(1-abs(Mz_scan)/Mz_max), 'k--','LineWidth',1.2, ...
+     'DisplayName','budget bound  M_x^{max}(1-|M_z|/M_z^{max})');
+plot(Mz_scan, -Mmax(1)*(1-abs(Mz_scan)/Mz_max), 'k--','LineWidth',1.2, ...
+     'HandleVisibility','off');
+plot( Mz_star, -capCancel(Mz_star), 'ko','MarkerFaceColor','y','MarkerSize',7, ...
+     'DisplayName',sprintf('M_z^* = %.3f (rotor 5 \\rightarrow 4/6)',Mz_star));
+plot(-Mz_star,  capCancel(Mz_star), 'ko','MarkerFaceColor','y','MarkerSize',7, ...
+     'HandleVisibility','off');
+xline(0,'Color',[.6 .6 .6]); yline(0,'Color',[.6 .6 .6]);
+xlabel('M_z  [N\cdotm]'); ylabel('M_x extent  [N\cdotm]');
+title('(a) signed roll extent — the two signs behave oppositely');
+legend('Location','south','FontSize',7);
 
-subplot(1,3,3); hold on; grid on
-stairs(Mz_scan, nVert, 'LineWidth',1.6);
-xline(Mz_max,'r--');
-ylim([0 8]); yticks(0:8);
-xlabel('M_z  [N\cdotm]'); ylabel('number of active constraints');
-title('hexagon (6) \rightarrow triangle (3)');
+% ---- (b) the competing rotor constraints (why the peak exists) --------
+subplot(2,2,2); hold on; grid on
+mzp = linspace(0, Mz_max, 200);
+plot(mzp, capCancel(mzp), 'LineWidth',1.8, ...
+     'DisplayName',sprintf('rotor 5 (up limit): (\\Delta+%.1f M_z)/%.3f', gz, gx_hi));
+plot(mzp, capAdd(mzp),    'LineWidth',1.8, ...
+     'DisplayName',sprintf('rotor 4/6 (up limit): (\\Delta-%.1f M_z)/%.3f', gz, gx_lo));
+plot(mzp, min(capCancel(mzp),capAdd(mzp)), 'k-','LineWidth',2.6, ...
+     'DisplayName','actual |min M_x| = min of the two');
+plot(Mz_star, capCancel(Mz_star), 'ko','MarkerFaceColor','y','MarkerSize',7, ...
+     'HandleVisibility','off');
+xline(Mz_star,':','Color',[.4 .4 .4],'Label',sprintf('M_z^*=%.3f',Mz_star));
+ylim([0 6]);
+xlabel('M_z  [N\cdotm]'); ylabel('|M_x| capacity  [N\cdotm]');
+title('(b) which rotor binds on the -M_x side');
+legend('Location','northeast','FontSize',7);
+
+% ---- (c) signed My extents -------------------------------------------
+subplot(2,2,3); hold on; grid on
+plot(Mz_scan, maxY, 'LineWidth',2.0, 'DisplayName','max M_y');
+plot(Mz_scan, minY, 'LineWidth',2.0, 'DisplayName','min M_y');
+plot(Mz_scan,  Mmax(2)*(1-abs(Mz_scan)/Mz_max), 'k--','LineWidth',1.2, ...
+     'DisplayName','budget bound M_y');
+plot(Mz_scan, -Mmax(2)*(1-abs(Mz_scan)/Mz_max), 'k--','LineWidth',1.2, ...
+     'HandleVisibility','off');
+xline(0,'Color',[.6 .6 .6]); yline(0,'Color',[.6 .6 .6]);
+xlabel('M_z  [N\cdotm]'); ylabel('M_y extent  [N\cdotm]');
+title('(c) signed pitch extent (symmetric: no rotor has both max coeffs)');
+legend('Location','south','FontSize',7);
+
+% ---- (d) area + active-constraint count ------------------------------
+subplot(2,2,4); hold on; grid on
+yyaxis left
+plot(Mz_scan, areaMz, 'LineWidth',2.0);
+ylabel('set area  [(N\cdotm)^2]');
+yyaxis right
+stairs(Mz_scan, nVert, 'LineWidth',1.4);
+ylabel('# vertices (active constraints)'); ylim([0 8]); yticks(0:2:8);
+xline( Mz_star,':','Color',[.4 .4 .4]);
+xline(-Mz_star,':','Color',[.4 .4 .4]);
+xlabel('M_z  [N\cdotm]');
+title('(d) area collapses; hexagon (6) \rightarrow triangle (3)');
 
 %% ================= Fig.3 : animation (optional) =====================
 if ANIMATE
