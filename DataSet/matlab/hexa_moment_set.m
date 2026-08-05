@@ -70,25 +70,40 @@ figure('Name','Admissible (Mx,My) set vs Mz','Color','w', ...
        'Position',[80 80 1180 500]);
 
 subplot(1,2,1); hold on; grid on; axis equal
+th = linspace(0,2*pi,181);
 for k = 1:numel(Mz_list)
-    V = momentPolygon(G, up, dn, Mz_list(k));
+    Mz = Mz_list(k);
+    V  = momentPolygon(G, up, dn, Mz);
     if isempty(V), continue; end
+    % polygon boundary
     plot([V(:,1);V(1,1)], [V(:,2);V(1,2)], '-', 'LineWidth',1.8, ...
-         'Color',cmap(k,:), 'DisplayName',sprintf('M_z = %.2f',Mz_list(k)));
+         'Color',cmap(k,:), ...
+         'DisplayName',sprintf('M_z=%.2f  (r_{in}=%.2f, %.0f%% area)', ...
+                               Mz, Mmax(1)*(1-abs(Mz)/Mz_max), ...
+                               100*polyarea(V(:,1),V(:,2))/22.5543));
+    % origin-centred inscribed circle = GUARANTEED authority in any
+    % direction = the conservative budget bound  Mx_max*(1-|Mz|/Mz_max).
+    % The polygons are NOT nested (opposed-sign cancellation lets one side
+    % grow), but the inscribed radius decreases monotonically.
+    r_in = Mmax(1)*(1-abs(Mz)/Mz_max);
+    plot(r_in*cos(th), r_in*sin(th), ':', 'LineWidth',1.0, ...
+         'Color',cmap(k,:), 'HandleVisibility','off');
 end
-xline(0,'Color',[.6 .6 .6]); yline(0,'Color',[.6 .6 .6]);
+xline(0,'Color',[.6 .6 .6],'HandleVisibility','off');
+yline(0,'Color',[.6 .6 .6],'HandleVisibility','off');
 xlabel('M_x  [N\cdotm]'); ylabel('M_y  [N\cdotm]');
-title(sprintf('Admissible roll/pitch set  (T_{tot} = %.2f N)', T_tot));
-legend('Location','eastoutside','FontSize',8);
+title({sprintf('Admissible roll/pitch set  (T_{tot} = %.2f N)', T_tot), ...
+       'solid: exact polytope   dotted: guaranteed authority (inscribed)'});
+legend('Location','eastoutside','FontSize',7);
 
 % ---- companion: rotor-thrust bar chart at one operating point --------
 subplot(1,2,2); hold on; grid on
 Mdemo = [1.0; 0.0; 0.15];                       % example command
 dT    = G*Mdemo;
 bar(1:6, Tbar + dT, 0.55, 'FaceColor',[.35 .55 .85]);
-yline(T_max,'r--','T_{max}','LabelHorizontalAlignment','left');
-yline(T_min,'r--','T_{min}','LabelHorizontalAlignment','left');
-yline(Tbar ,'k:' ,'$\bar{T}$','Interpreter','latex');
+yline(T_max,'r--','T_{max}','LabelHorizontalAlignment','left','HandleVisibility','off');
+yline(T_min,'r--','T_{min}','LabelHorizontalAlignment','left','HandleVisibility','off');
+yline(Tbar ,'k:' ,'$\bar{T}$','Interpreter','latex','HandleVisibility','off');
 xlabel('rotor index'); ylabel('T_i  [N]');
 title(sprintf('rotor thrusts at M = [%.2f, %.2f, %.2f] N\\cdotm', Mdemo));
 ylim([0 T_max*1.1]);
@@ -141,7 +156,8 @@ plot( Mz_star, -capCancel(Mz_star), 'ko','MarkerFaceColor','y','MarkerSize',7, .
      'DisplayName',sprintf('M_z^* = %.3f (rotor 5 \\rightarrow 4/6)',Mz_star));
 plot(-Mz_star,  capCancel(Mz_star), 'ko','MarkerFaceColor','y','MarkerSize',7, ...
      'HandleVisibility','off');
-xline(0,'Color',[.6 .6 .6]); yline(0,'Color',[.6 .6 .6]);
+xline(0,'Color',[.6 .6 .6],'HandleVisibility','off');
+yline(0,'Color',[.6 .6 .6],'HandleVisibility','off');
 xlabel('M_z  [N\cdotm]'); ylabel('M_x extent  [N\cdotm]');
 title('(a) signed roll extent — the two signs behave oppositely');
 legend('Location','south','FontSize',7);
@@ -157,7 +173,7 @@ plot(mzp, min(capCancel(mzp),capAdd(mzp)), 'k-','LineWidth',2.6, ...
      'DisplayName','actual |min M_x| = min of the two');
 plot(Mz_star, capCancel(Mz_star), 'ko','MarkerFaceColor','y','MarkerSize',7, ...
      'HandleVisibility','off');
-xline(Mz_star,':','Color',[.4 .4 .4],'Label',sprintf('M_z^*=%.3f',Mz_star));
+xline(Mz_star,':','Color',[.4 .4 .4],'Label',sprintf('M_z^*=%.3f',Mz_star),'HandleVisibility','off');
 ylim([0 6]);
 xlabel('M_z  [N\cdotm]'); ylabel('|M_x| capacity  [N\cdotm]');
 title('(b) which rotor binds on the -M_x side');
@@ -171,7 +187,8 @@ plot(Mz_scan,  Mmax(2)*(1-abs(Mz_scan)/Mz_max), 'k--','LineWidth',1.2, ...
      'DisplayName','budget bound M_y');
 plot(Mz_scan, -Mmax(2)*(1-abs(Mz_scan)/Mz_max), 'k--','LineWidth',1.2, ...
      'HandleVisibility','off');
-xline(0,'Color',[.6 .6 .6]); yline(0,'Color',[.6 .6 .6]);
+xline(0,'Color',[.6 .6 .6],'HandleVisibility','off');
+yline(0,'Color',[.6 .6 .6],'HandleVisibility','off');
 xlabel('M_z  [N\cdotm]'); ylabel('M_y extent  [N\cdotm]');
 title('(c) signed pitch extent (symmetric: no rotor has both max coeffs)');
 legend('Location','south','FontSize',7);
@@ -184,8 +201,8 @@ ylabel('set area  [(N\cdotm)^2]');
 yyaxis right
 stairs(Mz_scan, nVert, 'LineWidth',1.4);
 ylabel('# vertices (active constraints)'); ylim([0 8]); yticks(0:2:8);
-xline( Mz_star,':','Color',[.4 .4 .4]);
-xline(-Mz_star,':','Color',[.4 .4 .4]);
+xline( Mz_star,':','Color',[.4 .4 .4],'HandleVisibility','off');
+xline(-Mz_star,':','Color',[.4 .4 .4],'HandleVisibility','off');
 xlabel('M_z  [N\cdotm]');
 title('(d) area collapses; hexagon (6) \rightarrow triangle (3)');
 
@@ -199,7 +216,8 @@ if ANIMATE
         if ~isempty(V)
             fill(V(:,1), V(:,2), [.4 .6 .9], 'FaceAlpha',0.35, 'EdgeColor','b','LineWidth',1.6);
         end
-        xline(0,'Color',[.6 .6 .6]); yline(0,'Color',[.6 .6 .6]);
+        xline(0,'Color',[.6 .6 .6],'HandleVisibility','off');
+yline(0,'Color',[.6 .6 .6],'HandleVisibility','off');
         xlabel('M_x  [N\cdotm]'); ylabel('M_y  [N\cdotm]');
         title(sprintf('M_z = %.3f N\\cdotm   (M_z^{max} = %.3f)', Mz, Mz_max));
         drawnow; pause(0.02);
