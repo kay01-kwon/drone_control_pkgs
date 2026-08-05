@@ -63,10 +63,11 @@ fprintf('capacity: Mx %.4f | My %.4f | Mz %.4f  N*m\n', Mmax);
 fprintf('yaw/roll cost ratio = %.2f\n', gInf(3)/gInf(1));
 
 %% ------------------------- Figure -----------------------------------
-fig = figure('Color','w','Units','centimeters','Position',[2 2 14 11]);
+% wider canvas so the outside legend does not squeeze the axes
+fig = figure('Color','w','Units','centimeters','Position',[2 2 19 11]);
 ax  = axes(fig); hold(ax,'on'); grid(ax,'on'); box(ax,'on');
 axis(ax,'equal');
-set(ax,'FontSize',10,'GridAlpha',0.15,'Layer','top');
+set(ax,'FontSize',13,'GridAlpha',0.15,'Layer','top');
 
 cmap = lines(numel(Mz_list));
 th   = linspace(0,2*pi,361);
@@ -91,13 +92,13 @@ end
 xline(ax,0,'Color',[.6 .6 .6],'HandleVisibility','off');
 yline(ax,0,'Color',[.6 .6 .6],'HandleVisibility','off');
 
-xlabel(ax,'$M_x$ [N$\cdot$m]','Interpreter','latex','FontSize',11);
-ylabel(ax,'$M_y$ [N$\cdot$m]','Interpreter','latex','FontSize',11);
+xlabel(ax,'$M_x$ [N$\cdot$m]','Interpreter','latex','FontSize',15);
+ylabel(ax,'$M_y$ [N$\cdot$m]','Interpreter','latex','FontSize',15);
 title(ax, sprintf('$T_{\\mathrm{tot}} = %.2f$ N', T_tot), ...
-      'Interpreter','latex','FontSize',11);
+      'Interpreter','latex','FontSize',15);
 
-lg = legend(ax,'Interpreter','latex','FontSize',9,'Location','northeast');
-lg.ItemTokenSize = [18 9];
+lg = legend(ax,'Interpreter','latex','FontSize',13,'Location','bestoutside');
+lg.ItemTokenSize = [22 11];
 
 xlim(ax,[-3.7 3.0]); ylim(ax,[-3.2 3.2]);
 
